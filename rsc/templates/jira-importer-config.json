@@ -1,0 +1,100 @@
+{
+    "app": {
+      "artifacts": {
+        "delete_enabled": true
+      },
+      "import": {
+        "auto_open_page": true
+      },
+      "validation": {
+        "skip_all": false,
+        "skip_checks": {
+          "description": false,
+          "fixversion": true,
+          "component": true,
+          "child_issue_id": true,
+          "story_for_parent_link": true,
+          "sprint": true,
+          "assignee": true
+        }
+      },
+      "reporting": {
+        "skip_report": false
+      },
+      "logging": {
+        "write_to_file": false
+      }
+    },
+    "jira": {
+      "connection": {
+        "site_address": "https://xyz.atlassian.net",
+        "api_token": ""
+      },
+      "project": {
+        "key": "JITTP2",
+        "id": 0
+      },
+      "validation": {
+        "components": [
+          "design",
+          "development",
+          "production",
+          "quality assurance",
+          "quality control",
+          "devops",
+          "sysops"
+        ],
+        "priorities": [
+            "medium",
+            "highest",
+            "hight",
+            "low",
+            "lowest"
+        ],
+        "issue_types": [
+          "epic",
+          "story",
+          "task",
+          "sub-task",
+          "bug"
+        ],
+        "statuses": [
+          "Backlog",
+          "In Progress",
+          "Done",
+          "To Do"
+        ],
+        "fix_versions": [
+          "JITTP Version 1",
+          "JITTP Version 2"
+        ],
+        "min_sprint_value": 1
+      }
+    },
+    "metadata": {
+      "version": 5,
+      "description": "Jira Importer Configuration",
+      "last_updated": "2025-08-15"
+    },
+    "documentation": {
+      "description": "Jira Importer Configuration File",
+      "usage": {
+        "metadata": "Configuration file information (version, description, last_updated)",
+        "app": "Application behavior settings",
+        "jira": "Jira-specific settings and validation rules"
+      },
+      "active_fields": [
+        "jira.connection.site_address - Your Jira instance URL",
+        "jira.project.key - Your Jira project key",
+        "jira.validation.components - Valid component names",
+        "jira.validation.priorities - Valid priority levels",
+        "jira.validation.issue_types - Valid issue types",
+        "jira.validation.statuses - Valid workflow statuses",
+        "jira.validation.fix_versions - Valid release versions"
+      ],
+      "notes": [
+        "Copy this file to your project directory and update the values above",
+        "Use -c flag to specify custom config: jira-importer.exe data.xlsx -c config.json"
+      ]
+    }
+  }

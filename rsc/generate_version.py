@@ -4,7 +4,7 @@
 """
 Creates a new VSVersionInfo file for use with PyInstaller builds.
 
-Author: Julien
+Author: Julien (@tom4897)
 Date: June 2025
 """
 

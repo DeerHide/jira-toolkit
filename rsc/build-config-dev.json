@@ -1,0 +1,59 @@
+{
+  "directories": {
+    "app_input": "jira_importer",
+    "app_output": "jira importer",
+    "build": "build",
+    "dist": "dist",
+    "source": "src/jira_importer",
+    "resources": "rsc"
+  },
+  "files": {
+    "requirements": "rsc/requirements.txt",
+    "icon": "rsc/icons/deerhide_default.ico",
+    "license": "LICENSE",
+    "readme": "README.md",
+    "version": "rsc/VSVersionInfo"
+  },
+  "pyinstaller": {
+    "console": true,
+    "name": "jira_importer_dev",
+    "add_data": [
+      "deerhide_default.ico;.",
+      "VSVersionInfo;."
+    ],
+    "options": {
+      "icon": "deerhide_default.ico",
+      "distpath": "../dist",
+      "workpath": "pyinstaller_work",
+      "specpath": ".",
+      "paths": "src",
+      "version_file": "VSVersionInfo"
+    }
+  },
+  "code_signing": {
+    "enabled": false,
+    "certificate": "../../Certificates/deerhide_win_shipping.cert",
+    "signtool": "../../../../Apps/Windows Kits/10/App Certification Kit/signtool.exe",
+    "timestamp_server": "http://timestamp.digicert.com",
+    "digest_algorithm": "SHA256"
+  },
+  "build_options": {
+    "clean_build": false,
+    "clean_dist": true,
+    "check_dependencies": false,
+    "install_requirements": false,
+    "copy_documentation": false,
+    "build_version_file": false
+  },
+  "dependencies": {
+    "required": ["PyInstaller", "pandas"],
+    "optional": []
+  },
+  "output_control": {
+    "verbose": false,
+    "show_progress": true,
+    "show_warnings": false,
+    "show_debug_info": false,
+    "show_timestamps": false
+  }
+}

@@ -1,0 +1,44 @@
+build/
+lib/
+lib64/
+parts/
+dist/
+.svn/
+
+rsc/samples/
+src/v/
+v/
+rsc/VSVersionInfo
+rsc/build-config-v*.json
+
+*.psd
+~$*.xlsx
+*todo*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytype/
+.pytest_cache/
+
+# Build
+*.manifest
+*.spec
+.pybuilder/
+target/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.env_vars
+*.env_vars

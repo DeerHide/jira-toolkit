@@ -134,6 +134,8 @@ class CSVProcessor:
             'issuetype': self.config.get_value('jira.field.mappings.issuetype.csv_field') or 'issuetype',
             'component': self.config.get_value('jira.field.mappings.component.csv_field') or 'component',
             'fixversion': self.config.get_value('jira.field.mappings.fixversion.csv_field') or 'fixversion',
+            'estimate': self.config.get_value('jira.field.mappings.estimate.csv_field') or 'estimate',
+            'origest': self.config.get_value('jira.field.mappings.origest.csv_field') or 'origest',
             'sprint': self.config.get_value('jira.field.mappings.sprint.csv_field') or 'sprint',
             'issue_id': 'issue id',  # Keep hardcoded as it's not in field mappings
             'project_key': 'project key'  # Keep hardcoded as it's not in field mappings
@@ -243,10 +245,13 @@ class CSVProcessor:
         child_issue_id_indices = indices['child_issue_indices']
         assignee_index = indices['assignee']
         rowtype_index = indices['rowtype']
+        estimate_index = indices['estimate']
+        origest_index = indices['origest']
         
         self.check_summary(row, summary_index)
         self.check_issue_type(row, issuetype_index)
         self.check_priority_value(row, priority_index)
+        self.process_estimate(row, estimate_index, origest_index)
         
         # Only run checks if not skipped
         if not self.skip_component_check:
@@ -410,6 +415,52 @@ class CSVProcessor:
                     self.fix_list.append(f"Priority value '{row[priority_index]}' in row {self.current_row_index} has been fixed. (Original value: {old_priority})")
         elif row[priority_index].casefold() not in priorities_lower:
             self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
+
+    def process_estimate(self, row, estimate_index, origest_index):
+        computed_estimate = self.compute_estimate(row, estimate_index, origest_index)
+        if computed_estimate is not None and computed_estimate != "" and computed_estimate != "0":
+            row[origest_index] = computed_estimate
+        else:
+            row[origest_index] = "" 
+
+    def compute_estimate(self, row, estimate_index, origest_index) -> str:
+        """
+        Compute the original estimate from the estimate field.
+        - Parse estimate string for w (weeks), d (days), h (hours), m (minutes)
+        - Convert to seconds, then multiply by 60 for final estimate (because Jira)
+        - Ensure the origest column is empty if the estimate is empty to not trigger the feature in Jira
+        """
+        # Get estimate value
+        estimate_value = row[estimate_index]
+        if estimate_value is None or str(estimate_value).strip() == '':
+            return ""
+        
+        estimate_str = str(estimate_value).strip()
+        
+        # Parse time components: w (weeks), d (days), h (hours), m (minutes)
+        # 1w = 5d, 1d = 8h, 1h = 60m, 1m = 60s
+        def get_value(unit):
+            pattern = rf'(\d+)\s*{unit}'
+            match = re.search(pattern, estimate_str)
+            return int(match.group(1)) if match else 0
+        
+        weeks = get_value('w')
+        days = get_value('d')
+        hours = get_value('h')
+        minutes = get_value('m')
+        
+        # Convert to seconds (equivalent to Excel formula)
+        # Excel: w*144000 + d*28800 + h*3600 + m*60
+        seconds = weeks * 144000 + days * 28800 + hours * 3600 + minutes * 60
+        
+        # If no time specified, return empty string
+        if seconds == 0:
+            return ""
+        
+        # Final conversion: multiply by 60 (because Jira uses divide all estimates by 60)
+        final_estimate = seconds * 60
+        
+        return str(final_estimate)
 
     def check_fixversions(self, row, fixversion_index):
         fixversions = row[fixversion_index].split(',')

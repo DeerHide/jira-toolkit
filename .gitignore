@@ -7,8 +7,9 @@ dist/
 
 rsc/samples/
 src/v/
-v/k/
-v/dh/
+v/
+rsc/VSVersionInfo
+rsc/build-config-v*.json
 
 *.psd
 ~$*.xlsx
@@ -41,6 +42,3 @@ env.bak/
 venv.bak/
 .env_vars
 *.env_vars
-
-# mkdocs documentation
-/site

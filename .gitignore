@@ -42,3 +42,5 @@ env.bak/
 venv.bak/
 .env_vars
 *.env_vars
+rsc/templates/ImportTemplate.csv
+rsc/templates/ImportTemplate_JiraReady.csv

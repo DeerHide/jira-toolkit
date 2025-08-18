@@ -22,11 +22,11 @@ Welcome to the Jira Importer Toolkit development team! This guide will help you 
 2. **Create and activate virtual environment**
    ```bash
    # Create virtual environment
-   python -m venv venv
+   python -m venv .venv
    
    # Activate virtual environment
    # On Windows:
-   venv\Scripts\activate
+   .venv\Scripts\activate
    
    # On macOS/Linux:
    source venv/bin/activate
@@ -64,7 +64,7 @@ jira-toolkit/
 ├── docs/                       # Documentation
 ├── build.py                    # Build script
 ├── README.md                   # User documentation
-├── .venv/                       # Virtual environment (created during setup)
+├── .venv/                      # Virtual environment (created during setup)
 ├── dist/                       # Build output directory (created by build.py)
 ├── build/                      # PyInstaller build directory (created by build.py)
 ```

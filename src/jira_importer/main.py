@@ -28,7 +28,8 @@ from config import Configuration
 from artifacts import ArtifactManager
 from fileops import FileManager
 from userio import UserIO
-from utils import is_debug_mode, setup_logger, resource_path, find_config_path
+from log import is_debug_mode, setup_logger
+from utils import resource_path, find_config_path
 from csvprocessor import CSVProcessor
 
 # Suppress specific warnings from openpyxl

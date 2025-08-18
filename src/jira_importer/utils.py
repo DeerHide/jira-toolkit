@@ -14,31 +14,6 @@ import sys
 import os
 import colorlog
 
-def is_debug_mode():
-        debug_file_path = resource_path('.debug')
-        debug_mode = os.path.isfile(debug_file_path)
-        return debug_mode
-
-def setup_logger():
-    if is_debug_mode():
-        logginglevel = logging.DEBUG
-    else:
-        logginglevel = logging.INFO
-    if not logging.getLogger().hasHandlers():
-        handler = colorlog.StreamHandler()
-        handler.setFormatter(colorlog.ColoredFormatter(
-            "%(log_color)s %(levelname)s: %(message)s",
-            datefmt="",
-            reset=True,
-            log_colors={
-                'DEBUG': 'cyan',
-                'INFO': 'green',
-                'WARNING': 'yellow',
-                'ERROR': 'red',
-                'CRITICAL': 'red,bg_white',
-            }
-        ))
-        logging.basicConfig(level=logginglevel, handlers=[handler])
 
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):

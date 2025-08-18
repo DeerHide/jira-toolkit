@@ -31,8 +31,10 @@ class FileManager:
     - Deleting files with logging
     """
 
-    def __init__(self, artifact_manager: Optional[ArtifactManager] = None) -> None:
+    def __init__(self, artifact_manager: Optional[ArtifactManager] = None, config: Optional[object] = None) -> None:
         self.artifact_manager = artifact_manager
+        # Store configuration to access settings such as preferred sheet name
+        self.config = config
 
     def write_csv_file(self, output_file: str, csv_file, is_artifact: bool = True) -> bool:
         """Write a CSV file from a `csv_file` object exposing `header` and `data`.
@@ -78,19 +80,26 @@ class FileManager:
         Path(csv_file).parent.mkdir(parents=True, exist_ok=True)
         # List all sheet names with indices for debugging visibility
         sheet_name_to_read = 0
+        # Get desired sheet name from configuration, defaulting to 'dataset'
+        dataset_sheet_name = 'dataset'
+        try:
+            if getattr(self, 'config', None):
+                dataset_sheet_name = self.config.get_value('app.sheet_name', default='dataset', expected_type=str) or 'dataset'
+        except Exception as exc:
+            logger.debug("Unable to read 'app.sheet_name' from configuration, defaulting to 'dataset': %s", exc)
         try:
             excel_file = pd.ExcelFile(xlsx_file, engine='openpyxl')
             for idx, name in enumerate(excel_file.sheet_names):
                 logger.debug("XLSX sheets: [%d] %s", idx, name)
-            # Prefer a sheet named 'dataset' if present (case-sensitive first, then case-insensitive)
-            if 'dataset' in excel_file.sheet_names:
-                sheet_name_to_read = 'dataset'
+            # Prefer a sheet named as configured (case-sensitive first, then case-insensitive)
+            if dataset_sheet_name in excel_file.sheet_names:
+                sheet_name_to_read = dataset_sheet_name
             else:
                 for name in excel_file.sheet_names:
-                    if isinstance(name, str) and name.lower() == 'dataset':
+                    if isinstance(name, str) and name.lower() == str(dataset_sheet_name).lower():
                         sheet_name_to_read = name
                         break
-            logger.debug("Using sheet for conversion: %s", sheet_name_to_read)
+            logger.debug("Using sheet for conversion: %s (preferred: %s)", sheet_name_to_read, dataset_sheet_name)
         except Exception as exc:
             logger.debug("Unable to list sheets for '%s' (using index 0): %s", xlsx_file, exc)
         excel_content = pd.read_excel(xlsx_file, sheet_name=sheet_name_to_read, engine='openpyxl')

@@ -55,7 +55,7 @@ def main():
     
     config = Configuration(config_path, cfg_req=cfg_req)
     artifact_manager = ArtifactManager(config)
-    file_manager = FileManager(artifact_manager)
+    file_manager = FileManager(artifact_manager, config)
     user_prompt = UserIO()
     app = App(artifact_manager)
 

@@ -114,7 +114,7 @@ def main():
     pause = csv_jira.has_errors_or_warnings()
 
     if pause:
-        if not user_prompt.get_yes_no("Do you want to continue and write the formatted dataset? (yes/no): "):
+        if not user_prompt.get_yes_no("Do you want to continue and write the formatted dataset? (yes/no): ", default=False):
             app.event_abort()
 
     if not csv_jira.data:
@@ -137,7 +137,7 @@ def main():
         site_address = config.get_value('jira.connection.site_address', default='', expected_type=str)
         if not 'BulkCreateSetupPage' in site_address:
             site_address += '/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true'
-        UserIO.open_browser(f"{site_address}")
+        user_prompt.open_browser(f"{site_address}")
         
     logging.info("Processing complete. You can close this window now.")
     app.event_close(exit_code=0, cleanup=True)

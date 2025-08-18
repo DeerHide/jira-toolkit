@@ -38,8 +38,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 def main():
     """Main function for the Jira Importer application."""
-    setup_logger()
     args = App.parse_args()
+    # Initialize logging with CLI override support (-d/--debug)
+    setup_logger(logging.DEBUG if args.debug else None)
     
     # Handle mutually exclusive configuration arguments
     if args.config_default:
@@ -57,9 +58,6 @@ def main():
     file_manager = FileManager(artifact_manager)
     user_prompt = UserIO()
     app = App(artifact_manager)
-
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
 
     if args.version:
         user_prompt.show_message("Jira Importer v1.0.0")

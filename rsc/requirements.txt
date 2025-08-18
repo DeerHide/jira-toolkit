@@ -1,5 +1,7 @@
 logging
 colorlog
+colorama; platform_system == "Windows"
 tqdm
 pandas
 openpyxl
+structlog

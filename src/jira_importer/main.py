@@ -133,8 +133,8 @@ def main():
     logging.info(f"Formatted CSV file written to: ")
     logging.info(f"{os.path.abspath(csv_jira_output)}")
 
-    if config.get_value('app.import.auto_open_page'):
-        site_address = config.get_value('jira.connection.site_address')
+    if config.get_value('app.import.auto_open_page', default=False, expected_type=bool):
+        site_address = config.get_value('jira.connection.site_address', default='', expected_type=str)
         if not 'BulkCreateSetupPage' in site_address:
             site_address += '/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true'
         UserIO.open_browser(f"{site_address}")

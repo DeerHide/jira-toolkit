@@ -1,5 +1,0 @@
-logging
-colorlog
-tqdm
-pandas
-openpyxl

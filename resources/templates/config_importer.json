@@ -1,21 +1,22 @@
 {
     "app": {
+      "sheet_name": "dataset",
       "artifacts": {
-        "delete_enabled": true
+        "delete_enabled": false
       },
       "import": {
-        "auto_open_page": true
+        "auto_open_page": false
       },
       "validation": {
         "skip_all": false,
         "skip_checks": {
           "description": false,
-          "fixversion": true,
-          "component": true,
-          "child_issue_id": true,
-          "story_for_parent_link": true,
-          "sprint": true,
-          "assignee": true
+          "fixversion": false,
+          "component": false,
+          "child_issue_id": false,
+          "story_for_parent_link": false,
+          "sprint": false,
+          "assignee": false
         }
       },
       "reporting": {
@@ -46,7 +47,7 @@
         ],
         "priorities": [
             "medium",
-            "highest",
+            "higest",
             "hight",
             "low",
             "lowest"

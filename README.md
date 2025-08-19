@@ -1,6 +1,10 @@
 # Jira Importer Toolkit
 
-A lightweight tool to batch-import tasks into Jira Cloud from Excel files. Simply convert your Excel data to Jira-compatible format.
+A simple utility for batch-importing tasks from Excel into Jira Cloud. Prepare your spreadsheet in the required format, run the import, and your tasks are ready to use.
+
+## Why we built it
+
+Many teams continue to do their planning in Excel, even when their task execution lives in Jira. This tool provides a direct way to transfer those plans into Jira without manual data entry.
 
 ## Quick Start
 
@@ -49,6 +53,8 @@ The tool generates a formatted CSV file in the same directory as your input file
 1. Copy `jira-importer-config.json` to your project
 2. Update your Jira instance details
 3. Customize validation rules as needed
+
+Templates can be found under `rsc/templates/`.
 
 ## Future Features
 

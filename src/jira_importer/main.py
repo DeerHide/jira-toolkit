@@ -28,7 +28,8 @@ from config import Configuration
 from artifacts import ArtifactManager
 from fileops import FileManager
 from userio import UserIO
-from utils import is_debug_mode, setup_logger, resource_path, find_config_path
+from log import is_debug_mode, setup_logger
+from utils import resource_path, find_config_path
 from csvprocessor import CSVProcessor
 
 # Suppress specific warnings from openpyxl
@@ -37,8 +38,9 @@ warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 def main():
     """Main function for the Jira Importer application."""
-    setup_logger()
     args = App.parse_args()
+    # Initialize logging with CLI override support (-d/--debug)
+    setup_logger(logging.DEBUG if args.debug else None)
     
     # Handle mutually exclusive configuration arguments
     if args.config_default:
@@ -53,12 +55,9 @@ def main():
     
     config = Configuration(config_path, cfg_req=cfg_req)
     artifact_manager = ArtifactManager(config)
-    file_manager = FileManager(artifact_manager)
+    file_manager = FileManager(artifact_manager, config)
     user_prompt = UserIO()
     app = App(artifact_manager)
-
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
 
     if args.version:
         user_prompt.show_message("Jira Importer v1.0.0")
@@ -113,7 +112,7 @@ def main():
     pause = csv_jira.has_errors_or_warnings()
 
     if pause:
-        if not user_prompt.get_yes_no("Do you want to continue and write the formatted dataset? (yes/no): "):
+        if not user_prompt.get_yes_no("Do you want to continue and write the formatted dataset? (yes/no): ", default=False):
             app.event_abort()
 
     if not csv_jira.data:
@@ -132,11 +131,11 @@ def main():
     logging.info(f"Formatted CSV file written to: ")
     logging.info(f"{os.path.abspath(csv_jira_output)}")
 
-    if config.get_value('app.import.auto_open_page'):
-        site_address = config.get_value('jira.connection.site_address')
+    if config.get_value('app.import.auto_open_page', default=False, expected_type=bool):
+        site_address = config.get_value('jira.connection.site_address', default='', expected_type=str)
         if not 'BulkCreateSetupPage' in site_address:
             site_address += '/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true'
-        UserIO.open_browser(f"{site_address}")
+        user_prompt.open_browser(f"{site_address}")
         
     logging.info("Processing complete. You can close this window now.")
     app.event_close(exit_code=0, cleanup=True)

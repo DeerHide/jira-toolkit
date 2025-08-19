@@ -20,17 +20,33 @@ import json
 def load_config(config_path=None):
     """Load build configuration from JSON file."""
     if config_path is None:
-        config_path = os.path.join("rsc", "build-config.json")
+        # Default to shipping config
+        config_path = "shipping"
     elif not os.path.isabs(config_path):
-        # If relative path, assume it's relative to rsc directory
-        config_path = os.path.join("rsc", config_path)
+        # If relative path, assume it's a build name (without .json extension)
+        config_path = config_path
+    
+    # Construct the full path to the config file
+    if not config_path.endswith('.json'):
+        config_file = f"{config_path}.json"
+    else:
+        config_file = config_path
+    
+    config_dir = "build/configs"
+    full_config_path = os.path.join(config_dir, config_file)
     
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(full_config_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"❌ Configuration file not found: {config_path}")
-        print("Please ensure the configuration file exists")
+        print(f"❌ Configuration file not found: {full_config_path}")
+        print(f"Available configurations in {config_dir}:")
+        if os.path.exists(config_dir):
+            for file in os.listdir(config_dir):
+                if file.endswith('.json'):
+                    print(f"  - {file[:-5]}")  # Remove .json extension
+        else:
+            print(f"  Directory {config_dir} does not exist")
         sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"❌ Invalid JSON in configuration file: {e}")
@@ -127,43 +143,81 @@ def sign_executable(executable_path, config):
         return False
 
 def clean_directories(config):
-    """Clean build and dist directories."""
-    build_dir = config["directories"]["build"]
+    """Clean dist directory and prepare temp directory."""
     dist_dir = config["directories"]["dist"]
+    temp_dir = config["directories"]["temp"]
     
-    for directory in [build_dir, dist_dir]:
-        if os.path.isdir(directory):
-            conditional_print(f"🧹 Cleaning {directory} directory...", config, "progress")
-            shutil.rmtree(directory)
-        os.makedirs(directory)
-        conditional_print(f"✅ Created {directory} directory", config, "progress")
+    # Clean dist directory if specified
+    if os.path.isdir(dist_dir):
+        conditional_print(f"🧹 Cleaning {dist_dir} directory...", config, "progress")
+        shutil.rmtree(dist_dir)
+    os.makedirs(dist_dir, exist_ok=True)
+    conditional_print(f"✅ Created {dist_dir} directory", config, "progress")
+    
+    # Clean temp directory only if clean_temp is enabled
+    if config["build_options"]["clean_temp"]:
+        if os.path.isdir(temp_dir):
+            conditional_print(f"🧹 Cleaning {temp_dir} directory...", config, "progress")
+            shutil.rmtree(temp_dir)
+        os.makedirs(temp_dir, exist_ok=True)
+        conditional_print(f"✅ Created {temp_dir} directory", config, "progress")
+    else:
+        # Just ensure temp directory exists
+        os.makedirs(temp_dir, exist_ok=True)
+        conditional_print(f"✅ Ensured {temp_dir} directory exists", config, "progress")
 
 def build_version_file(config):
     """Build the version file."""
     if config["build_options"]["build_version_file"]:
-        rsc_dir = config["directories"]["resources"]
-        subprocess.check_call([sys.executable, os.path.join(rsc_dir, "generate_version.py")])
-        conditional_print("✅ Version file generated successfully", config, "progress")
+        # Import and run the version generation script directly
+        import sys
+        import os
+        
+        # Add the version directory to the path so we can import the script
+        version_dir = os.path.abspath("build/version")
+        sys.path.insert(0, version_dir)
+        
+        try:
+            import generate_version  # type: ignore # noqa: F401
+            # The script should run its main logic when imported
+            conditional_print("✅ Version file generated successfully", config, "progress")
+        except ImportError as e:
+            conditional_print(f"❌ Failed to import generate_version.py: {e}", config, "warning")
+            sys.exit(1)
+        finally:
+            # Clean up the path
+            sys.path.pop(0)
     else:
         conditional_print("⏭️  Version file generation disabled in config", config)
 
 def copy_build_files(config):
-    """Copy necessary files to build directory."""
+    """Copy necessary files to temp directory."""
     try:
         icon_file = config["files"]["icon"]
         version_file = config["files"]["version"]
-        build_dir = config["directories"]["build"]
+        temp_dir = config["directories"]["temp"]
         src_dir = config["directories"]["source"]
         
-        shutil.copy(icon_file, os.path.join(build_dir, "deerhide_default.ico"))
-        shutil.copy(version_file, os.path.join(build_dir, "VSVersionInfo"))
-        shutil.copytree(src_dir, os.path.join(build_dir, "src"))
-        conditional_print("✅ Build files copied successfully", config, "progress")
+        # Ensure temp directory exists (in case clean_directories wasn't called)
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Copy icon and version files (these will overwrite existing files)
+        shutil.copy(icon_file, os.path.join(temp_dir, "deerhide_default.ico"))
+        shutil.copy(version_file, os.path.join(temp_dir, "VSVersionInfo"))
+        
+        # Handle src directory - remove if exists, then copy
+        temp_src_dir = os.path.join(temp_dir, "src")
+        if os.path.exists(temp_src_dir):
+            conditional_print("🗑️  Removing existing src directory...", config, "progress")
+            shutil.rmtree(temp_src_dir)
+        
+        shutil.copytree(src_dir, temp_src_dir)
+        conditional_print("✅ Build files copied to temp directory successfully", config, "progress")
     except Exception as e:
         conditional_print(f"❌ Error copying build files: {e}", config, "warning")
         sys.exit(1)
 
-def build_executable(config):
+def build_executable(config, config_name):
     """Build the executable using PyInstaller."""
     src_dir = config["directories"]["source"]
     main_script = os.path.join(src_dir, "main.py")
@@ -178,21 +232,27 @@ def build_executable(config):
 
     conditional_print(f"🔨 Building executable from: {main_script}", config, "progress")
     
-    # Change to build directory for PyInstaller
-    build_dir = config["directories"]["build"]
+    # Get absolute paths for better reliability
+    temp_dir = os.path.abspath(config["directories"]["temp"])
+    base_dist_dir = os.path.abspath(config["directories"]["dist"])
+    dist_dir = os.path.join(base_dist_dir, config_name)  # Use config-specific subdirectory
+    work_dir = os.path.join(temp_dir, "pyinstaller_work")
+    spec_dir = temp_dir
+    
+    # Change to temp directory for PyInstaller
     original_cwd = os.getcwd()
-    os.chdir(build_dir)
+    os.chdir(temp_dir)
     
     try:
         pyinstaller_cmd = [
             "pyinstaller",
-            "--onedir",  # Explicitly use onedir mode
+            "--onefile",  # Create a single executable file for non-technical users
             "--console" if config["pyinstaller"]["console"] else "--windowed",
             "--icon", config["pyinstaller"]["options"]["icon"],
-            "--distpath", config["pyinstaller"]["options"]["distpath"],
-            "--workpath", config["pyinstaller"]["options"]["workpath"],
-            "--specpath", config["pyinstaller"]["options"]["specpath"],
-            "--paths", config["pyinstaller"]["options"]["paths"],
+            "--distpath", dist_dir,  # Use config-specific dist directory
+            "--workpath", work_dir,  # Use absolute path
+            "--specpath", spec_dir,  # Use absolute path
+            "--paths", "src",  # Use local src directory
             "--name", config["pyinstaller"]["name"],
             "--version-file", config["pyinstaller"]["options"]["version_file"]
         ]
@@ -201,8 +261,8 @@ def build_executable(config):
         for data_file in config["pyinstaller"]["add_data"]:
             pyinstaller_cmd.extend(["--add-data", data_file])
         
-        # Add main script - use relative path from build directory
-        pyinstaller_cmd.append("../src/jira_importer/main.py")
+        # Add main script - use local src directory
+        pyinstaller_cmd.append("src/main.py")
         
         subprocess.check_call(pyinstaller_cmd)
         conditional_print("✅ Executable built successfully!", config, "progress")
@@ -213,7 +273,7 @@ def build_executable(config):
         # Always restore original working directory
         os.chdir(original_cwd)
 
-def copy_documentation(config):
+def copy_documentation(config, config_name):
     """Copy documentation files to dist directory."""
     if not config["build_options"]["copy_documentation"]:
         conditional_print("⏭️  Documentation copying disabled in config", config)
@@ -221,30 +281,42 @@ def copy_documentation(config):
         
     try:
         dist_dir = config["directories"]["dist"]
-        app_dir_output = config["directories"]["app_output"]
         license_file = config["files"]["license"]
         readme_file = config["files"]["readme"]
         
-        # Find the actual dist directory structure
-        dist_app_dir = os.path.join(dist_dir, app_dir_output)
-        if not os.path.exists(dist_app_dir):
-            # Try alternative naming
-            dist_app_dir = os.path.join(dist_dir, config["pyinstaller"]["name"])
+        # Use config-specific dist directory (single file structure)
+        config_dist_dir = os.path.join(dist_dir, config_name)
         
-        if os.path.exists(dist_app_dir):
-            shutil.copy(license_file, os.path.join(dist_app_dir, f"{config['pyinstaller']['name']}_LICENSE.md"))
-            shutil.copy(readme_file, os.path.join(dist_app_dir, f"{config['pyinstaller']['name']}_README.md"))
+        if os.path.exists(config_dist_dir):
+            shutil.copy(license_file, os.path.join(config_dist_dir, f"{config['pyinstaller']['name']}_LICENSE.md"))
+            shutil.copy(readme_file, os.path.join(config_dist_dir, f"{config['pyinstaller']['name']}_README.md"))
             conditional_print("✅ Documentation copied successfully", config, "progress")
         else:
-            conditional_print(f"⚠️  Warning: Could not find dist app directory at {dist_app_dir}", config, "warning")
+            conditional_print(f"⚠️  Warning: Could not find dist directory at {config_dist_dir}", config, "warning")
     except Exception as e:
         conditional_print(f"⚠️  Warning: Could not copy documentation: {e}", config, "warning")
+
+def cleanup_temp_files(config):
+    """Clean up temporary files after build completion."""
+    temp_dir = config["directories"]["temp"]
+    
+    if os.path.isdir(temp_dir):
+        conditional_print("🧹 Cleaning up temporary files...", config, "progress")
+        try:
+            shutil.rmtree(temp_dir)
+            conditional_print("✅ Temporary files cleaned up successfully", config, "progress")
+        except Exception as e:
+            conditional_print(f"⚠️  Warning: Could not clean up temp directory: {e}", config, "warning")
+    else:
+        conditional_print("⏭️  No temp directory to clean up", config, "debug")
 
 def main():
     parser = argparse.ArgumentParser(description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-c", "--config", 
-                       help="Configuration file path (default: build-config.json, dev: build-config-dev.json, shipping: build-config-shipping.json)", 
-                       default="build-config.json")
+                       help="Build configuration name (default: shipping)\n"
+                            "Configurations are stored in build/configs/BUILDNAME.json\n"
+                            "Examples: shipping, dev, debug, release", 
+                       default="shipping")
     args = parser.parse_args()
 
     # Load configuration based on argument
@@ -273,7 +345,7 @@ def main():
         conditional_print("⏭️  Requirements installation disabled in config", CONFIG)
     
     # Clean and prepare directories
-    if CONFIG["build_options"]["clean_build"] or CONFIG["build_options"]["clean_dist"]:
+    if CONFIG["build_options"]["clean_dist"]:
         conditional_print("🧹 Preparing build environment...", CONFIG, "progress")
         clean_directories(CONFIG)
     else:
@@ -289,15 +361,12 @@ def main():
     
     # Build executable
     conditional_print("🔨 Building executable...", CONFIG, "progress")
-    build_executable(CONFIG)
+    build_executable(CONFIG, args.config) # Pass config_name as an argument
     
     # Code signing (optional)
     dist_dir = CONFIG["directories"]["dist"]
-    app_dir_output = CONFIG["directories"]["app_output"]
-    executable_path = os.path.join(dist_dir, app_dir_output, f"{CONFIG['pyinstaller']['name']}.exe")
-    if not os.path.exists(executable_path):
-        # Try alternative naming
-        executable_path = os.path.join(dist_dir, CONFIG["pyinstaller"]["name"], f"{CONFIG['pyinstaller']['name']}.exe")
+    config_dist_dir = os.path.join(dist_dir, args.config)  # Use config-specific dist directory
+    executable_path = os.path.join(config_dist_dir, f"{CONFIG['pyinstaller']['name']}.exe")
     
     if os.path.exists(executable_path):
         conditional_print("\n" + "="*50, CONFIG)
@@ -308,19 +377,27 @@ def main():
         conditional_print(f"⚠️  Warning: Expected executable not found at {executable_path}", CONFIG, "warning")
         conditional_print("Checking for executable in dist directory...", CONFIG, "debug")
         # List contents of dist directory to help debug
-        if os.path.exists(dist_dir):
-            for root, dirs, files in os.walk(dist_dir):
+        if os.path.exists(config_dist_dir):
+            for root, dirs, files in os.walk(config_dist_dir):
                 for file in files:
                     if file.endswith('.exe'):
                         conditional_print(f"Found executable: {os.path.join(root, file)}", CONFIG, "debug")
     
     # Copy documentation
     conditional_print("📚 Copying documentation...", CONFIG, "progress")
-    copy_documentation(CONFIG)
+    copy_documentation(CONFIG, args.config)  # Pass config_name
+    
+    # Clean up temporary files based on config setting
+    if CONFIG["build_options"]["clean_temp"]:
+        cleanup_temp_files(CONFIG)
+    else:
+        conditional_print("💾 Keeping temporary files (clean_temp disabled in config)", CONFIG, "progress")
+        temp_dir = CONFIG["directories"]["temp"]
+        conditional_print(f"📁 Temp files location: {temp_dir}", CONFIG, "progress")
     
     conditional_print("\n" + "="*50, CONFIG)
     conditional_print("🎉 Build completed successfully!", CONFIG, "progress")
-    conditional_print(f"📦 Executable location: {os.path.join(dist_dir, app_dir_output)}", CONFIG, "progress")
+    conditional_print(f"📦 Executable location: {config_dist_dir}", CONFIG, "progress")
     conditional_print("="*50, CONFIG)
 
 if __name__ == "__main__":

@@ -4,15 +4,16 @@
     "app_output": "jira importer",
     "build": "build",
     "dist": "dist",
+    "temp": "build/temp",
     "source": "src/jira_importer",
     "resources": "rsc"
   },
   "files": {
     "requirements": "rsc/requirements.txt",
-    "icon": "rsc/icons/deerhide_default.ico",
+    "icon": "build/icons/deerhide_default.ico",
     "license": "LICENSE",
     "readme": "README.md",
-    "version": "rsc/VSVersionInfo"
+    "version": "build/version/VSVersionInfo"
   },
   "pyinstaller": {
     "console": true,
@@ -23,7 +24,6 @@
     ],
     "options": {
       "icon": "deerhide_default.ico",
-      "distpath": "../dist",
       "workpath": "pyinstaller_work",
       "specpath": ".",
       "paths": "src",
@@ -31,18 +31,18 @@
     }
   },
   "code_signing": {
-    "enabled": true,
+    "enabled": false,
     "certificate": "../../Certificates/deerhide_win_shipping.cert",
     "signtool": "../../../../Apps/Windows Kits/10/App Certification Kit/signtool.exe",
     "timestamp_server": "http://timestamp.digicert.com",
     "digest_algorithm": "SHA256"
   },
   "build_options": {
-    "clean_build": true,
     "clean_dist": true,
-    "check_dependencies": true,
-    "install_requirements": true,
-    "copy_documentation": true,
+    "clean_temp": false,
+    "check_dependencies": false,
+    "install_requirements": false,
+    "copy_documentation": false,
     "build_version_file": true
   },
   "dependencies": {
@@ -53,7 +53,7 @@
     "verbose": true,
     "show_progress": true,
     "show_warnings": true,
-    "show_debug_info": false,
+    "show_debug_info": true,
     "show_timestamps": true
   }
 }

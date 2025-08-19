@@ -234,7 +234,7 @@ Contains information about the configuration file itself.
 Use the `-ci` flag to use the config_importer.json that is in the same folder as the excel file
 
 ```bash
-jira-importer.exe data.xlsx -ci config.json
+jira_importer.exe data.xlsx -ci config.json
 ```
 
 ### Running with Custom Configuration
@@ -250,7 +250,7 @@ jira-importer.exe data.xlsx -c config.json
 Run the importer in debug mode for detailed logging:
 
 ```bash
-jira-importer.exe data.xlsx -c config.json -d
+jira_importer.exe data.xlsx -c config.json -d
 ```
 
 ## Security Considerations

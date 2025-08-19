@@ -6,7 +6,7 @@ Welcome to the Jira Importer Toolkit development team! This guide will help you 
 
 ### Prerequisites
 
-- **Python 3.10+** (recommended: Python 13)
+- **Python 3.10+**
 - **Git** for version control
 - **pip** for package management
 - **Windows** (primary development platform)
@@ -29,12 +29,12 @@ Welcome to the Jira Importer Toolkit development team! This guide will help you 
    .venv\Scripts\activate
    
    # On macOS/Linux:
-   source venv/bin/activate
+   source .venv/bin/activate
    ```
 
 3. **Install dependencies**
    ```bash
-   pip install -r rsc/requirements.txt
+   pip install -r requirements.txt
    ```
 
 4. **Verify installation**
@@ -56,17 +56,20 @@ jira-toolkit/
 │   ├── userio.py               # User interaction
 │   ├── log.py                  # Logging utilities
 │   └── utils.py                # Utility functions
-├── rsc/                        # Resources
-│   ├── requirements.txt        # Python dependencies
-│   ├── build-config-*.json     # Build configurations
-│   ├── templates/              # Template files
-│   └── samples/                # Sample data
+├── build/                      # Build assets and working dirs
+│   ├── configs/                # Build configurations (dev.json, shipping.json)
+│   ├── icons/                  # Application icons
+│   ├── version/                # Version management (generate_version.py, VSVersionInfo)
+│   └── temp/                   # Ephemeral staging area for builds (gitignored)
+├── dist/                       # Build output (per-config subfolders: dev/, shipping/)
+├── rsc/                        # Runtime/user resources
+│   └── templates/              # Template files (config_importer.json, ImportTemplate.xlsx, jira-config.json)
 ├── docs/                       # Documentation
-├── build.py                    # Build script
+├── scripts/                    # Helper scripts (placeholder for future dev tooling)
+├── build.py                    # Build script entrypoint
+├── requirements.txt            # Python dependencies
 ├── README.md                   # User documentation
-├── .venv/                      # Virtual environment (created during setup)
-├── dist/                       # Build output directory (created by build.py)
-├── build/                      # PyInstaller build directory (created by build.py)
+└── .venv/                      # Virtual environment (created during setup)
 ```
 
 ## 🛠️ Development Workflow
@@ -103,12 +106,12 @@ jira-toolkit/
 
 1. **Development build**
    ```bash
-   python build.py --config rsc/build-config-dev.json
+   python build.py -c dev
    ```
 
 2. **Production build**
    ```bash
-   python build.py --config rsc/build-config-shipping.json
+   python build.py -c shipping
    ```
 
 ## 🔧 Key Components
@@ -178,7 +181,7 @@ The application supports debug mode which can be triggered by:
 4. Test error handling scenarios
 
 ### Sample Data
-- Use `rsc/samples/` for test data
+- Use the template under `resources/templates/ImportTemplate.xlsx` to craft test data
 - Create test cases with different data scenarios
 - Test edge cases and error conditions
 
@@ -190,19 +193,19 @@ The application supports debug mode which can be triggered by:
    ```
 
 2. **Make your changes**
-   - Follow the code style guidelines
-   - Test your changes thoroughly
-   - Update documentation if needed
+- Follow the code style guidelines
+- Test your changes thoroughly
+- Update documentation if needed
 
 3. **Test your build**
    ```bash
-   python build.py --config rsc/build-config-dev.json
+   python build.py -c dev
    ```
 
 4. **Submit a pull request**
-   - Include a clear description of changes
-   - Reference any related issues
-   - Ensure all tests pass
+- Include a clear description of changes
+- Reference any related issues
+- Ensure all tests pass
 
 ## 📦 Dependencies
 
@@ -226,7 +229,7 @@ The application supports debug mode which can be triggered by:
 3. Verify all dependencies are included
 
 ### Version Management
-- Update version information in `rsc/generate_version.py`
+- Update version information via `build/version/generate_version.py`
 - Follow semantic versioning principles
 - Update documentation for new features
 

@@ -54,6 +54,8 @@ The tool generates a formatted CSV file in the same directory as your input file
 2. Update your Jira instance details
 3. Customize validation rules as needed
 
+Templates can be found under `rsc/templates/`.
+
 ## Future Features
 
 The following features are planned for future releases:

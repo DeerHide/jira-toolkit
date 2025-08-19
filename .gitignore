@@ -1,15 +1,15 @@
-build/
+temp/
+build/temp/
 lib/
 lib64/
 parts/
 dist/
 .svn/
 
-rsc/samples/
-src/v/
-v/
+src/v-*/
+v-*/
 rsc/VSVersionInfo
-rsc/build-config-v*.json
+build/configs/v-*.json
 
 *.psd
 ~$*.xlsx

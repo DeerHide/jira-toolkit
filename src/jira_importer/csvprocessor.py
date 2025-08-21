@@ -108,9 +108,16 @@ class CSVProcessor:
                 self.warning_list.append(f"Row skipped due to empty row: {row}")
                 continue
             
-            if row[self.header.index('rowtype')].strip().lower() in skip_keywords:  # Skip rows where the first value matches any keyword
-                logging.debug(f"Row skipped ({row[self.header.index('rowtype')].strip().lower()}): {row[2]}")
-                continue
+            # Check if rowtype column exists before accessing it
+            try:
+                rowtype_index = self.header.index('rowtype')
+                if row[rowtype_index].strip().lower() in skip_keywords:  # Skip rows where the first value matches any keyword
+                    logging.debug(f"Row skipped ({row[rowtype_index].strip().lower()}): {row[2] if len(row) > 2 else 'N/A'}")
+                    continue
+            except ValueError:
+                # rowtype column not found, continue processing
+                pass
+                
             if len(row) != len(self.header):  # Skip rows with incorrect number of columns
                 self.error_list.append(f"Row skipped due to incorrect number of columns: {row}")
                 continue
@@ -263,13 +270,14 @@ class CSVProcessor:
         self.check_priority_value(row, priority_index)
 
         # process estimate
-        self.process_estimate(row, estimate_index, origest_index)
+        if estimate_index is not None and origest_index is not None:
+            self.process_estimate(row, estimate_index, origest_index)
         
-        # Only run checks if not skipped
-        if not self.skip_component_check:
+        # Only run checks if not skipped and indices are valid
+        if not self.skip_component_check and component_index is not None:
             self.check_components(row, component_index)
         
-        if not self.skip_description_check:
+        if not self.skip_description_check and description_index is not None:
             self.check_description(row, description_index)
         
         self.check_for_duplicate_issue_id(row, issue_id_index)
@@ -279,13 +287,14 @@ class CSVProcessor:
         if not self.skip_story_parent_link_check:
             self.check_story_for_parent_link(row, issuetype_index)
         
-        if not self.skip_fixversion_check:
+        if not self.skip_fixversion_check and fixversion_index is not None:
             self.check_fixversions(row, fixversion_index)
         
-        if not self.skip_sprint_check:
+        if not self.skip_sprint_check and sprint_index is not None:
             self.check_sprint(row, sprint_index)
         
-        self.check_project_key(row, project_key_index)
+        if project_key_index is not None:
+            self.check_project_key(row, project_key_index)
         
         if not self.skip_assignee_check:
             self.check_assignee(row, assignee_index)
@@ -302,7 +311,12 @@ class CSVProcessor:
             logging.debug(f"Skipping assignee check - column not found in header")
             return
             
-        assignee = row[assignee_index].strip() if assignee_index < len(row) else ""
+        # Check if assignee_index is within bounds
+        if assignee_index >= len(row):
+            logging.debug(f"Skipping assignee check - index {assignee_index} out of bounds for row length {len(row)}")
+            return
+            
+        assignee = row[assignee_index].strip() if row[assignee_index] else ""
         logging.debug(f"Checking assignee: '{assignee}' in row {self.current_row_index}")
         
         # Basic assignee validation - could be enhanced with config later
@@ -386,6 +400,7 @@ class CSVProcessor:
         """Ensure stories have parent/epic links."""
         if row[issuetype_index].lower() == 'story':
             # The column is often named 'parent' but sometimes named 'epic link'
+            parent_link_index = None
             if 'parent' in self.header:
                 parent_link_index = self.header.index('parent')
             elif 'epic link' in self.header:
@@ -393,16 +408,27 @@ class CSVProcessor:
             else:
                 self.warning_list.append(f"Could not find a 'parent' or an 'epic link' column for Story in row {self.current_row_index}.")
                 return
-            if not row[parent_link_index]:
-                self.warning_list.append(f"Story does not have a parent Link in row {self.current_row_index}.")
+                
+            # Check if parent_link_index is within bounds
+            if parent_link_index is not None and parent_link_index < len(row):
+                if not row[parent_link_index]:
+                    self.warning_list.append(f"Story does not have a parent Link in row {self.current_row_index}.")
+            else:
+                self.warning_list.append(f"Parent link index {parent_link_index} out of bounds for row {self.current_row_index}.")
 
     def check_description(self, row, description_index):
         """Validate description field is not empty."""
+        if description_index is None:
+            logging.debug(f"Skipping description check - column not found in header")
+            return
         if row[description_index] is None or row[description_index].strip() == '' or len(row[description_index]) < 1:
             self.warning_list.append(f"Description value is empty {self.current_row_index}.")
 
     def check_summary(self, row, summary_index):
         """Validate summary length (5-255 characters)."""
+        if summary_index is None:
+            logging.debug(f"Skipping summary check - column not found in header")
+            return
         if row[summary_index] and len(row[summary_index]) > 255:
             self.warning_list.append(f"Summary value exceeds 255 characters in row {self.current_row_index}.")
         if not row[summary_index] or len(row[summary_index]) < 5:
@@ -410,6 +436,9 @@ class CSVProcessor:
 
     def check_components(self, row, component_index):
         """Validate components against config-defined list."""
+        if component_index is None:
+            logging.debug(f"Skipping component check - column not found in header")
+            return
         components = row[component_index].split(',')
         components_normalized = [component.casefold() for component in self.config_components]
         for component in components:
@@ -418,6 +447,9 @@ class CSVProcessor:
 
     def check_issue_type(self, row, issuetype_index):
         """Validate issue type against config-defined list."""
+        if issuetype_index is None:
+            logging.debug(f"Skipping issue type check - column not found in header")
+            return
         issuetypes_normalized = [issuetype.casefold() for issuetype in self.config_issuetypes]
         if row[issuetype_index].casefold() not in issuetypes_normalized:
             self.error_list.append(f"Invalid Issue Type value '{row[issuetype_index]}' in row {self.current_row_index}.")
@@ -441,6 +473,9 @@ class CSVProcessor:
 
     def process_estimate(self, row, estimate_index, origest_index):
         """Process and store computed estimate in origest field."""
+        if estimate_index is None or origest_index is None:
+            logging.debug(f"Skipping estimate processing - indices are None")
+            return
         computed_estimate = self.compute_estimate(row, estimate_index, origest_index)
         if computed_estimate is not None and computed_estimate != "" and computed_estimate != "0":
             row[origest_index] = computed_estimate
@@ -454,6 +489,9 @@ class CSVProcessor:
         Returns empty string if no valid time found.
         """
         # Get estimate value
+        if estimate_index is None or origest_index is None:
+            logging.debug(f"Skipping estimate computation - indices are None")
+            return ""
         estimate_value = row[estimate_index]
         if estimate_value is None or str(estimate_value).strip() == '':
             return ""
@@ -487,14 +525,20 @@ class CSVProcessor:
 
     def check_fixversions(self, row, fixversion_index):
         """Validate fix versions against config-defined list."""
+        if fixversion_index is None:
+            logging.debug(f"Skipping fix version check - column not found in header")
+            return
         fixversions = row[fixversion_index].split(',')
-        fixversions_missuetypes_normalized = [fixversion.casefold() for fixversion in self.config_fixversions]
+        fixversions_normalized = [fixversion.casefold() for fixversion in self.config_fixversions]
         for fixversion in fixversions:
-            if fixversion.casefold() not in fixversions_missuetypes_normalized:
+            if fixversion.casefold() not in fixversions_normalized:
                 self.error_list.append(f"Invalid Fix Version value '{fixversion}' in row {self.current_row_index}.")
 
     def check_sprint(self, row, sprint_index):
         """Validate sprint number against minimum config value."""
+        if sprint_index is None:
+            logging.debug(f"Skipping sprint check - column not found in header")
+            return
         sprint = row[sprint_index]
         if sprint is None or sprint.strip() == '':
             return
@@ -508,6 +552,9 @@ class CSVProcessor:
 
     def check_project_key(self, row, project_key_index):
         """Validate and auto-fix project key to config value."""
+        if project_key_index is None:
+            logging.debug(f"Skipping project key check - column not found in header")
+            return
         project_key = row[project_key_index]
         if type(project_key) is not str:
             if project_key is None or project_key.strip() == '':

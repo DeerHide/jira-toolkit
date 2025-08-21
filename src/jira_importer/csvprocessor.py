@@ -529,4 +529,3 @@ class CSVProcessor:
                 logging.error(error)
             for fix in self.fix_list:
                 logging.info(fix)
-

@@ -34,7 +34,7 @@ class CSVProcessor:
     issue_id_list = []
 
 
-    def __init__(self, path, config):
+    def __init__(self, path, config) -> None:
         self.config = config
         self.load_config_values(config)
         self.path = path
@@ -43,7 +43,7 @@ class CSVProcessor:
         self.column_indices = self.extract_column_indices()
         self.data = self.format_data()
 
-    def load_config_values(self, config):
+    def load_config_values(self, config) -> None:
         """Load validation settings and skip flags from config."""
         # Load validation lists
         self.config_components = config.get_value('jira.validation.components')
@@ -69,7 +69,7 @@ class CSVProcessor:
         self.skip_sprint_check = self.skip_checks.get('sprint', False)
         self.skip_assignee_check = self.skip_checks.get('assignee', False)
 
-    def get_assignees_from_config(self):
+    def get_assignees_from_config(self) -> List[str]:
         """Get assignee list from configuration."""
         logging.debug("Loading assignees from configuration.")
         if hasattr(self, 'config') and self.config:
@@ -78,7 +78,7 @@ class CSVProcessor:
                 return assignees
         return []    
 
-    def read(self):
+    def read(self) -> None:
         """Read CSV file and extract header and data."""
         with open(self.path, mode='r', newline='', encoding='utf-8', errors='ignore') as infile:
             csv_reader = csv.reader(infile)
@@ -89,14 +89,14 @@ class CSVProcessor:
                 App.event_fatal()
             self.data = [row for row in csv_reader]
 
-    def format_header(self):
+    def format_header(self) -> List[str]:
         """Normalize header column names for processing."""
         logging.debug(f"Original header: {self.header}")
         formatted_header = [re.sub(r'\d+', '', column).strip().lower() for column in self.header]
         logging.debug(f"Formatted header: {formatted_header}")
         return formatted_header
 
-    def format_data(self):
+    def format_data(self) -> List[List[str]]:
         """Process and validate CSV data rows."""
         formatted_rows = []
         
@@ -234,7 +234,7 @@ class CSVProcessor:
             
         return row[index].strip() if row[index] else default
 
-    def row_validator(self, row):
+    def row_validator(self, row) -> List[str]:
         """Run all validation checks on a single row."""
         if self.column_indices is None:
             return row  # or handle the error as needed
@@ -305,7 +305,7 @@ class CSVProcessor:
         
         return row
     
-    def check_assignee(self, row, assignee_index):
+    def check_assignee(self, row, assignee_index) -> None:
         """Validate assignee ID length and format."""
         if assignee_index is None:
             logging.debug(f"Skipping assignee check - column not found in header")
@@ -339,7 +339,7 @@ class CSVProcessor:
         #     self.warning_list.append(warning_msg)
         #     logging.warning(warning_msg)
 
-    def check_for_duplicate_issue_id(self, row, issue_id_index):
+    def check_for_duplicate_issue_id(self, row, issue_id_index) -> None:
         """Check for duplicate issue IDs across all rows."""
         issue_id = row[issue_id_index]
         if issue_id in self.issue_id_list:
@@ -347,7 +347,7 @@ class CSVProcessor:
             self.error_list.append(f"Duplicated Issue ID {issue_id} in row {self.current_row_index}.")
 
 
-    def check_issue_id(self, row, column_index):
+    def check_issue_id(self, row, column_index) -> None:
         """Validate and normalize issue ID format."""
         issue_id = row[column_index]
         if isinstance(issue_id, str) and re.match(r'^-?\d+(\.\d+)?$', issue_id):
@@ -357,7 +357,7 @@ class CSVProcessor:
         else:
             self.error_list.append(f"Invalid Issue ID value '{issue_id}' in row {self.current_row_index}.")
 
-    def check_child_issue_id(self, row, column_index):
+    def check_child_issue_id(self, row, column_index) -> bool:
         """Validate child issue ID format and handle complex ranges."""
         issue_id = row[column_index]
 
@@ -396,7 +396,7 @@ class CSVProcessor:
             self.error_list.append(f"Invalid Child Issue ID value '{issue_id}' in row {self.current_row_index}.")
         return is_complex
 
-    def check_story_for_parent_link(self, row, issuetype_index):
+    def check_story_for_parent_link(self, row, issuetype_index) -> None:
         """Ensure stories have parent/epic links."""
         if row[issuetype_index].lower() == 'story':
             # The column is often named 'parent' but sometimes named 'epic link'
@@ -416,7 +416,7 @@ class CSVProcessor:
             else:
                 self.warning_list.append(f"Parent link index {parent_link_index} out of bounds for row {self.current_row_index}.")
 
-    def check_description(self, row, description_index):
+    def check_description(self, row, description_index) -> None:
         """Validate description field is not empty."""
         if description_index is None:
             logging.debug(f"Skipping description check - column not found in header")
@@ -424,7 +424,7 @@ class CSVProcessor:
         if row[description_index] is None or row[description_index].strip() == '' or len(row[description_index]) < 1:
             self.warning_list.append(f"Description value is empty {self.current_row_index}.")
 
-    def check_summary(self, row, summary_index):
+    def check_summary(self, row, summary_index) -> None:
         """Validate summary length (5-255 characters)."""
         if summary_index is None:
             logging.debug(f"Skipping summary check - column not found in header")
@@ -434,7 +434,7 @@ class CSVProcessor:
         if not row[summary_index] or len(row[summary_index]) < 5:
             self.warning_list.append(f"Summary value is less than 5 characters in row {self.current_row_index}.")
 
-    def check_components(self, row, component_index):
+    def check_components(self, row, component_index) -> None:
         """Validate components against config-defined list."""
         if component_index is None:
             logging.debug(f"Skipping component check - column not found in header")
@@ -445,7 +445,7 @@ class CSVProcessor:
             if component.casefold() not in components_normalized:
                 self.error_list.append(f"Invalid Component value '{component}' in row {self.current_row_index}.")
 
-    def check_issue_type(self, row, issuetype_index):
+    def check_issue_type(self, row, issuetype_index) -> None:
         """Validate issue type against config-defined list."""
         if issuetype_index is None:
             logging.debug(f"Skipping issue type check - column not found in header")
@@ -454,7 +454,7 @@ class CSVProcessor:
         if row[issuetype_index].casefold() not in issuetypes_normalized:
             self.error_list.append(f"Invalid Issue Type value '{row[issuetype_index]}' in row {self.current_row_index}.")
 
-    def check_priority_value(self, row, priority_index):
+    def check_priority_value(self, row, priority_index) -> None:
         """Validate priority value and auto-fix numeric format."""
         if priority_index is None:
             logging.debug(f"Skipping priority check - column not found in header")
@@ -471,7 +471,7 @@ class CSVProcessor:
         elif row[priority_index].casefold() not in priorities_normalized:
             self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
 
-    def process_estimate(self, row, estimate_index, origest_index):
+    def process_estimate(self, row, estimate_index, origest_index) -> None:
         """Process and store computed estimate in origest field."""
         if estimate_index is None or origest_index is None:
             logging.debug(f"Skipping estimate processing - indices are None")
@@ -500,7 +500,7 @@ class CSVProcessor:
         
         # Parse time components: w (weeks), d (days), h (hours), m (minutes)
         # 1w = 5d, 1d = 8h, 1h = 60m, 1m = 60s
-        def get_value(unit):
+        def get_value(unit) -> int:
             pattern = rf'(\d+)\s*{unit}'
             match = re.search(pattern, estimate_str)
             return int(match.group(1)) if match else 0
@@ -523,7 +523,7 @@ class CSVProcessor:
         
         return str(final_estimate)
 
-    def check_fixversions(self, row, fixversion_index):
+    def check_fixversions(self, row, fixversion_index) -> None:
         """Validate fix versions against config-defined list."""
         if fixversion_index is None:
             logging.debug(f"Skipping fix version check - column not found in header")
@@ -534,7 +534,7 @@ class CSVProcessor:
             if fixversion.casefold() not in fixversions_normalized:
                 self.error_list.append(f"Invalid Fix Version value '{fixversion}' in row {self.current_row_index}.")
 
-    def check_sprint(self, row, sprint_index):
+    def check_sprint(self, row, sprint_index) -> None:
         """Validate sprint number against minimum config value."""
         if sprint_index is None:
             logging.debug(f"Skipping sprint check - column not found in header")
@@ -550,7 +550,7 @@ class CSVProcessor:
             #self.error_list.append(f"Invalid Sprint value '{sprint}' in row {self.current_row_index}.")
             return
 
-    def check_project_key(self, row, project_key_index):
+    def check_project_key(self, row, project_key_index) -> None:
         """Validate and auto-fix project key to config value."""
         if project_key_index is None:
             logging.debug(f"Skipping project key check - column not found in header")
@@ -566,11 +566,11 @@ class CSVProcessor:
                 self.fix_list.append(f"Project Key value '{project_key}' in row {self.current_row_index} has been fixed.")
                 return
 
-    def has_errors_or_warnings(self):
+    def has_errors_or_warnings(self) -> bool:
         """Check if validation found any errors or warnings."""
         return bool(self.error_list or self.warning_list)
 
-    def show_report(self):
+    def show_report(self) -> None:
         """Log all validation errors, warnings, and fixes."""
         if self.has_errors_or_warnings():
             for warning in self.warning_list:

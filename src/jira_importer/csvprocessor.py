@@ -411,9 +411,9 @@ class CSVProcessor:
     def check_components(self, row, component_index):
         """Validate components against config-defined list."""
         components = row[component_index].split(',')
-        components_missuetypes_normalized = [component.casefold() for component in self.config_components]
+        components_normalized = [component.casefold() for component in self.config_components]
         for component in components:
-            if component.casefold() not in components_missuetypes_normalized:
+            if component.casefold() not in components_normalized:
                 self.error_list.append(f"Invalid Component value '{component}' in row {self.current_row_index}.")
 
     def check_issue_type(self, row, issuetype_index):
@@ -424,7 +424,10 @@ class CSVProcessor:
 
     def check_priority_value(self, row, priority_index):
         """Validate priority value and auto-fix numeric format."""
-        priorities_missuetypes_normalized = [priority.casefold() for priority in self.config_priorities]
+        if priority_index is None:
+            logging.debug(f"Skipping priority check - column not found in header")
+            return
+        priorities_normalized = [priority.casefold() for priority in self.config_priorities]
         if row[priority_index].isdigit():
             if (int(row[priority_index]) < 1) or (int(row[priority_index]) > 3):
                 self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
@@ -433,7 +436,7 @@ class CSVProcessor:
                     old_priority = row[priority_index]
                     row[priority_index] = f"0{row[priority_index]}"
                     self.fix_list.append(f"Priority value '{row[priority_index]}' in row {self.current_row_index} has been fixed. (Original value: {old_priority})")
-        elif row[priority_index].casefold() not in priorities_missuetypes_normalized:
+        elif row[priority_index].casefold() not in priorities_normalized:
             self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
 
     def process_estimate(self, row, estimate_index, origest_index):

@@ -127,24 +127,31 @@ class CSVProcessor:
         Raises:
             ValueError: If required columns are missing from the header.
         """
-        # Define required and optional columns with fallback to config if available
+        # Define required and optional columns using standard column names
         required_columns = {
-            'summary': self.config.get_value('jira.field.mappings.summary.csv_field') or 'summary',
-            'priority': self.config.get_value('jira.field.mappings.priority.csv_field') or 'priority', 
-            'issuetype': self.config.get_value('jira.field.mappings.issuetype.csv_field') or 'issuetype',
-            'component': self.config.get_value('jira.field.mappings.component.csv_field') or 'component',
-            'fixversion': self.config.get_value('jira.field.mappings.fixversion.csv_field') or 'fixversion',
-            'estimate': self.config.get_value('jira.field.mappings.estimate.csv_field') or 'estimate',
-            'origest': self.config.get_value('jira.field.mappings.origest.csv_field') or 'origest',
-            'sprint': self.config.get_value('jira.field.mappings.sprint.csv_field') or 'sprint',
+            'summary': 'summary',
+            'priority': 'priority', 
+            'issuetype': 'issuetype',
             'issue_id': 'issue id',  # Keep hardcoded as it's not in field mappings
-            'project_key': 'project key'  # Keep hardcoded as it's not in field mappings
         }
         
         optional_columns = {
-            'assignee': self.config.get_value('jira.field.mappings.assignee.csv_field') or 'assignee',
+            'project_key': 'project key',  # Keep hardcoded as it's not in field mappings
+            'assignee': 'assignee',
+            'description': 'description',
+            'parent': 'parent',
+            'epic_link': 'epic link',
+            'epic_name': 'epic name',
+            'component': 'component',
+            'fixversion': 'fixversion',
+            'origest': 'origest',
+            'estimate': 'estimate',
+            'sprint': 'sprint',
             'rowtype': 'rowtype'  # Keep hardcoded as it's not in field mappings
         }
+
+        logging.debug(f"Required columns: {required_columns}")
+        logging.debug(f"Optional columns: {optional_columns}")
         
         # Check for required columns first
         missing_columns = []
@@ -247,10 +254,17 @@ class CSVProcessor:
         rowtype_index = indices['rowtype']
         estimate_index = indices['estimate']
         origest_index = indices['origest']
-        
+        description_index = indices['description']
+        parent_index = indices['parent']
+        epic_link_index = indices['epic_link']
+        epic_name_index = indices['epic_name']
+
+        # Check required fields
         self.check_summary(row, summary_index)
         self.check_issue_type(row, issuetype_index)
         self.check_priority_value(row, priority_index)
+
+        # process estimate
         self.process_estimate(row, estimate_index, origest_index)
         
         # Only run checks if not skipped
@@ -258,7 +272,7 @@ class CSVProcessor:
             self.check_components(row, component_index)
         
         if not self.skip_description_check:
-            self.check_description(row)
+            self.check_description(row, description_index)
         
         self.check_for_duplicate_issue_id(row, issue_id_index)
         self.issue_id_list.append(row[issue_id_index])
@@ -379,9 +393,7 @@ class CSVProcessor:
             if not row[parent_link_index]:
                 self.warning_list.append(f"Story does not have a parent Link in row {self.current_row_index}.")
 
-    def check_description(self, row):
-        description_index = self.header.index('description')
-        return
+    def check_description(self, row, description_index):
         if row[description_index] is None or row[description_index].strip() == '' or len(row[description_index]) < 1:
             self.warning_list.append(f"Description value is empty {self.current_row_index}.")
 
@@ -393,18 +405,18 @@ class CSVProcessor:
 
     def check_components(self, row, component_index):
         components = row[component_index].split(',')
-        components_lower = [component.casefold() for component in components]
+        components_missuetypes_normalized = [component.casefold() for component in self.config_components]
         for component in components:
-            if component.casefold() not in components_lower:
+            if component.casefold() not in components_missuetypes_normalized:
                 self.error_list.append(f"Invalid Component value '{component}' in row {self.current_row_index}.")
 
     def check_issue_type(self, row, issuetype_index):
-        issuetypes_lower = [issuetype.casefold() for issuetype in self.config_issuetypes]
-        if row[issuetype_index].casefold() not in issuetypes_lower:
+        issuetypes_normalized = [issuetype.casefold() for issuetype in self.config_issuetypes]
+        if row[issuetype_index].casefold() not in issuetypes_normalized:
             self.error_list.append(f"Invalid Issue Type value '{row[issuetype_index]}' in row {self.current_row_index}.")
 
     def check_priority_value(self, row, priority_index):
-        priorities_lower = [priority.casefold() for priority in self.config_priorities]
+        priorities_missuetypes_normalized = [priority.casefold() for priority in self.config_priorities]
         if row[priority_index].isdigit():
             if (int(row[priority_index]) < 1) or (int(row[priority_index]) > 3):
                 self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
@@ -413,7 +425,7 @@ class CSVProcessor:
                     old_priority = row[priority_index]
                     row[priority_index] = f"0{row[priority_index]}"
                     self.fix_list.append(f"Priority value '{row[priority_index]}' in row {self.current_row_index} has been fixed. (Original value: {old_priority})")
-        elif row[priority_index].casefold() not in priorities_lower:
+        elif row[priority_index].casefold() not in priorities_missuetypes_normalized:
             self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
 
     def process_estimate(self, row, estimate_index, origest_index):
@@ -464,9 +476,9 @@ class CSVProcessor:
 
     def check_fixversions(self, row, fixversion_index):
         fixversions = row[fixversion_index].split(',')
-        fixversions_lower = [fixversion.casefold() for fixversion in fixversions]
+        fixversions_missuetypes_normalized = [fixversion.casefold() for fixversion in self.config_fixversions]
         for fixversion in fixversions:
-            if fixversion.casefold() not in fixversions_lower:
+            if fixversion.casefold() not in fixversions_missuetypes_normalized:
                 self.error_list.append(f"Invalid Fix Version value '{fixversion}' in row {self.current_row_index}.")
 
     def check_sprint(self, row, sprint_index):

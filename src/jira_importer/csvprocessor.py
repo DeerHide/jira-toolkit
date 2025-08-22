@@ -17,7 +17,7 @@ Date: 2025
 import logging
 import csv
 import re
-from tqdm import tqdm
+from tqdm import tqdm # type: ignore
 from app import App
 
 unique_key_column = 'summary'

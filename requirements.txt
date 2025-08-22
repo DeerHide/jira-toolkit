@@ -5,3 +5,4 @@ tqdm
 pandas
 openpyxl
 structlog
+pre-commit

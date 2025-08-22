@@ -5,6 +5,8 @@ lib64/
 parts/
 dist/
 .svn/
+.DS_Store
+.vscode/
 
 src/v-*/
 v-*/

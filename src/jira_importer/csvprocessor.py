@@ -32,9 +32,12 @@ class CSVProcessor:
     complex_child_issues = []
     complex_child_issues_len = []
     issue_id_list = []
+    config = None
 
 
     def __init__(self, path, config) -> None:
+        if config is None:
+            raise ValueError("Config is required")
         self.config = config
         self.load_config_values(config)
         self.path = path
@@ -46,19 +49,19 @@ class CSVProcessor:
     def load_config_values(self, config) -> None:
         """Load validation settings and skip flags from config."""
         # Load validation lists
-        self.config_components = config.get_value('jira.validation.components')
-        self.config_priorities = config.get_value('jira.validation.priorities')
-        self.config_issuetypes = config.get_value('jira.validation.issue_types')
-        self.config_fixversions = config.get_value('jira.validation.fix_versions')
-        self.config_min_sprint_value = config.get_value('jira.validation.min_sprint_value') or 0
-        self.config_project_key = config.get_value('jira.project.key') or 0
+        self.config_components = config.get_value('jira.validation.components', default=[])
+        self.config_priorities = config.get_value('jira.validation.priorities', default=[])
+        self.config_issuetypes = config.get_value('jira.validation.issue_types', default=[])
+        self.config_fixversions = config.get_value('jira.validation.fix_versions', default=[])
+        self.config_min_sprint_value = config.get_value('jira.validation.min_sprint_value', default=0)
+        self.config_project_key = config.get_value('jira.project.key', default=0)
         
         # Load validation control settings
-        self.skip_all_validation = config.get_value('app.validation.skip_all') or False
-        self.skip_checks = config.get_value('app.validation.skip_checks') or {}
+        self.skip_all_validation = config.get_value('app.validation.skip_all', default=False)
+        self.skip_checks = config.get_value('app.validation.skip_checks', default={})
         
         # Load statuses (currently unused but available)
-        self.config_statuses = config.get_value('jira.validation.statuses')
+        self.config_statuses = config.get_value('jira.validation.statuses', default=[])
         
         # Set validation flags based on skip_checks
         self.skip_description_check = self.skip_checks.get('description', False)
@@ -111,8 +114,8 @@ class CSVProcessor:
             # Check if rowtype column exists before accessing it
             try:
                 rowtype_index = self.header.index('rowtype')
-                if row[rowtype_index].strip().lower() in skip_keywords:  # Skip rows where the first value matches any keyword
-                    logging.debug(f"Row skipped ({row[rowtype_index].strip().lower()}): {row[2] if len(row) > 2 else 'N/A'}")
+                if row[rowtype_index].strip().casefold() in skip_keywords:  # Skip rows where the first value matches any keyword
+                    logging.debug(f"Row skipped ({row[rowtype_index].strip().casefold()}): {row[2] if len(row) > 2 else 'N/A'}")
                     continue
             except ValueError:
                 # rowtype column not found, continue processing
@@ -363,7 +366,7 @@ class CSVProcessor:
 
         is_complex = False
 
-        if issue_id is None or issue_id.strip() == '':
+        if issue_id is None or not issue_id.strip():
             return is_complex
 
         if isinstance(issue_id, str) and row[column_index].strip() == '0':
@@ -398,7 +401,7 @@ class CSVProcessor:
 
     def check_story_for_parent_link(self, row, issuetype_index) -> None:
         """Ensure stories have parent/epic links."""
-        if row[issuetype_index].lower() == 'story':
+        if row[issuetype_index].casefold() == 'story':
             # The column is often named 'parent' but sometimes named 'epic link'
             parent_link_index = None
             if 'parent' in self.header:
@@ -421,7 +424,7 @@ class CSVProcessor:
         if description_index is None:
             logging.debug(f"Skipping description check - column not found in header")
             return
-        if row[description_index] is None or row[description_index].strip() == '' or len(row[description_index]) < 1:
+        if row[description_index] is None or not row[description_index].strip():
             self.warning_list.append(f"Description value is empty {self.current_row_index}.")
 
     def check_summary(self, row, summary_index) -> None:
@@ -439,7 +442,7 @@ class CSVProcessor:
         if component_index is None:
             logging.debug(f"Skipping component check - column not found in header")
             return
-        components = row[component_index].split(',')
+        components = row[component_index].split(',') if row[component_index] else []
         components_normalized = [component.casefold() for component in self.config_components]
         for component in components:
             if component.casefold() not in components_normalized:
@@ -464,7 +467,7 @@ class CSVProcessor:
             if (int(row[priority_index]) < 1) or (int(row[priority_index]) > 3):
                 self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
             else:
-                if row[priority_index] == '1' or row[priority_index] == '2' or row[priority_index] == '3':
+                if row[priority_index] in ['1', '2', '3']:
                     old_priority = row[priority_index]
                     row[priority_index] = f"0{row[priority_index]}"
                     self.fix_list.append(f"Priority value '{row[priority_index]}' in row {self.current_row_index} has been fixed. (Original value: {old_priority})")
@@ -493,22 +496,22 @@ class CSVProcessor:
             logging.debug(f"Skipping estimate computation - indices are None")
             return ""
         estimate_value = row[estimate_index]
-        if estimate_value is None or str(estimate_value).strip() == '':
+        if estimate_value is None or not str(estimate_value).strip():
             return ""
         
         estimate_str = str(estimate_value).strip()
         
         # Parse time components: w (weeks), d (days), h (hours), m (minutes)
         # 1w = 5d, 1d = 8h, 1h = 60m, 1m = 60s
-        def get_value(unit) -> int:
+        def __get_value(unit) -> int:
             pattern = rf'(\d+)\s*{unit}'
             match = re.search(pattern, estimate_str)
             return int(match.group(1)) if match else 0
         
-        weeks = get_value('w')
-        days = get_value('d')
-        hours = get_value('h')
-        minutes = get_value('m')
+        weeks = __get_value('w')
+        days = __get_value('d')
+        hours = __get_value('h')
+        minutes = __get_value('m')
         
         # Convert to seconds (equivalent to Excel formula)
         # Excel: w*144000 + d*28800 + h*3600 + m*60
@@ -528,7 +531,7 @@ class CSVProcessor:
         if fixversion_index is None:
             logging.debug(f"Skipping fix version check - column not found in header")
             return
-        fixversions = row[fixversion_index].split(',')
+        fixversions = row[fixversion_index].split(',') if row[fixversion_index] else []
         fixversions_normalized = [fixversion.casefold() for fixversion in self.config_fixversions]
         for fixversion in fixversions:
             if fixversion.casefold() not in fixversions_normalized:
@@ -540,7 +543,7 @@ class CSVProcessor:
             logging.debug(f"Skipping sprint check - column not found in header")
             return
         sprint = row[sprint_index]
-        if sprint is None or sprint.strip() == '':
+        if sprint is None or not sprint.strip():
             return
         try:
             sprint = int(sprint)
@@ -556,11 +559,11 @@ class CSVProcessor:
             logging.debug(f"Skipping project key check - column not found in header")
             return
         project_key = row[project_key_index]
-        if type(project_key) is not str:
-            if project_key is None or project_key.strip() == '':
+        if not isinstance(project_key, str):
+            if project_key is None or not project_key.strip():
                 logging.warning(f"Project Key value is empty in row {self.current_row_index}.")
                 return
-        if type(project_key) is int:
+        if isinstance(project_key, int):
             if project_key != self.config_project_key:
                 row[project_key_index] = self.config_project_key
                 self.fix_list.append(f"Project Key value '{project_key}' in row {self.current_row_index} has been fixed.")

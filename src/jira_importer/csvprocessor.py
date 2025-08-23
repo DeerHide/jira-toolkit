@@ -37,7 +37,6 @@ class CSVProcessor:
         self.error_list: List[str] = []
         self.fix_list: List[str] = []
         self.complex_child_issues: List[Dict[str, Any]] = []
-        self.complex_child_issues_len: List[Any] = []
         self.issue_id_list: List[str] = []
         self.config = None
 
@@ -75,15 +74,6 @@ class CSVProcessor:
         self.skip_story_parent_link_check = self.skip_checks.get('story_for_parent_link', False)
         self.skip_sprint_check = self.skip_checks.get('sprint', False)
         self.skip_assignee_check = self.skip_checks.get('assignee', False)
-
-    def get_assignees_from_config(self) -> List[str]:
-        """Get assignee list from configuration."""
-        logging.debug("Loading assignees from configuration.")
-        if hasattr(self, 'config') and self.config:
-            assignees = self.config.get_value('jira.validation.assignees')
-            if assignees:
-                return assignees
-        return []
 
     def read(self) -> None:
         """Read CSV file and extract header and data."""
@@ -347,14 +337,7 @@ class CSVProcessor:
                 self.warning_list.append(warning_msg)
                 logging.warning(warning_msg)
 
-        # Check against assignee list if available (currently disabled)
-        # assignees = self.get_assignees_from_config()
-        # if assignee and assignees and assignee not in assignees:
-        #     warning_msg = (
-        #     f"Row {self.current_row_index}: Assignee '{assignee}' is not in the list of known assignees from config."
-        #     )
-        #     self.warning_list.append(warning_msg)
-        #     logging.warning(warning_msg)
+        #todo: Check against assignee list if available
 
     def check_for_duplicate_issue_id(self, row, issue_id_index) -> None:
         """Check for duplicate issue IDs across all rows."""
@@ -377,40 +360,41 @@ class CSVProcessor:
     def check_child_issue_id(self, row, column_index) -> bool:
         """Validate child issue ID format and handle complex ranges."""
         issue_id = row[column_index]
-
         is_complex = False
 
-        if issue_id is None or not issue_id.strip():
+        # Early return for empty/None values
+        if not issue_id or not str(issue_id).strip():
             return is_complex
 
-        if isinstance(issue_id, str) and row[column_index].strip() == '0':
-            # If the value is '0', we consider it as empty
-            row[column_index]=""
+        # Convert to string and strip for consistent processing
+        issue_id_str = str(issue_id).strip()
+
+        # Handle '0' value - treat as empty
+        if issue_id_str == '0':
+            row[column_index] = ""
             return is_complex
 
-        if isinstance(issue_id, str) and re.match(r'^-?\d+(\.\d+)?$', issue_id):
-            # Valid integer or float, convert to integer
-            row[column_index] = (issue_id.split('.')[0])
-        elif isinstance(issue_id, str) and re.match(r'^VN-\d+$', issue_id):
-            # Valid VN-12345, VN-1, etc.
-            # Returned empty as it would need to update the issue ID in Jira which is not possible without admin rights
-            row[column_index]=""
-        elif isinstance(issue_id, str) and re.match(r'^\d+-\d+$', issue_id):
-            # Accept values like '0-99', '1-4', etc.
-            issue_ids = issue_id.split('-')
-            issue_id_start = issue_ids[0]
-            issue_id_end = issue_ids[1]
+        # Handle valid numeric values (integer or float)
+        if re.match(r'^-?\d+(\.\d+)?$', issue_id_str):
+            row[column_index] = issue_id_str.split('.')[0]
+            return is_complex
+
+        # Handle range format (e.g., '0-99', '1-4')
+        if re.match(r'^\d+-\d+$', issue_id_str):
+            start, end = issue_id_str.split('-')
             row[column_index] = ""
             self.complex_child_issues.append({
                 'row_index': self.current_row_index,
-                'start': issue_id_start,
-                'end': issue_id_end
+                'start': start,
+                'end': end
             })
             is_complex = True
-            logging.warning(f"Unsupported feature: Complex Child Issue ID '{issue_id}' detected in row {self.current_row_index}.")
-        else:
-            logging.debug(f"Invalid Child Issue ID value '{issue_id}' in row {self.current_row_index}.")
-            self.error_list.append(f"Invalid Child Issue ID value '{issue_id}' in row {self.current_row_index}.")
+            logging.warning(f"Unsupported feature: Complex Child Issue ID '{issue_id_str}' detected in row {self.current_row_index}.")
+            return is_complex
+
+        # Handle invalid values
+        logging.debug(f"Invalid Child Issue ID value '{issue_id_str}' in row {self.current_row_index}.")
+        self.error_list.append(f"Invalid Child Issue ID value '{issue_id_str}' in row {self.current_row_index}.")
         return is_complex
 
     def check_story_for_parent_link(self, row, issuetype_index) -> None:

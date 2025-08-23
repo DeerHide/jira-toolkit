@@ -23,11 +23,11 @@ Welcome to the Jira Importer Toolkit development team! This guide will help you 
    ```bash
    # Create virtual environment
    python -m venv .venv
-   
+
    # Activate virtual environment
    # On Windows:
    .venv\Scripts\activate
-   
+
    # On macOS/Linux:
    source .venv/bin/activate
    ```
@@ -41,6 +41,28 @@ Welcome to the Jira Importer Toolkit development team! This guide will help you 
    ```bash
    python -m jira_importer --version
    ```
+
+### Line Ending Configuration (CRLF vs LF)
+
+This project uses **LF (Line Feed)** line endings for all text files to ensure consistency across different operating systems. This is important for:
+
+- **Cross-platform compatibility** between Windows, macOS, and Linux
+- **Git consistency** to prevent line ending conflicts
+- **Build reliability** to avoid issues during executable creation
+
+#### Automatic Configuration
+
+The project includes pre-commit hooks and Git attributes that automatically enforce LF line endings:
+
+- **`.gitattributes`** file defines line ending rules for different file types
+- **Pre-commit hooks** automatically fix line endings before commits
+- **Mixed-line-ending hook** ensures all files use LF endings
+
+#### File Type Line Ending Rules
+
+- **LF endings (Unix style):** Python files, Markdown, JSON, YAML, config files, shell scripts
+- **CRLF endings (Windows style):** Batch files (.bat, .cmd), PowerShell scripts (.ps1)
+- **Binary files:** Images, executables, libraries, and other binary assets
 
 ## 📁 Project Structure
 
@@ -90,6 +112,15 @@ jira-toolkit/
    ```bash
    python main.py path/to/your/file.xlsx -c config.json
    ```
+
+### Line Ending Best Practices
+
+⚠️ **Important:** Always ensure your text files use LF line endings before committing:
+
+- **Pre-commit hooks** will automatically fix line endings
+- **Use the provided scripts** if you need to reset Git configuration
+- **Check line endings** if you encounter build or compatibility issues
+- **Never manually change** line endings in text files - let Git handle it automatically
 
 ### Testing Your Changes
 
@@ -148,6 +179,7 @@ The application supports debug mode which can be triggered by:
 1. **Import errors**: Ensure all dependencies are installed
 2. **File not found**: Check file paths and permissions
 3. **Configuration issues**: Verify JSON syntax in config files
+4. **Line ending issues**: If you encounter build failures or cross-platform problems, check that all text files use LF line endings
 
 ### Logging
 - Debug logs provide detailed execution information
@@ -196,6 +228,7 @@ The application supports debug mode which can be triggered by:
 - Follow the code style guidelines
 - Test your changes thoroughly
 - Update documentation if needed
+- Ensure all text files use LF line endings (pre-commit hooks will handle this automatically)
 
 3. **Test your build**
    ```bash

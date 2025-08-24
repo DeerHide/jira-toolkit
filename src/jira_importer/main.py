@@ -39,9 +39,10 @@ warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 def main():
     """Main function for the Jira Importer application."""
     args = App.parse_args()
+
     # Initialize logging with CLI override support (-d/--debug)
     setup_logger(logging.DEBUG if args.debug else None)
-    
+
     # Handle mutually exclusive configuration arguments
     if args.config_default:
         # Use default config filename in script location
@@ -52,8 +53,13 @@ def main():
     else:
         # Use specified config file with default search behavior
         config_path = find_config_path(args.config, args.input_file)
-    
+
     config = Configuration(config_path, cfg_req=cfg_req)
+
+    # Add file logging if enabled in config
+    from log import add_file_logging
+    add_file_logging(config)
+
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
     user_prompt = UserIO()
@@ -104,10 +110,10 @@ def main():
     logging.info(f"Started processing '{os.path.abspath(csv_raw)}'")
 
     csv_jira = CSVProcessor(csv_raw, config)
-    
+
     # Show validation report after processing
     csv_jira.show_report()
-    
+
     #pause = generate_report(csv_jira)
     pause = csv_jira.has_errors_or_warnings()
 
@@ -123,7 +129,7 @@ def main():
     #    logging.info("Import to Atlassian Cloud via the API is disabled.")
     #else:
     #    logging.info(f"Import to Atlassian Cloud via the API: {args.import_to_cloud}")
-        
+
     csv_jira_output = file_manager.generate_output_filename(csv_raw, file_extension='csv', suffix='_JiraReady')
 
     logging.info(f"Writing file...")
@@ -136,7 +142,7 @@ def main():
         if not 'BulkCreateSetupPage' in site_address:
             site_address += '/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true'
         user_prompt.open_browser(f"{site_address}")
-        
+
     logging.info("Processing complete. You can close this window now.")
     app.event_close(exit_code=0, cleanup=True)
 

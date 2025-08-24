@@ -12,6 +12,7 @@ Date: 2025
 import logging
 import os
 import sys
+import time
 from typing import Optional
 import colorlog
 try:
@@ -20,7 +21,7 @@ try:
 except Exception:
     pass
 
-from utils import resource_path
+from utils import resource_path, get_logs_directory
 
 _CONFIGURED = False
 
@@ -30,12 +31,9 @@ def is_debug_mode() -> bool:
     debug_mode = os.path.isfile(debug_file_path)
     return debug_mode
 
-def _env_log_level() -> Optional[int]:
-    level_str = os.getenv('JTK_LOG_LEVEL', '').upper()
-    if not level_str:
-        return None
-    level = getattr(logging, level_str, None)
-    return level if isinstance(level, int) else None
+
+
+
 
 def _set_levels(level: int) -> None:
     root_logger = logging.getLogger()
@@ -46,9 +44,11 @@ def _set_levels(level: int) -> None:
         except Exception:
             pass
 
+
 def set_log_level(level: int) -> None:
     """Dynamically adjust root logger and handler levels."""
     _set_levels(level)
+
 
 def setup_logger(level_override: Optional[int] = None) -> None:
     global _CONFIGURED
@@ -58,9 +58,8 @@ def setup_logger(level_override: Optional[int] = None) -> None:
             _set_levels(level_override)
         return
 
-    # Resolve desired level: env > .debug file > INFO
-    # If a CLI or caller provided override, use it first
-    level = level_override if level_override is not None else _env_log_level()
+    # Resolve desired level: CLI override > .debug file > INFO
+    level = level_override if level_override is not None else None
     if level is None:
         level = logging.DEBUG if is_debug_mode() else logging.INFO
 
@@ -103,3 +102,49 @@ def setup_logger(level_override: Optional[int] = None) -> None:
     # Capture warnings via logging
     logging.captureWarnings(True)
     _CONFIGURED = True
+
+
+def add_file_logging(config):
+    """Add file handler to existing root logger if enabled in config."""
+    if not config or not config.get_value('app.logging.write_to_file', default=False):
+        return
+
+    try:
+        # Get log directory and create log file
+        log_dir = get_logs_directory()
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        log_file = os.path.join(log_dir, f"jira-toolkit_{timestamp}.log")
+
+        # Get rotation settings from config
+        max_bytes = config.get_value('app.logging.max_log_size_mb', default=10) * 1024 * 1024
+        max_log_files = config.get_value('app.logging.max_log_files', default=5)
+
+        # Create rotating file handler
+        from logging.handlers import RotatingFileHandler
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=max_bytes,
+            backupCount=max_log_files,
+            encoding='utf-8'
+        )
+
+        # Use same formatter as console (but without colors)
+        file_formatter = logging.Formatter(
+            "%(levelname)s %(asctime)s %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
+        file_handler.setFormatter(file_formatter)
+
+        # Use same level as root logger
+        root_logger = logging.getLogger()
+        file_handler.setLevel(root_logger.level)
+
+        # Add file handler to root logger
+        root_logger.addHandler(file_handler)
+
+        # Log that file logging is enabled
+        root_logger.info(f"File logging enabled: {log_file}")
+
+    except Exception as e:
+        # Don't fail if file logging can't be set up
+        logging.getLogger().warning(f"Failed to setup file logging: {e}")

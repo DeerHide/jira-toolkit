@@ -12,6 +12,9 @@ src/v-*/
 v-*/
 rsc/VSVersionInfo
 build/configs/v-*.json
+logs/
+jira_importer_logs/
+*.log
 
 *.psd
 ~$*.xlsx

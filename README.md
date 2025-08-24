@@ -54,7 +54,40 @@ The tool generates a formatted CSV file in the same directory as your input file
 2. Update your Jira instance details
 3. Customize validation rules as needed
 
-Templates can be found under `rsc/templates/`.
+Templates can be found under `resources/templates/`.
+
+### Logging Configuration
+
+The toolkit includes comprehensive logging capabilities:
+
+```json
+{
+  "app": {
+    "logging": {
+      "write_to_file": false,
+      "log_level": "INFO",
+      "max_log_size_mb": 10,
+      "max_log_files": 5
+    }
+  }
+}
+```
+
+**Logging Options:**
+- `write_to_file`: Enable/disable file logging (default: false)
+- `log_level`: Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `max_log_size_mb`: Maximum log file size before rotation (default: 10MB)
+- `max_log_files`: Maximum number of log files to keep during rotation (default: 5)
+
+**Log File Location:**
+- Logs are created in the same directory as the executable
+- Folder name: `jira_importer_logs/`
+- Log files are named with timestamps: `jira-toolkit_YYYYMMDD_HHMMSS.log`
+
+**Debug Mode:**
+- Use `-d` or `--debug` flag for verbose logging
+- Creates `.debug` file in application directory for persistent debug mode
+- CLI debug flag takes precedence over config settings
 
 ## Future Features
 
@@ -76,14 +109,14 @@ For issues or questions, check the debug logs or contact support.
 
 ## Disclaimer
 
-This tool is provided as-is and may not work out of the box for all environments or use cases. Some configuration and adjustments may be required based on your specific Jira setup and data format. 
+This tool is provided as-is and may not work out of the box for all environments or use cases. Some configuration and adjustments may be required based on your specific Jira setup and data format.
 
 **Feedback and suggestions are welcome!** If you encounter issues or need assistance, please reach out. We're happy to help troubleshoot and improve the tool based on user needs.
 
 ## Authors
 
 **Jira Importer Toolkit** is developed by:
-- @tom4897 
-- @nakool 
+- @tom4897
+- @nakool
 
 This project is licensed under the MIT License, don't hesitate to contribute or fork!

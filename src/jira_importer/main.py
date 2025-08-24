@@ -40,10 +40,7 @@ def main():
     """Main function for the Jira Importer application."""
     args = App.parse_args()
 
-    # Initialize logging with CLI override support (-d/--debug)
-    setup_logger(logging.DEBUG if args.debug else None)
-
-    # Handle mutually exclusive configuration arguments
+        # Handle mutually exclusive configuration arguments
     if args.config_default:
         # Use default config filename in script location
         config_path = find_config_path('config_importer.json', args.input_file, config_default=True)
@@ -55,6 +52,9 @@ def main():
         config_path = find_config_path(args.config, args.input_file)
 
     config = Configuration(config_path, cfg_req=cfg_req)
+
+    # Initialize logging with CLI override and config support
+    setup_logger(logging.DEBUG if args.debug else None, config)
 
     # Add file logging if enabled in config
     from log import add_file_logging

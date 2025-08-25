@@ -379,7 +379,15 @@ def build_executable(config, config_name):
     try:
         pyinstaller_cmd = [
             "pyinstaller",
-            "--onefile",  
+        ]
+
+        # Choose onefile/onedir based on configuration (default: onefile)
+        if config["pyinstaller"].get("onefile", True):
+            pyinstaller_cmd.append("--onefile")
+        else:
+            pyinstaller_cmd.append("--onedir")
+
+        pyinstaller_cmd.extend([
             "--console" if config["pyinstaller"]["console"] else "--windowed",
             "--icon", config["pyinstaller"]["options"]["icon"],
             "--distpath", dist_dir,  # Use config-specific dist directory
@@ -388,7 +396,7 @@ def build_executable(config, config_name):
             "--paths", "src",  # Use local src directory
             "--name", config["pyinstaller"]["name"],
             "--version-file", config["pyinstaller"]["options"]["version_file"]
-        ]
+        ])
         
         # Add data files
         for data_file in config["pyinstaller"]["add_data"]:

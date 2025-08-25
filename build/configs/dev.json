@@ -16,6 +16,7 @@
     "version": "build/version/VSVersionInfo"
   },
   "pyinstaller": {
+    "onefile": false,
     "console": true,
     "name": "jira_importer",
     "add_data": [

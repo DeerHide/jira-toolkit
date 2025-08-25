@@ -490,6 +490,10 @@ def main():
     current_platform = detect_platform()
     conditional_print(f"🖥️  Detected platform: {current_platform}", CONFIG, "progress")
 
+    if not current_platform == "Windows":
+        conditional_print("platform not supported", CONFIG, "warning")
+        sys.exit(1)
+
     conditional_print("🚀 Starting Jira Importer build process...", CONFIG, "progress")
     conditional_print("=" * 50, CONFIG)
     conditional_print(f"📋 Using configuration: {args.config}", CONFIG, "progress")

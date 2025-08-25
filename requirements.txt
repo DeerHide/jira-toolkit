@@ -7,3 +7,4 @@ openpyxl
 structlog
 pre-commit
 rich
+rich-argparse

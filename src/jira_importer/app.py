@@ -12,6 +12,7 @@ Date: 2025
 import logging
 import sys
 import argparse
+from rich_argparse import RichHelpFormatter
 from artifacts import ArtifactManager
 from console import ui, fmt
 
@@ -68,7 +69,10 @@ class App:
 
     @staticmethod
     def parse_args() -> argparse.Namespace:
-        parser = argparse.ArgumentParser(description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.", formatter_class=argparse.RawTextHelpFormatter)
+        parser = argparse.ArgumentParser(
+            description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",
+            formatter_class=RichHelpFormatter,
+        )
         parser.add_argument("input_file", help="Excel XLSX file", default='import.xlsx')
 
         config_group = parser.add_mutually_exclusive_group()

@@ -69,6 +69,10 @@ def main():
     from log import add_file_logging
     add_file_logging(config)
 
+    if logging.getLogger().level == logging.DEBUG:
+        ui.debug("Debug mode is enabled.")
+
+
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
     user_prompt = UserIO()
@@ -138,8 +142,10 @@ def main():
     # Show validation report after processing
     csv_jira.show_report()
 
-    if csv_jira.has_errors_or_warnings():
-        ui.warning("There are errors or warnings in the CSV file.")
+    if csv_jira.problems_found():
+        ui.warning("The CSVProcessor has found errors or warnings in the input CSV file.")
+        ui.hint("You can review the report to decide whether these are blockers or not before continuing.")
+        ui.hint("Check your excel file and configuration if you see false positives.")
         if not ui.prompt_yes_no("Do you want to continue?", default=False):
             app.event_abort(exit_code=1)
         else:

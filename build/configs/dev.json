@@ -9,7 +9,7 @@
     "resources": "rsc"
   },
   "files": {
-    "requirements": "rsc/requirements.txt",
+    "requirements": "requirements.txt",
     "icon": "build/icons/deerhide_default.ico",
     "license": "LICENSE",
     "readme": "README.md",

@@ -324,6 +324,7 @@ def build_version_file(config):
         try:
             import generate_version  # type: ignore # noqa: F401
             # The script should run its main logic when imported
+            generate_version.main()
             conditional_print("✅ Version file generated successfully", config, "progress")
         except ImportError as e:
             conditional_print(f"❌ Failed to import generate_version.py: {e}", config, "warning")

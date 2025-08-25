@@ -188,6 +188,20 @@ def load_config(config_path=None):
 # Global CONFIG variable (will be set in main function)
 CONFIG = None
 
+def detect_platform():
+    """Detect the current OS platform as one of: windows, macos, linux, other."""
+    try:
+        platform_key = sys.platform
+        if platform_key.startswith("win"):
+            return "Windows"
+        if platform_key == "darwin":
+            return "MacOs"
+        if platform_key.startswith("linux"):
+            return "Linux"
+        return platform_key
+    except Exception:
+        return "other"
+
 def conditional_print(message, config, message_type="info"):
     """Print message based on configuration settings."""
     if not config.get("output_control", {}).get("verbose", True):
@@ -471,6 +485,10 @@ def main():
 
     # Load configuration based on argument
     CONFIG = load_config(args.config)
+
+    # Detect and display platform
+    current_platform = detect_platform()
+    conditional_print(f"🖥️  Detected platform: {current_platform}", CONFIG, "progress")
 
     conditional_print("🚀 Starting Jira Importer build process...", CONFIG, "progress")
     conditional_print("=" * 50, CONFIG)

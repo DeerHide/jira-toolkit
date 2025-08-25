@@ -19,6 +19,10 @@ import csv
 import re
 from tqdm import tqdm # type: ignore
 from app import App
+from typing import List
+from contextlib import nullcontext
+from console import ConsoleUI, fmt, ui
+
 
 unique_key_column = 'summary'
 
@@ -99,27 +103,53 @@ class CSVProcessor:
 
     def format_data(self) -> List[List[str]]:
         """Process and validate CSV data rows."""
-        formatted_rows = []
+        total = len(self.data)
+        if total == 0:
+            return []
 
-        # Use configurable skip keywords (could be moved to config later)
-        skip_keywords = ['skip', 'comment', 'note', 'WorkItem']
+        formatted_rows: List[List[str]] = []
 
-        for self.current_row_index, row in enumerate(tqdm(self.data, desc="Processing data", unit="row"), start=2):
-            if not any(row):  # Skip empty rows
-                self.warning_list.append(f"Row skipped due to empty row: {row}")
-                continue
+        # lookups
+        warnings = self.warning_list
+        errors = self.error_list
+        expected_len = len(self.header)
+        do_validate = bool(self.config_components and self.config_priorities and self.config_issuetypes)
 
-            # Check if rowtype column exists before accessing it
-            if self._should_skip_row(row, skip_keywords):
-                continue
+        # Use a set for O(1) membership; let _should_skip_row decide details
+        skip_keywords = {"skip", "comment", "note", "WorkItem"}
 
-            if len(row) != len(self.header):  # Skip rows with incorrect number of columns
-                self.error_list.append(f"Row skipped due to incorrect number of columns: {row}")
-                continue
-            if self.config_components and self.config_priorities and self.config_issuetypes:
-                self.row_validator(row)
+        progress_cm = ui.progress()
 
-            formatted_rows.append(row)
+        with progress_cm as progress:
+            task = progress.add_task("Processing data", total=total)
+
+            for self.current_row_index, row in enumerate(self.data, start=2):
+                try:
+                    # 1) Skip empty rows
+                    if not any(row):
+                        warnings.append(f"Row skipped due to empty row: {row}")
+                        continue
+
+                    # 2) Skip based on row type / keywords
+                    if self._should_skip_row(row, skip_keywords):
+                        continue
+
+                    # 3) Validate column count
+                    if len(row) != expected_len:
+                        logging.error(f"Row skipped due to incorrect number of columns: {row}")
+                        errors.append(f"Row skipped due to incorrect number of columns: {row}")
+                        continue
+
+                    # 4) Optional row-level validation
+                    if do_validate:
+                        self.row_validator(row)
+
+                    # 5) Keep it
+                    formatted_rows.append(row)
+                finally:
+                    if task is not None:
+                        progress.advance(task)
+                        progress.refresh()
 
         return formatted_rows
 
@@ -208,6 +238,7 @@ class CSVProcessor:
         self._validate_column_indices(column_indices)
 
         logging.info(f"Successfully extracted column indices: {list(column_indices.keys())}")
+        #ui.success(f"Successfully extracted column indices: {list(column_indices.keys())}")
         return column_indices
 
     def _validate_column_indices(self, column_indices: Dict[str, Optional[int]]) -> None:
@@ -572,7 +603,24 @@ class CSVProcessor:
         return bool(self.error_list or self.warning_list)
 
     def show_report(self) -> None:
-        """Log all validation errors, warnings, and fixes."""
+        """Display validation report using UI table and log to file."""
+        if self.has_errors_or_warnings():
+            rows = []
+            if self.error_list:
+                for error in self.error_list:
+                    rows.append(["❌", error])
+            if self.warning_list:
+                for warning in self.warning_list:
+                    rows.append(["⚠️", warning])
+            if self.fix_list:
+                for fix in self.fix_list:
+                    rows.append(["🔧", fix])
+
+            rows.append(["", ""])
+            rows.append(["", "⚠️  " + str(len(self.warning_list)) + " ❌  " + str(len(self.error_list)) + " 🔧  " + str(len(self.fix_list))])
+            ui.table(columns=["T", "Description"], rows=rows)
+
+        # Always log to file for debugging purposes
         if self.has_errors_or_warnings():
             for warning in self.warning_list:
                 logging.warning(warning)

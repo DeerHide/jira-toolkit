@@ -1,0 +1,509 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Script Name: console.py
+Description: This script contains the console configuration for the Jira Importer.
+Author: Julien (@tom4897)
+License: MIT
+Date: 2025
+"""
+
+from __future__ import annotations
+
+import sys
+from dataclasses import dataclass
+from typing import Optional, Iterable, Sequence
+
+from rich.align import Align
+from rich.console import Console
+from rich.errors import MissingStyle
+from rich.markup import escape as rich_escape
+from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
+from rich.table import Table
+from rich.theme import Theme
+from rich.traceback import install as install_rich_traceback
+
+THEME = Theme({
+    # Base tones
+    "text": "white",
+    "muted": "grey62",
+    "title": "bold white",
+    "accent": "bold cyan",
+    "accent.dim": "cyan",
+
+    # Message kinds
+    "info": "cyan",
+    "success": "bold green",
+    "warning": "bold yellow",
+    "error": "bold red",
+    "debug": "magenta",
+
+    # Code-ish bits
+    "key": "bold white",
+    "value": "bold cyan",
+    "code": "white on grey15",
+    "path": "italic cyan",
+
+    # Prompts / user input semantics
+    "prompt": "bold white",
+    "hint": "italic grey46",
+    "example": "italic cyan",
+    "default": "dim",
+    "choice": "bold cyan",
+    "hotkey": "bold",
+    "required": "bold red",
+    "danger": "bold red",
+    "note": "dim",
+
+    # Title semantics
+    "title.h1": "bold white on grey15",
+    "title.h2": "bold cyan",
+    "title.h3": "bold white",
+    "title.note": "italic grey62",
+
+    # Decorations
+    "rule.h1": "cyan",
+    "rule.h2": "grey46",
+    "rule.h3": "grey35",
+    "crumb": "italic cyan",
+    "crumb.sep": "dim"
+})
+
+install_rich_traceback(show_locals=False, width=120, extra_lines=2, word_wrap=True, theme="monokai")
+console = Console(theme=THEME, highlight=True, soft_wrap=False)
+
+@dataclass(frozen=True)
+class ConsoleStyle:
+    prefix_info: str = "ℹ️ "
+    prefix_success: str = "✅ "
+    prefix_warning: str = "⚠️ "
+    prefix_error: str = "❌ "
+    prefix_debug: str = "🐛 "
+
+    # Panel defaults
+    panel_border: str = "accent.dim"
+    panel_title_style: str = "title"
+
+    # Table defaults
+    table_header_style: str = "accent"
+    table_row_style: str = "text"
+    table_alt_row_style: str = "text"
+
+STYLE = ConsoleStyle()
+
+class Fmt:
+    """
+    Centralized markup helpers that:
+      - Use only styles defined in the Theme (or Rich built-ins like 'bold', 'italic')
+      - Fail fast on typos / undefined styles
+    """
+
+    _BUILTINS: set[str] = {"bold", "italic", "underline", "reverse", "strike", "dim"}
+
+    def __init__(self, _console: Console):
+        self._c = _console
+
+    def _validate(self, style: str) -> None:
+        for token in style.split():
+            if token in self._BUILTINS:
+                continue
+            try:
+                self._c.get_style(token)
+            except MissingStyle as exc:
+                raise ValueError(f"Unknown style '{token}'. Add it to THEME or fix the name.") from exc
+
+    def style(self, text: str, style: str) -> str:
+        self._validate(style)
+        return f"[{style}]{text}[/]"
+
+    # Base styles
+    def bold(self, text: str) -> str: return self.style(text, "bold")
+    def italic(self, text: str) -> str: return self.style(text, "italic")
+    def code(self, text: str) -> str: return self.style(text, "code")
+    def path(self, text: str) -> str: return self.style(text, "path")
+    def key(self, text: str) -> str: return self.style(text, "key")
+    def value(self, text: str) -> str: return self.style(text, "value")
+    def accent(self, text: str) -> str: return self.style(text, "accent")
+    def dim(self, text: str) -> str: return self.style(text, "dim")
+    def success(self, text: str) -> str: return self.style(text, "success")
+    def warning(self, text: str) -> str: return self.style(text, "warning")
+    def error(self, text: str) -> str: return self.style(text, "error")
+    def info(self, text: str) -> str: return self.style(text, "info")
+    def debug(self, text: str) -> str: return self.style(text, "debug")
+    def prompt(self, text: str) -> str: return self.style(text, "prompt")
+    def hint(self, text: str) -> str: return self.style(text, "hint")
+    def example(self, text: str) -> str: return self.style(text, "example")
+    def default(self, text: str) -> str: return self.style(text, "default")
+    def choice(self, text: str) -> str: return self.style(text, "choice")
+    def hotkey(self, text: str) -> str: return self.style(text, "hotkey")
+    def required(self, text: str) -> str: return self.style(text, "required")
+    def danger(self, text: str) -> str: return self.style(text, "danger")
+    def note(self, text: str) -> str: return self.style(text, "note")
+
+    # Titles & ornaments
+    def t_h1(self, text: str) -> str: return self.style(text, "title.h1")
+    def t_h2(self, text: str) -> str: return self.style(text, "title.h2")
+    def t_h3(self, text: str) -> str: return self.style(text, "title.h3")
+    def t_note(self, text: str) -> str: return self.style(text, "title.note")
+
+    def crumb(self, part: str) -> str: return self.style(part, "crumb")
+    def crumb_sep(self, sep: str = "›") -> str: return self.style(sep, "crumb.sep")
+
+    def kv(self, k: str, v: str, sep: str = ": ") -> str:
+        """Format a key/value pair with semantic styles."""
+        return f"{self.key(k)}{sep}{self.value(v)}"
+
+    def join(self, parts: Iterable[str], sep: str = " ") -> str:
+        """Join pre-styled parts safely."""
+        return sep.join(parts)
+
+    def esc(self, text: str) -> str:
+        """Escape raw text that may include [brackets] so markup stays valid."""
+        # TODO: This is a hack to escape [brackets] so markup stays valid.
+        return rich_escape(text)
+
+class ConsoleUI:
+    def __init__(self, _console: Optional[Console] = None, style: ConsoleStyle = STYLE, formatter: Optional[Fmt] = None) -> None:
+        self.c = _console or console
+        self.style = style
+        self.formatter = formatter or fmt
+
+    def say(self, *parts: str, sep: str = " ") -> None:
+        self.c.print(sep.join(parts))
+
+    def lf(self) -> None:
+        self.c.print("\n")
+
+    # --- Messages
+    def success(self, msg: str) -> None: self.c.print(f"[success]{self.style.prefix_success} {msg}[/]")
+    def info(self, msg: str) -> None: self.c.print(f"[info]{self.style.prefix_info} {msg}[/]")
+    def warning(self, msg: str) -> None: self.c.print(f"[warning]{self.style.prefix_warning} {msg}[/]")
+    def error(self, msg: str) -> None: self.c.print(f"[error]{self.style.prefix_error} {msg}[/]")
+    def debug(self, msg: str) -> None: self.c.print(f"[debug]{self.style.prefix_debug} {msg}[/]")
+
+    # --- Panels (for grouped info / summaries)
+    def panel(
+        self,
+        title: str,
+        body: str,
+        *,
+        title_align: str = "left",
+        style: str = "accent",
+        expand: bool = False,
+        width: int | None = None,
+    ) -> None:
+        panel = Panel(
+            Align(body, "left"),
+            title=f"[title]{title}[/]" if title else None,
+            title_align=title_align,
+            border_style=style,
+            expand=expand,
+            width=width,
+        )
+        self.c.print(panel)
+
+    def full_panel(
+        self,
+        body: str,
+        *,
+        title: str | None = None,
+        title_align: str = "left",
+        style: str = "accent",
+    ) -> None:
+        """Render a panel that always spans the console width."""
+        panel = Panel(
+            Align(body, "center"),
+            title=f"[title]{title}[/]" if title else None,
+            title_align=title_align,
+            border_style=style,
+            expand=True,              # Force it to occupy console width
+        )
+        self.c.print(panel)
+
+    def title_h1(self, text: str, *, icon: str = "◆") -> None:
+        """
+        Big section title: full-width rule, inverted title chip centered.
+        Example:
+        ─────────────────────  ◆  PROJECT SETUP  ◆  ─────────────────────
+        """
+        chip = f" {icon} {fmt.t_h1(text.upper())} {icon} "
+        # console.rule centers and stretches to width
+        self.c.rule(chip, style="rule.h1")
+
+    def title_h2(self, text: str, *, icon: str = "•") -> None:
+        """
+        Medium section title: single line + thin rule below.
+        Example:
+        • Configuration
+        ─────────────────────────────────────────
+        """
+        self.c.print(f"{icon} {fmt.t_h2(text)}")
+        self.c.rule(style="rule.h2")
+
+    def title_h3(self, text: str, *, icon: str = "→") -> None:
+        """
+        Small section header: inline, with a very light rule (spacer).
+        Example:
+        → Credentials
+        ─────────────
+        """
+        self.c.print(f"{icon} {fmt.t_h3(text)}")
+        self.c.rule(style="rule.h3")
+
+    def title_banner(self, text: str, *, sub: str | None = None, icon: str = "🚀") -> None:
+        """
+        Emphatic banner (panel) for start/finish milestones.
+        """
+        body = f"{icon} {fmt.t_h2(text)}"
+        if sub:
+            body += f"\n{fmt.t_note(sub)}"
+        panel = Panel(
+            Align.center(body),
+            border_style="accent",
+            expand=True,
+        )
+        self.c.print(panel)
+
+    def breadcrumb(self, parts: list[str], *, sep: str = "›") -> None:
+        """
+        Breadcrumb line, e.g., Setup › Connect › Verify
+        """
+        if not parts:
+            return
+        crumbed = []
+        for i, p in enumerate(parts):
+            crumbed.append(fmt.crumb(p))
+            if i < len(parts) - 1:
+                crumbed.append(f" {fmt.crumb_sep(sep)} ")
+        self.c.print("".join(crumbed))
+
+    # Tables
+    def table(self, columns: list[str], rows: list[list[str]]) -> None:
+        t = Table(show_header=True, header_style=self.style.table_header_style, show_lines=False)
+        for col in columns:
+            t.add_column(col)
+        for i, row in enumerate(rows):
+            style = self.style.table_alt_row_style if i % 2 else self.style.table_row_style
+            t.add_row(*row, style=style)
+        self.c.print(t)
+
+    # Progress
+    def progress(self) -> Progress:
+        return Progress(
+            SpinnerColumn(),
+            TextColumn("[accent]{task.description}"),
+            BarColumn(),
+            TextColumn("[muted]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            console=self.c,
+        )
+
+    # Prompts
+    def prompt_input(self, prompt_text: str) -> str:
+        """
+        Ask the user for input using Rich's Console.input.
+        Exact text shown equals prompt_text (no styling added here).
+        Returns empty string if non-interactive or on interrupt.
+        """
+        if not sys.stdin.isatty():
+            return ""
+        try:
+            return self.c.input(prompt_text)
+        except (EOFError, KeyboardInterrupt):
+            return ""
+
+    def prompt_yes_no(
+        self,
+        question: str,
+        *,
+        default: bool | None = None,
+        max_attempts: int = 3,
+    ) -> bool:
+        """
+        Yes/No confirmation prompt (returns True/False).
+
+        - Accepts y/yes and n/no (case-insensitive). q/quit => False.
+        - If default is provided and user presses Enter, returns default.
+        - Non-interactive (no TTY): returns default if provided, else False.
+        - On EOF/KeyboardInterrupt: returns default if provided, else False.
+        - After `max_attempts` invalid tries: returns default if provided, else False.
+        """
+        # Non-interactive fallback
+        if not sys.stdin.isatty():
+            if default is not None:
+                self.say(fmt.note("Non-interactive mode: using default."))
+                return default
+            self.say(fmt.note("Non-interactive mode: no input available."))
+            return False
+
+        def _normalize(resp: str) -> bool | None:
+            resp = resp.strip().lower()
+            if not resp:
+                return default
+            if resp in ("y", "yes"):
+                return True
+            if resp in ("n", "no", "q", "quit"):
+                return False
+            return None
+
+        # Build styled prompt text
+        default_hint = ""
+        if default is True:
+            default_hint = f" {fmt.default('[Y/n]')}"
+        elif default is False:
+            default_hint = f" {fmt.default('[y/N]')}"
+
+        prompt_line = f"{fmt.prompt(question)}{default_hint}: "
+
+        attempts = 0
+        while True:
+            try:
+                raw = self.c.input(prompt_line)
+            except (EOFError, KeyboardInterrupt):
+                return default if default is not None else False
+
+            val = _normalize(raw)
+            if val is not None:
+                return val
+
+            attempts += 1
+            if attempts >= max_attempts:
+                return default if default is not None else False
+
+            self.warning("Please answer with y/yes or n/no.")
+
+
+    def prompt_text(
+        self,
+        question: str,
+        *,
+        required: bool = False,
+        default: str | None = None,
+        hint: str | None = None,
+    ) -> str:
+        """
+        Text input prompt with styled question and robust fallbacks.
+
+        - Shows hint text and default values if provided.
+        - If `required=True`, forces non-empty input (unless default is set).
+        - Returns default on empty input if given.
+        - Non-interactive (no TTY): returns default if provided, else "".
+        - On EOF/KeyboardInterrupt: returns default if provided, else "".
+        """
+        if not sys.stdin.isatty():
+            return default or ""
+
+        while True:
+            # Build prompt components
+            hint_part = f" {fmt.hint(hint)}" if hint else ""
+            def_part = f" {fmt.default(f'(default: {default})')}" if default else ""
+            req_mark = f" {fmt.required('*')}" if required else ""
+
+            prompt_text = f"{fmt.prompt(question)}{req_mark}{hint_part}{def_part}: "
+
+            try:
+                response = self.c.input(prompt_text).strip()
+            except (EOFError, KeyboardInterrupt):
+                return default or ""
+
+            if not response:
+                if default is not None:
+                    return default
+                if required:
+                    self.say(fmt.warning("This value is required."))
+                    continue
+                return ""
+
+            return response
+
+    def prompt_choice(
+        self,
+        question: str,
+        options: Sequence[str],
+        *,
+        default_idx: int | None = None,   # 1-based for the user (e.g., 2 means options[1])
+        hints: Sequence[str] | None = None,
+        max_attempts: int = 3,
+    ) -> int:
+        """
+        Multiple-choice prompt (returns 0-based index).
+
+        - Renders a numbered list 1..N with optional per-option hints.
+        - Input expects a number in 1..N (case-insensitive 'q'/'quit' aborts).
+        - If default_idx is provided and user presses Enter, returns default_idx-1.
+        - Non-interactive (no TTY): returns default_idx-1 if provided, else -1.
+        - On EOF/KeyboardInterrupt: returns default_idx-1 if provided, else -1.
+        - After `max_attempts` invalid tries: returns default_idx-1 if provided, else -1.
+
+        Returns:
+            int: 0-based index of the selected option, or -1 if aborted/unavailable.
+        """
+        n = len(options)
+        if n == 0:
+            self.error("No options available.")
+            return -1
+
+        # Non-interactive fallback
+        if not sys.stdin.isatty():
+            if default_idx is not None and 1 <= default_idx <= n:
+                return default_idx - 1
+            self.say(fmt.note("Non-interactive mode: no input available."))
+            return -1
+
+        # Render the list once
+        self.say(fmt.prompt(question))
+        for i, label in enumerate(options, start=1):
+            hint_txt = ""
+            if hints and (i - 1) < len(hints) and hints[i - 1]:
+                hint_txt = f"  {fmt.hint(hints[i - 1])}"
+            self.say(f"  {fmt.hotkey(str(i))}) {fmt.choice(label)}{hint_txt}")
+
+        # Build the input line
+        range_hint = fmt.hint(f"1..{n}")
+        default_hint = f" {fmt.default(f'(default: {default_idx})')}" if default_idx else ""
+        prompt_line = f"{fmt.prompt('Select')} {range_hint}{default_hint}: "
+
+        attempts = 0
+        while True:
+            try:
+                raw = self.c.input(prompt_line).strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                return default_idx - 1 if default_idx else -1
+
+            # Abort
+            if raw in ("q", "quit"):
+                return -1
+
+            # Default
+            if raw == "" and default_idx:
+                return default_idx - 1
+
+            # Numeric choice
+            if raw.isdigit():
+                val = int(raw)
+                if 1 <= val <= n:
+                    return val - 1
+
+            attempts += 1
+            if attempts >= max_attempts:
+                return default_idx - 1 if default_idx else -1
+
+            self.warning(f"Pick one of {fmt.hotkey(f'1..{n}')} or {fmt.hotkey('q')} to cancel.")
+
+    def confirm_destructive(self, action: str, *, default: bool = False) -> bool:
+        self.say(fmt.danger("This action cannot be undone."))
+        return self.prompt_yes_no(f"{action}? ", default=default)
+
+
+fmt = Fmt(console)
+ui = ConsoleUI(formatter=fmt)

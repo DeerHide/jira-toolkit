@@ -15,6 +15,8 @@ import os
 import colorlog
 from typing import Optional
 
+from console import ui, fmt
+
 logger = logging.getLogger(__name__)
 
 def resource_path(relative_path: str) -> str:
@@ -41,6 +43,7 @@ def get_logs_directory() -> str:
     except (PermissionError, OSError) as e:
         # Fallback to temp directory if we can't create logs dir
         import tempfile
+        ui.error(f"Could not create logs directory in executable location: {e}")
         logger.debug(f"Could not create logs directory in executable location: {e}")
         temp_logs_dir = os.path.join(tempfile.gettempdir(), 'jira-toolkit', 'logs')
         os.makedirs(temp_logs_dir, exist_ok=True)
@@ -54,7 +57,7 @@ def find_config_path(config_filename: str, input_file_path: Optional[str] = None
         if input_file_path:
             search_paths.append(os.path.join(os.path.dirname(os.path.abspath(input_file_path)), config_filename))
         else:
-            logger.warning("config-input specified but no input file path provided")
+            logger.warning("config-input: wrong usage")
             return config_filename
     elif config_default:
         search_paths.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), config_filename))
@@ -69,6 +72,8 @@ def find_config_path(config_filename: str, input_file_path: Optional[str] = None
             logger.debug(f"Found configuration file: {path}")
             return path
 
+    fmt_config_filename = fmt.path(config_filename)
+    ui.error(f"Configuration file '{fmt_config_filename}' not found in expected locations. Using default path.")
     logger.warning(f"Configuration file '{config_filename}' not found in expected locations. Using default path.")
     logger.warning(f"Expected locations: {search_paths}")
     return config_filename

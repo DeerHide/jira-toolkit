@@ -13,13 +13,14 @@ import logging
 import sys
 import argparse
 from artifacts import ArtifactManager
+from console import ui, fmt
 
 logger = logging.getLogger(__name__)
 
 class App:
     # Class variable to store command line arguments
     _args = None
-    
+
     def __init__(self, artifact_manager: ArtifactManager):
         self.artifact_manager = artifact_manager
 
@@ -30,15 +31,14 @@ class App:
         sys.exit(exit_code)
 
     def event_abort(self, exit_code: int = -1) -> None:
-        logger.debug("event_abort")
-        
-        logger.fatal("Aborted script.")
+        ui.error("You have aborted the script.")
+        logger.critical("Aborted script.")
         self.event_close(exit_code=exit_code)
 
     @staticmethod
     def event_fatal(exit_code: int = -1) -> None:
         logger.debug("event_fatal")
-        
+
         # Show arguments if available
         if App._args:
             logger.critical("Script failed with the following arguments:")
@@ -53,7 +53,16 @@ class App:
             if App._args.version:
                 logger.critical(f"  Version: {App._args.version}")
             logger.critical(f" args: {App._args}")
-        
+            ui.error("Fatal event raised!")
+            _str = "\n" + fmt.kv("Input file", fmt.path(App._args.input_file)) + "\n"
+            _str += fmt.kv("Configuration", fmt.path(App._args.config)) + "\n"
+            _str += fmt.kv("Debug mode", App._args.debug) + "\n"
+            _str += fmt.kv("Version", App._args.version) + "\n"
+            _str += fmt.kv("Config default", App._args.config_default) + "\n"
+            _str += fmt.kv("Config input", App._args.config_input) + "\n"
+            _str += fmt.kv("args", App._args) + "\n"
+            ui.panel("Script failed with the following arguments:", _str)
+
         logger.critical("Fatal error.")
         sys.exit(exit_code)
 
@@ -61,12 +70,12 @@ class App:
     def parse_args() -> argparse.Namespace:
         parser = argparse.ArgumentParser(description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.", formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument("input_file", help="Excel XLSX file", default='import.xlsx')
-        
+
         config_group = parser.add_mutually_exclusive_group()
         config_group.add_argument("-c", "--config", help="Configuration file path", default='config_importer.json')
         config_group.add_argument("-cd", "--config-default", help="Get the configuration path from the application location", action='store_true')
         config_group.add_argument("-ci", "--config-input", help="Get the configuration path from the input file location", action='store_true')
-        
+
         parser.add_argument("-d", "--debug", help="Enable debug mode", action='store_true')
         parser.add_argument("-v", "--version", help="Show version", action='store_true')
         #parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')

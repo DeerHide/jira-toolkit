@@ -4,7 +4,7 @@
 #agent:disable=unused-variable
 #agent:disable=unreachable-code
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple, Literal
 
 """
 Script Name: csvprocessor.py
@@ -19,6 +19,10 @@ import csv
 import re
 from tqdm import tqdm # type: ignore
 from app import App
+from typing import List
+from contextlib import nullcontext
+from console import ConsoleUI, fmt, ui
+
 
 unique_key_column = 'summary'
 
@@ -33,12 +37,11 @@ class CSVProcessor:
         self.header: List[str] = []
         self.data: List[List[str]] = []
         self.current_row_index: int = 1
-        self.warning_list: List[str] = []
-        self.error_list: List[str] = []
-        self.fix_list: List[str] = []
         self.complex_child_issues: List[Dict[str, Any]] = []
         self.issue_id_list: List[str] = []
         self.config = None
+
+        self.problem_list: List[Tuple[str, Literal["error", "warning", "fix"], int]] = []
 
         # Load configuration and process CSV
         self.config = config
@@ -48,6 +51,42 @@ class CSVProcessor:
         self.header = self.format_header()
         self.column_indices = self.extract_column_indices()
         self.data = self.format_data()
+
+    def add_problem(self, message: str, problem_type: Literal["error", "warning", "fix"], row_index: Optional[int] = None) -> None:
+        """Add a problem to the problem list with the specified type and row index."""
+        if row_index is None:
+            row_index = self.current_row_index
+        self.problem_list.append((message, problem_type, row_index))
+
+    def add_error(self, message: str, row_index: Optional[int] = None) -> None:
+        self.add_problem(message, "error", row_index)
+
+    def add_warning(self, message: str, row_index: Optional[int] = None) -> None:
+        self.add_problem(message, "warning", row_index)
+
+    def add_fix(self, message: str, row_index: Optional[int] = None) -> None:
+        self.add_problem(message, "fix", row_index)
+
+    def get_problem_list(self) -> List[Tuple[str, Literal["error", "warning", "fix"], int]]:
+        return self.problem_list
+
+    def get_errors(self) -> List[Tuple[str, Literal["error", "warning", "fix"], int]]:
+        return [problem for problem in self.problem_list if problem[1] == "error"]
+
+    def get_warnings(self) -> List[Tuple[str, Literal["error", "warning", "fix"], int]]:
+        return [problem for problem in self.problem_list if problem[1] == "warning"]
+
+    def get_fixes(self) -> List[Tuple[str, Literal["error", "warning", "fix"], int]]:
+        return [problem for problem in self.problem_list if problem[1] == "fix"]
+
+    def get_error_count(self) -> int:
+        return len(self.get_errors())
+
+    def get_warning_count(self) -> int:
+        return len(self.get_warnings())
+
+    def get_fix_count(self) -> int:
+        return len(self.get_fixes())
 
     def load_config_values(self, config) -> None:
         """Load validation settings and skip flags from config."""
@@ -99,27 +138,51 @@ class CSVProcessor:
 
     def format_data(self) -> List[List[str]]:
         """Process and validate CSV data rows."""
-        formatted_rows = []
+        total = len(self.data)
+        if total == 0:
+            return []
 
-        # Use configurable skip keywords (could be moved to config later)
-        skip_keywords = ['skip', 'comment', 'note', 'WorkItem']
+        formatted_rows: List[List[str]] = []
 
-        for self.current_row_index, row in enumerate(tqdm(self.data, desc="Processing data", unit="row"), start=2):
-            if not any(row):  # Skip empty rows
-                self.warning_list.append(f"Row skipped due to empty row: {row}")
-                continue
+        # lookups
+        expected_len = len(self.header)
+        do_validate = bool(self.config_components and self.config_priorities and self.config_issuetypes)
 
-            # Check if rowtype column exists before accessing it
-            if self._should_skip_row(row, skip_keywords):
-                continue
+        # Use a set for O(1) membership; let _should_skip_row decide details
+        skip_keywords = {"skip", "comment", "note", "WorkItem"}
 
-            if len(row) != len(self.header):  # Skip rows with incorrect number of columns
-                self.error_list.append(f"Row skipped due to incorrect number of columns: {row}")
-                continue
-            if self.config_components and self.config_priorities and self.config_issuetypes:
-                self.row_validator(row)
+        progress_cm = ui.progress()
 
-            formatted_rows.append(row)
+        with progress_cm as progress:
+            task = progress.add_task("Processing data", total=total)
+
+            for self.current_row_index, row in enumerate(self.data, start=2):
+                try:
+                    # 1) Skip empty rows
+                    if not any(row):
+                        self.add_warning(f"Row skipped due to empty row: {row}")
+                        continue
+
+                    # 2) Skip based on row type / keywords
+                    if self._should_skip_row(row, skip_keywords):
+                        continue
+
+                    # 3) Validate column count
+                    if len(row) != expected_len:
+                        logging.error(f"Row skipped due to incorrect number of columns: {row}")
+                        self.add_error(f"Row skipped due to incorrect number of columns: {row}")
+                        continue
+
+                    # 4) Optional row-level validation
+                    if do_validate:
+                        self.row_validator(row)
+
+                    # 5) Keep it
+                    formatted_rows.append(row)
+                finally:
+                    if task is not None:
+                        progress.advance(task)
+                        progress.refresh()
 
         return formatted_rows
 
@@ -208,6 +271,7 @@ class CSVProcessor:
         self._validate_column_indices(column_indices)
 
         logging.info(f"Successfully extracted column indices: {list(column_indices.keys())}")
+        #ui.success(f"Successfully extracted column indices: {list(column_indices.keys())}")
         return column_indices
 
     def _validate_column_indices(self, column_indices: Dict[str, Optional[int]]) -> None:
@@ -326,7 +390,7 @@ class CSVProcessor:
         assignee = row[assignee_index].strip() if row[assignee_index] else ""
         logging.debug(f"Checking assignee: '{assignee}' in row {self.current_row_index}")
 
-        # Basic assignee validation - could be enhanced with config later
+                # Basic assignee validation - could be enhanced with config later
         if assignee:
             # Check for common assignee ID lengths (24, 43 characters)
             if len(assignee) not in [24, 43]:
@@ -334,7 +398,7 @@ class CSVProcessor:
                     f"Row {self.current_row_index}: Assignee '{assignee}' length is {len(assignee)} "
                     f"(expected 24 or 43 characters)."
                 )
-                self.warning_list.append(warning_msg)
+                self.add_warning(warning_msg)
                 logging.warning(warning_msg)
 
         #todo: Check against assignee list if available
@@ -344,7 +408,7 @@ class CSVProcessor:
         issue_id = row[issue_id_index]
         if issue_id in self.issue_id_list:
             logging.debug(f"Duplicated Issue ID: {issue_id} in row {self.current_row_index}")
-            self.error_list.append(f"Duplicated Issue ID {issue_id} in row {self.current_row_index}.")
+            self.add_error(f"Duplicated Issue ID {issue_id} in row {self.current_row_index}.")
 
 
     def check_issue_id(self, row, column_index) -> None:
@@ -355,7 +419,7 @@ class CSVProcessor:
         elif isinstance(issue_id, float):
             row[column_index] = int(issue_id)
         else:
-            self.error_list.append(f"Invalid Issue ID value '{issue_id}' in row {self.current_row_index}.")
+            self.add_error(f"Invalid Issue ID value '{issue_id}' in row {self.current_row_index}.")
 
     def check_child_issue_id(self, row, column_index) -> bool:
         """Validate child issue ID format and handle complex ranges."""
@@ -394,7 +458,7 @@ class CSVProcessor:
 
         # Handle invalid values
         logging.debug(f"Invalid Child Issue ID value '{issue_id_str}' in row {self.current_row_index}.")
-        self.error_list.append(f"Invalid Child Issue ID value '{issue_id_str}' in row {self.current_row_index}.")
+        self.add_error(f"Invalid Child Issue ID value '{issue_id_str}' in row {self.current_row_index}.")
         return is_complex
 
     def check_story_for_parent_link(self, row, issuetype_index) -> None:
@@ -407,15 +471,21 @@ class CSVProcessor:
             elif 'epic link' in self.header:
                 parent_link_index = self.header.index('epic link')
             else:
-                self.warning_list.append(f"Could not find a 'parent' or an 'epic link' column for Story in row {self.current_row_index}.")
+                warning_msg = f"Could not find a 'parent' or an 'epic link' column for Story in row {self.current_row_index}."
+                self.add_warning(warning_msg)
+                logging.warning(warning_msg)
                 return
 
             # Check if parent_link_index is within bounds
             if parent_link_index is not None and parent_link_index < len(row):
                 if not row[parent_link_index]:
-                    self.warning_list.append(f"Story does not have a parent Link in row {self.current_row_index}.")
+                    warning_msg = f"Story does not have a parent Link in row {self.current_row_index}."
+                    self.add_warning(warning_msg)
+                    logging.warning(warning_msg)
             else:
-                self.warning_list.append(f"Parent link index {parent_link_index} out of bounds for row {self.current_row_index}.")
+                warning_msg = f"Parent link index {parent_link_index} out of bounds for row {self.current_row_index}."
+                self.add_warning(warning_msg)
+                logging.warning(warning_msg)
 
     def check_description(self, row, description_index) -> None:
         """Validate description field is not empty."""
@@ -423,7 +493,9 @@ class CSVProcessor:
             logging.debug(f"Skipping description check - column not found in header")
             return
         if row[description_index] is None or not row[description_index].strip():
-            self.warning_list.append(f"Description value is empty {self.current_row_index}.")
+            warning_msg = f"Description value is empty {self.current_row_index}."
+            self.add_warning(warning_msg)
+            logging.warning(warning_msg)
 
     def check_summary(self, row, summary_index) -> None:
         """Validate summary length (5-255 characters)."""
@@ -431,9 +503,13 @@ class CSVProcessor:
             logging.debug(f"Skipping summary check - column not found in header")
             return
         if row[summary_index] and len(row[summary_index]) > 255:
-            self.warning_list.append(f"Summary value exceeds 255 characters in row {self.current_row_index}.")
+            warning_msg = f"Summary value exceeds 255 characters in row {self.current_row_index}."
+            self.add_warning(warning_msg)
+            logging.warning(warning_msg)
         if not row[summary_index] or len(row[summary_index]) < 5:
-            self.warning_list.append(f"Summary value is less than 5 characters in row {self.current_row_index}.")
+            warning_msg = f"Summary value is less than 5 characters in row {self.current_row_index}."
+            self.add_warning(warning_msg)
+            logging.warning(warning_msg)
 
     def check_components(self, row, component_index) -> None:
         """Validate components against config-defined list."""
@@ -444,7 +520,9 @@ class CSVProcessor:
         components_normalized = [component.casefold() for component in self.config_components]
         for component in components:
             if component.casefold() not in components_normalized:
-                self.error_list.append(f"Invalid Component value '{component}' in row {self.current_row_index}.")
+                error_msg = f"Invalid Component value '{component}' in row {self.current_row_index}."
+                self.add_error(error_msg)
+                logging.error(error_msg)
 
     def check_issue_type(self, row, issuetype_index) -> None:
         """Validate issue type against config-defined list."""
@@ -453,7 +531,9 @@ class CSVProcessor:
             return
         issuetypes_normalized = [issuetype.casefold() for issuetype in self.config_issuetypes]
         if row[issuetype_index].casefold() not in issuetypes_normalized:
-            self.error_list.append(f"Invalid Issue Type value '{row[issuetype_index]}' in row {self.current_row_index}.")
+            error_msg = f"Invalid Issue Type value '{row[issuetype_index]}' in row {self.current_row_index}."
+            self.add_error(error_msg)
+            logging.error(error_msg)
 
     def check_priority_value(self, row, priority_index) -> None:
         """Validate priority value and auto-fix numeric format."""
@@ -463,14 +543,18 @@ class CSVProcessor:
         priorities_normalized = [priority.casefold() for priority in self.config_priorities]
         if row[priority_index].isdigit():
             if (int(row[priority_index]) < 1) or (int(row[priority_index]) > 3):
-                self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
+                error_msg = f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}."
+                self.add_error(error_msg)
+                logging.error(error_msg)
             else:
                 if row[priority_index] in ['1', '2', '3']:
                     old_priority = row[priority_index]
                     row[priority_index] = f"0{row[priority_index]}"
-                    self.fix_list.append(f"Priority value '{row[priority_index]}' in row {self.current_row_index} has been fixed. (Original value: {old_priority})")
+                    self.add_fix(f"Priority value '{row[priority_index]}' in row {self.current_row_index} has been fixed. (Original value: {old_priority})")
         elif row[priority_index].casefold() not in priorities_normalized:
-            self.error_list.append(f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}.")
+            error_msg = f"Invalid Priority value '{row[priority_index]}' in row {self.current_row_index}."
+            self.add_error(error_msg)
+            logging.error(error_msg)
 
     def process_estimate(self, row, estimate_index, origest_index) -> None:
         """Process and store computed estimate in origest field."""
@@ -533,7 +617,9 @@ class CSVProcessor:
         fixversions_normalized = [fixversion.casefold() for fixversion in self.config_fixversions]
         for fixversion in fixversions:
             if fixversion.casefold() not in fixversions_normalized:
-                self.error_list.append(f"Invalid Fix Version value '{fixversion}' in row {self.current_row_index}.")
+                error_msg = f"Invalid Fix Version value '{fixversion}' in row {self.current_row_index}."
+                self.add_error(error_msg)
+                logging.error(error_msg)
 
     def check_sprint(self, row, sprint_index) -> None:
         """Validate sprint number against minimum config value."""
@@ -546,9 +632,11 @@ class CSVProcessor:
         try:
             sprint = int(sprint)
             if sprint < self.config_min_sprint_value:
-                self.warning_list.append(f"Sprint value '{sprint}' is less than the minimum sprint value in row {self.current_row_index}.")
+                warning_msg = f"Sprint value '{sprint}' is less than the minimum sprint value in row {self.current_row_index}."
+                self.add_warning(warning_msg)
+                logging.warning(warning_msg)
         except ValueError:
-            #self.error_list.append(f"Invalid Sprint value '{sprint}' in row {self.current_row_index}.")
+            #self.add_error(f"Invalid Sprint value '{sprint}' in row {self.current_row_index}.")
             return
 
     def check_project_key(self, row, project_key_index) -> None:
@@ -559,24 +647,34 @@ class CSVProcessor:
         project_key = row[project_key_index]
         if not isinstance(project_key, str):
             if project_key is None or not project_key.strip():
-                logging.warning(f"Project Key value is empty in row {self.current_row_index}.")
+                warning_msg = f"Project Key value is empty in row {self.current_row_index}."
+                self.add_warning(warning_msg)
+                logging.warning(warning_msg)
                 return
         if isinstance(project_key, int):
             if project_key != self.config_project_key:
                 row[project_key_index] = self.config_project_key
-                self.fix_list.append(f"Project Key value '{project_key}' in row {self.current_row_index} has been fixed.")
+                self.add_fix(f"Project Key value '{project_key}' in row {self.current_row_index} has been fixed.")
                 return
 
-    def has_errors_or_warnings(self) -> bool:
-        """Check if validation found any errors or warnings."""
-        return bool(self.error_list or self.warning_list)
+    def problems_found(self) -> bool:
+        """Check if validation found any problems."""
+        return bool(self.problem_list)
 
     def show_report(self) -> None:
-        """Log all validation errors, warnings, and fixes."""
-        if self.has_errors_or_warnings():
-            for warning in self.warning_list:
-                logging.warning(warning)
-            for error in self.error_list:
-                logging.error(error)
-            for fix in self.fix_list:
-                logging.info(fix)
+        """Display validation report using UI table and log to file."""
+        if self.problems_found():
+            rows = []
+            if self.get_problem_list():
+                for problem in self.get_problem_list():
+                    # Add emoji for severity
+                    severity_emoji = {"error": "❌", "warning": "⚠️", "fix": "🔧"}
+                    rows.append([severity_emoji.get(problem[1], problem[1]), str(problem[2]), problem[0]])
+
+            rows.append(["", "", ""])
+            rows.append(["", "", f"⚠️ {self.get_warning_count()} ❌ {self.get_error_count()} 🔧 {self.get_fix_count()}"])
+            ui.table(columns=["Severity", "Row", "Description"], rows=rows)
+
+        # Always log to file for debugging purposes
+        if self.problems_found():
+            logging.info(f"Problem list: {self.get_problem_list()}")

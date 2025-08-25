@@ -352,7 +352,7 @@ def setup_logger(level_override: Optional[int] = None, config: Optional[Any] = N
     root_logger.setLevel(logging_config.level)
 
     # Setup console logging
-    _setup_console_logging(logging_config.level)
+    #_setup_console_logging(logging_config.level)
 
     # Capture warnings via logging
     logging.captureWarnings(True)

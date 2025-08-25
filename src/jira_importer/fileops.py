@@ -9,15 +9,16 @@ License: MIT
 Date: 2025
 """
 
+from contextlib import suppress
 import logging
 import os
 import csv
-from typing import Optional
+from typing import Iterable, Optional
 from pathlib import Path
 import pandas as pd
-from tqdm import tqdm
 
 from artifacts import ArtifactManager
+from console import ui, fmt
 
 logger = logging.getLogger(__name__)
 
@@ -33,46 +34,68 @@ class FileManager:
 
     def __init__(self, artifact_manager: Optional[ArtifactManager] = None, config: Optional[object] = None) -> None:
         self.artifact_manager = artifact_manager
-        # Store configuration to access settings such as preferred sheet name
         self.config = config
 
     def write_csv_file(self, output_file: str, csv_file, is_artifact: bool = True) -> bool:
-        """Write a CSV file from a `csv_file` object exposing `header` and `data`.
-
-        Returns True on success. Uses an atomic write (temporary file + replace) to
-        avoid leaving partial files behind on errors. Keeps encoding and formatting
-        consistent with previous behavior.
         """
-        if not hasattr(csv_file, 'header') or not hasattr(csv_file, 'data'):
-            logger.error("Invalid csv_file object: missing 'header' or 'data' attribute")
+        Write a CSV file from an object exposing `header` and `data`.
+        Atomic write via temp file + replace. Returns True on success.
+        """
+        # --- Validate inputs (duck-typed)
+        header = getattr(csv_file, "header", None)
+        data = getattr(csv_file, "data", None)
+
+        if not isinstance(header, Iterable) or data is None:
+            msg = "Invalid csv_file object: missing 'header' or 'data' attribute"
+            ui.error(msg); logger.error(msg)
             return False
 
         path = Path(output_file)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_suffix(path.suffix + ".tmp")
 
+        # Try to get total for progress; fall back to indeterminate
         try:
-            with open(tmp_path, mode='w', newline='', encoding='utf-8', errors='ignore') as f:
+            total = len(data)
+        except TypeError:
+            total = None
+
+        try:
+            with open(tmp_path, mode="w", newline="", encoding="utf-8", errors="ignore") as f:
                 writer = csv.writer(f)
-                writer.writerow(csv_file.header)
-                for row in tqdm(csv_file.data, desc="Writing items", unit="items", total=len(csv_file.data)):
-                    writer.writerow(row)
+                writer.writerow(header)
+
+                # local bind for speed in loop
+                write_row = writer.writerow
+
+                with ui.progress() as progress:
+                    task = progress.add_task("Writing items", total=total)
+                    if total is None:
+                        for row in data:
+                            write_row(row)
+                            progress.advance(task)
+                    else:
+                        for row in data:
+                            write_row(row)
+                            progress.advance(task)
+                            progress.refresh()
 
             os.replace(tmp_path, path)
-            logger.info(f"CSV file written: {path}")
-            if self.artifact_manager and is_artifact:
+
+            ui.success(f"CSV file written: {path}")
+            logger.info("CSV file written: %s", path)
+
+            if getattr(self, "artifact_manager", None) and is_artifact:
                 self.artifact_manager.add(str(path))
-            return path.is_file()
+
+            return True
+
         except Exception as exc:
             logger.exception("Failed to write CSV '%s': %s", path, exc)
-            try:
+            with suppress(Exception):
                 if tmp_path.exists():
                     tmp_path.unlink()
-            finally:
-                return False
-
-        # Should not reach here
-        # return False
+            return False
 
     def xlsx_to_csv(self, xlsx_file: str, csv_file: str, is_artifact: bool = True) -> bool:
         """Convert an XLSX file to a CSV file. Returns True if successful, False otherwise."""
@@ -107,6 +130,7 @@ class FileManager:
         for col in excel_content.select_dtypes(include=['float']):
             excel_content[col] = excel_content[col].astype('Int64')
         excel_content.to_csv(csv_file, index=False)
+        ui.success(f"Converted XLSX to CSV: {csv_file}")
         logger.info(f"Converted XLSX to CSV: {csv_file}")
         if self.artifact_manager and is_artifact:
             self.artifact_manager.add(csv_file)
@@ -136,5 +160,6 @@ class FileManager:
                 logger.exception("Failed to delete file '%s': %s", file_path, exc)
                 return False
         else:
-            logger.warning(f"File '{file_path}' does not exist.")
+            ui.error(f"File '{file_path}' does not exist.")
+            logger.warning(f"Missing file: '{file_path}'")
             return False

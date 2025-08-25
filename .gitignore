@@ -5,11 +5,17 @@ lib64/
 parts/
 dist/
 .svn/
+.DS_Store
+.vscode/
 
 src/v-*/
 v-*/
-rsc/VSVersionInfo
+build/version/VSVersionInfo
+build/version/build-counter.json
 build/configs/v-*.json
+logs/
+jira_importer_logs/
+*.log
 
 *.psd
 ~$*.xlsx
@@ -42,5 +48,9 @@ env.bak/
 venv.bak/
 .env_vars
 *.env_vars
+build/version/build-counter.json
+
+# Legacy
+rsc/VSVersionInfo
 rsc/templates/ImportTemplate.csv
 rsc/templates/ImportTemplate_JiraReady.csv

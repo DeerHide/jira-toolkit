@@ -46,8 +46,8 @@
     "build_version_file": true
   },
   "dependencies": {
-    "required": ["PyInstaller", "pandas"],
-    "optional": []
+    "required": [ "pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog"],
+    "optional": ["colorama"]
   },
   "output_control": {
     "verbose": true,

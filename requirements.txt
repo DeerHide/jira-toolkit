@@ -6,3 +6,4 @@ pandas
 openpyxl
 structlog
 pre-commit
+rich

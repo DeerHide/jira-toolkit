@@ -184,11 +184,20 @@ class ConsoleUI:
         self.c.print("\n")
 
     # --- Messages
-    def success(self, msg: str) -> None: self.c.print(f"[success]{self.style.prefix_success} {msg}[/]")
-    def info(self, msg: str) -> None: self.c.print(f"[info]{self.style.prefix_info} {msg}[/]")
-    def warning(self, msg: str) -> None: self.c.print(f"[warning]{self.style.prefix_warning} {msg}[/]")
-    def error(self, msg: str) -> None: self.c.print(f"[error]{self.style.prefix_error} {msg}[/]")
-    def debug(self, msg: str) -> None: self.c.print(f"[debug]{self.style.prefix_debug} {msg}[/]")
+    def success(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[success]{self.style.prefix_success if prefix else ''} {msg}[/]")
+    def info(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[info]{self.style.prefix_info if prefix else ''} {msg}[/]")
+    def warning(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[warning]{self.style.prefix_warning if prefix else ''} {msg}[/]")
+    def error(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[error]{self.style.prefix_error if prefix else ''} {msg}[/]")
+    def debug(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[debug]{self.style.prefix_debug if prefix else ''} {msg}[/]")
+
+    def hint(self, msg: str) -> None: self.c.print(f"[hint]{msg}[/]")
+    def example(self, msg: str) -> None: self.c.print(f"[example]{msg}[/]")
+    def default(self, msg: str) -> None: self.c.print(f"[default]{msg}[/]")
+    def choice(self, msg: str) -> None: self.c.print(f"[choice]{msg}[/]")
+    def hotkey(self, msg: str) -> None: self.c.print(f"[hotkey]{msg}[/]")
+    def required(self, msg: str) -> None: self.c.print(f"[required]{msg}[/]")
+    def danger(self, msg: str) -> None: self.c.print(f"[danger]{msg}[/]")
+    def note(self, msg: str) -> None: self.c.print(f"[note]{msg}[/]")
 
     # --- Panels (for grouped info / summaries)
     def panel(

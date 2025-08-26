@@ -34,7 +34,7 @@ Welcome to the Jira Importer Toolkit development team! This guide will help you 
 
 3. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   pip install -r requirements.lock
    ```
 
 4. **Verify installation**
@@ -89,7 +89,8 @@ jira-toolkit/
 ├── docs/                       # Documentation
 ├── scripts/                    # Helper scripts (placeholder for future dev tooling)
 ├── build.py                    # Build script entrypoint
-├── requirements.txt            # Python dependencies
+├── requirements.in             # Python dependencies
+├── requirements.lock           # Python dependencies with used versions (pip freeze > requirements.lock)
 ├── README.md                   # User documentation
 └── .venv/                      # Virtual environment (created during setup)
 ```

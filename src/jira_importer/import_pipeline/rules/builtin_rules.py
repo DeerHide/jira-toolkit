@@ -1,0 +1,344 @@
+# src/jira_importer/import_pipeline/rules/builtin_rules.py
+
+"""
+script name: builtin_rules.py
+description: This script contains the built-in rules for the Jira Importer.
+author: Julien (@tom4897)
+license: MIT
+date: 2025
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Iterable, Mapping, Optional, Sequence
+
+from ..models import (
+    IRowRule,
+    Problem,
+    ProblemSeverity,
+    ValidationContext,
+    ValidationResult,
+    ColumnIndices,
+)
+
+# helpers functions
+
+def _cell_str(row: Sequence[Any], idx: Optional[int]) -> str:
+    if idx is None:
+        return ""
+    if idx < 0 or idx >= len(row):
+        return ""
+    v = row[idx]
+    if v is None:
+        return ""
+    s = str(v).strip()
+    return s
+
+def _is_empty(s: str) -> bool:
+    return s == ""
+
+
+# rules definitions
+
+@dataclass(slots=True)
+class SummaryRequiredRule(IRowRule):
+    """
+    Summary must not be empty.
+    Severity: error
+    Note: Mandatory for the Jira Cloud & Jira Server
+    """
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        summary = _cell_str(row, indices.summary)
+        if _is_empty(summary):
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="summary.required",
+                        message="Summary is required.",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="summary",
+                    ),
+                )
+            )
+        return ValidationResult.empty()
+
+
+@dataclass(slots=True)
+class IssueTypeAllowedRule(IRowRule):
+    """
+    IssueType must be one of allowed issuetypes (config override supported).
+    Default: {'Story','Task','Bug','Epic','Sub-Task'}
+    Severity: error
+    Note: Mandatory for the Jira Cloud & Jira Server
+    """
+    allowed: Optional[set[str]] = None
+
+    def _allowed(self, ctx: ValidationContext) -> set[str]:
+        # Duck-typed ConfigView: try get(), else defaults.
+        default = {"Story", "Task", "Bug", "Epic", "Sub-Task"}
+        cfg = getattr(ctx.config, "get", None)
+        if callable(cfg):
+            values = ctx.config.get("validation.allowed_issuetypes", default)
+            try:
+                return set(v if isinstance(v, str) else str(v) for v in values)
+            except Exception:
+                return default
+        return default
+
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        issuetype = _cell_str(row, indices.issuetype)
+        if _is_empty(issuetype):
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="issuetype.missing",
+                        message="Issue Type is required.",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="issuetype",
+                    ),
+                )
+            )
+        allowed = self.allowed or self._allowed(ctx)
+        if issuetype not in allowed:
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="issuetype.invalid",
+                        message=f"Issue Type '{issuetype}' is not allowed. Allowed: {sorted(allowed)}",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="issuetype",
+                    ),
+                )
+            )
+        return ValidationResult.empty()
+
+
+@dataclass(slots=True)
+class PriorityAllowedRule(IRowRule):
+    """
+    Priority must be one of allowed priorities (config override supported).
+    Default: {'Highest','High','Medium','Low','Lowest'}
+    Severity: warning (fixable via fixer to normalize/pad if needed)
+    Note: Mandatory for the Jira Cloud & Jira Server
+    """
+    def _allowed(self, ctx: ValidationContext) -> set[str]:
+        default = {"Highest", "High", "Medium", "Low", "Lowest"}
+        cfg = getattr(ctx.config, "get", None)
+        if callable(cfg):
+            values = ctx.config.get("validation.allowed_priorities", default)
+            try:
+                return set(v if isinstance(v, str) else str(v) for v in values)
+            except Exception:
+                return default
+        return default
+
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        pri = _cell_str(row, indices.priority)
+        if _is_empty(pri):
+            # Check if the priority is empty
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="priority.missing",
+                        message="Priority is empty.",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="priority",
+                    ),
+                )
+            )
+        allowed = self._allowed(ctx)
+        if pri not in allowed:
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="priority.invalid",
+                        message=f"Priority '{pri}' is not allowed. Allowed: {sorted(allowed)}",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="priority",
+                    ),
+                )
+            )
+        return ValidationResult.empty()
+
+
+@dataclass(slots=True)
+class IssueIdPresenceRule(IRowRule):
+    """
+    IssueId may be missing; if so, we raise a 'fix' severity so a Fixer can assign one.
+    Also checks duplicates when provided (error).
+    """
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        issue_id = _cell_str(row, indices.issue_id)
+
+        if _is_empty(issue_id):
+            # Signal a fixable condition
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="issueid.missing",
+                        message="IssueId is missing and will be assigned automatically.",
+                        severity=ProblemSeverity.FIX,
+                        row_index=ctx.row_index,
+                        col_key="issue id",
+                    ),
+                )
+            )
+
+        # duplicate detection
+        if ctx.seen_issue_id(issue_id):
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="issueid.duplicate",
+                        message=f"IssueId '{issue_id}' is duplicated.",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="issue id",
+                    ),
+                )
+            )
+
+        return ValidationResult.empty()
+
+
+@dataclass(slots=True)
+class EstimateFormatRule(IRowRule):
+    """
+    Validate 'estimate' or 'origest' fields format.
+    Accepts patterns like: '1w 2d 3h 30m', '2h', '45m', or plain integers (minutes or seconds per config).
+    - If unparsable → error.
+    - If parsable → no problem; a Fixer may normalize to seconds/minutes for target sink.
+
+    Config keys (optional):
+      - validation.estimate.accept_integers_as: 'seconds' | 'minutes' (default 'seconds')
+      - validation.estimate.fields: ['estimate','origest'] (defaults to both when present)
+    """
+    def _integer_unit(self, ctx: ValidationContext) -> str:
+        cfg_get = getattr(ctx.config, "get", None)
+        if callable(cfg_get):
+            unit = ctx.config.get("validation.estimate.accept_integers_as", "seconds")
+            return unit if unit in {"seconds", "minutes"} else "seconds"
+        return "seconds"
+
+    def _fields(self, indices: ColumnIndices, ctx: ValidationContext) -> list[tuple[str, Optional[int]]]:
+        # Decide which columns to validate
+        cfg_get = getattr(ctx.config, "get", None)
+        wanted = None
+        if callable(cfg_get):
+            wanted = ctx.config.get("validation.estimate.fields", None)
+        keys = []
+        if not wanted:
+            keys = [("estimate", indices.estimate), ("origest", indices.origest)]
+        else:
+            wanted = [str(k).strip().lower() for k in wanted]
+            if "estimate" in wanted:
+                keys.append(("estimate", indices.estimate))
+            if "origest" in wanted:
+                keys.append(("origest", indices.origest))
+        return keys
+
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        problems: list[Problem] = []
+        for key, idx in self._fields(indices, ctx):
+            raw = _cell_str(row, idx)
+            if _is_empty(raw):
+                continue
+            if not _is_parseable_estimate(raw, accept_int_as=self._integer_unit(ctx)):
+                problems.append(
+                    Problem(
+                        code="estimate.invalid_format",
+                        message=f"Estimate value '{raw}' for '{key}' is not in a supported format.",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key=key,
+                    )
+                )
+        if problems:
+            return ValidationResult(problems=tuple(problems))
+        return ValidationResult.empty()
+
+
+@dataclass(slots=True)
+class ProjectKeyConsistencyRule(IRowRule):
+    """
+    If a Project Key column exists, it should match the configured one (warning/fix).
+    Config key: jira.project.key
+    """
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        if indices.project_key is None:
+            return ValidationResult.empty()
+
+        expected = None
+        cfg_get = getattr(ctx.config, "get", None)
+        if callable(cfg_get):
+            expected = ctx.config.get("jira.project.key", None)
+        if not expected:
+            return ValidationResult.empty()
+
+        val = _cell_str(row, indices.project_key)
+        if _is_empty(val):
+            # Prefer a FIX (autofill) over error.
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="project_key.missing",
+                        message=f"Project Key is empty; expected '{expected}'.",
+                        severity=ProblemSeverity.FIX,
+                        row_index=ctx.row_index,
+                        col_key="project key",
+                    ),
+                )
+            )
+
+        if val != str(expected):
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="project_key.mismatch",
+                        message=f"Project Key '{val}' differs from configured '{expected}'.",
+                        severity=ProblemSeverity.FIX,
+                        row_index=ctx.row_index,
+                        col_key="project key",
+                    ),
+                )
+            )
+        return ValidationResult.empty()
+
+
+# --- estimate parsing utility (liberal) --------------------------------------
+
+def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> bool:
+    """
+    Return True if 'value' looks like a valid estimate.
+    Supports tokens like: 1w 2d 3h 30m
+    Also accepts a plain integer meaning seconds or minutes (per 'accept_int_as').
+    """
+    s = value.strip().lower()
+
+    # plain int?
+    if s.isdigit():
+        return True  # type interpretation deferred to fixer/sink
+
+    # tokenized: split by whitespace, each token like '2h' or '30m'
+    valid_units = {"w", "d", "h", "m", "s"}
+    parts = [p for p in s.split() if p]
+    if not parts:
+        return False
+    for t in parts:
+        # allow + or no sign, but must end with a unit
+        if len(t) < 2:
+            return False
+        num, unit = t[:-1], t[-1]
+        if unit not in valid_units:
+            return False
+        try:
+            float(num)  # be liberal; fixer can round if needed
+        except ValueError:
+            return False
+    return True

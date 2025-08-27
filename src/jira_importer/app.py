@@ -61,7 +61,8 @@ class App:
             _str += fmt.kv("Version", App._args.version) + "\n"
             _str += fmt.kv("Config default", App._args.config_default) + "\n"
             _str += fmt.kv("Config input", App._args.config_input) + "\n"
-            _str += fmt.kv("args", App._args) + "\n"
+            for arg in App._args.__dict__:
+                _str += fmt.kv(arg, App._args.__dict__[arg]) + "\n"
             ui.panel("Script failed with the following arguments:", _str)
 
         logger.critical("Fatal error.")

@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
+import re
+
 from ..models import (
     IRowRule,
     Problem,
@@ -311,34 +313,36 @@ class ProjectKeyConsistencyRule(IRowRule):
         return ValidationResult.empty()
 
 
-# --- estimate parsing utility (liberal) --------------------------------------
+#  estimate parsing utility (liberal)
+
+_EST_TOKEN_RE = re.compile(r"(?P<num>\d+)\s*(?P<unit>[wdhms])", re.IGNORECASE)
 
 def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> bool:
     """
-    Return True if 'value' looks like a valid estimate.
-    Supports tokens like: 1w 2d 3h 30m
-    Also accepts a plain integer meaning seconds or minutes (per 'accept_int_as').
+    True if 'value' looks like a valid estimate.
+    Accepts:
+      - tokenized: '1w 2d 3h 30m', '2h', '45m', '30s'
+      - chained:   '1w2d3h30m', '2h30m'
+      - plain int: interpreted as seconds or minutes (per accept_int_as)
     """
     s = value.strip().lower()
-
-    # plain int?
-    if s.isdigit():
-        return True  # type interpretation deferred to fixer/sink
-
-    # tokenized: split by whitespace, each token like '2h' or '30m'
-    valid_units = {"w", "d", "h", "m", "s"}
-    parts = [p for p in s.split() if p]
-    if not parts:
+    if not s:
         return False
-    for t in parts:
-        # allow + or no sign, but must end with a unit
-        if len(t) < 2:
+
+    # plain integer
+    if s.isdigit():
+        return True
+
+    # token scan (supports spaces or none)
+    matched = False
+    pos = 0
+    while pos < len(s):
+        m = _EST_TOKEN_RE.match(s, pos)
+        if not m:
+            if s[pos].isspace():
+                pos += 1
+                continue
             return False
-        num, unit = t[:-1], t[-1]
-        if unit not in valid_units:
-            return False
-        try:
-            float(num)  # be liberal; fixer can round if needed
-        except ValueError:
-            return False
-    return True
+        matched = True
+        pos = m.end()
+    return matched

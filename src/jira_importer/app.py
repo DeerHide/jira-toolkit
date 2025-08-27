@@ -76,12 +76,15 @@ class App:
         parser.add_argument("input_file", help="Excel XLSX file", default='import.xlsx')
 
         config_group = parser.add_mutually_exclusive_group()
-        config_group.add_argument("-c", "--config", help="Configuration file path", default='config_importer.json')
+        config_group.add_argument("-c", "--config", help="Configuration file path", default='config_importer.json', type=str)
         config_group.add_argument("-cd", "--config-default", help="Get the configuration path from the application location", action='store_true')
         config_group.add_argument("-ci", "--config-input", help="Get the configuration path from the input file location", action='store_true')
 
         parser.add_argument("-d", "--debug", help="Enable debug mode", action='store_true')
         parser.add_argument("-v", "--version", help="Show version", action='store_true')
+        yes_no_group = parser.add_mutually_exclusive_group()
+        yes_no_group.add_argument("-y", "--yes", help="Automatically answer 'yes' to all prompts", action='store_true')
+        yes_no_group.add_argument("-n", "--no", help="Automatically answer 'no' to all prompts", action='store_true')
         #parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')
 
         args = parser.parse_args()

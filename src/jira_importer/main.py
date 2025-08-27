@@ -56,9 +56,17 @@ def main():
     elif args.config_input:
         # Use default config filename in input file location
         config_path = find_config_path('config_importer.json', args.input_file, config_input=True)
+    elif args.config:
+        # Use specified config file - only try the exact path provided
+        config_path = find_config_path(args.config, args.input_file, config_specific=True)
     else:
-        # Use specified config file with default search behavior
-        config_path = find_config_path(args.config, args.input_file)
+        # Use default config filename in script location
+        config_path = find_config_path('config_importer.json', args.input_file, config_default=True)
+
+    if not os.path.isfile(config_path):
+        ui.error("No configuration file found.")
+        logging.error("No configuration file found.")
+        App.event_fatal()
 
     config = Configuration(config_path, cfg_req=cfg_req)
 
@@ -146,7 +154,17 @@ def main():
         ui.warning("The CSVProcessor has found errors or warnings in the input CSV file.")
         ui.hint("You can review the report to decide whether these are blockers or not before continuing.")
         ui.hint("Check your excel file and configuration if you see false positives.")
-        if not ui.prompt_yes_no("Do you want to continue?", default=False):
+
+        # Use --yes/--no flags to automatically continue/abort, otherwise prompt user
+        logging.debug(f"args: {args.yes}, {args.no}")
+        if args.yes:
+            ui.success("Continuing automatically due to --yes flag...")
+            logging.info("Continuing automatically due to --yes flag...")
+        elif args.no:
+            ui.warning("Aborting automatically due to --no flag...")
+            logging.warning("Aborting automatically due to --no flag...")
+            app.event_abort(exit_code=1)
+        elif not ui.prompt_yes_no("Do you want to continue?", default=False):
             app.event_abort(exit_code=1)
         else:
             ui.success("Continuing...")

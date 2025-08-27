@@ -18,6 +18,7 @@ import logging
 from tqdm import tqdm
 
 from console import ConsoleUI, fmt, ui
+from excel_io import ExcelWorkbookManager
 
 # Global variables
 Warning = Critical = False
@@ -122,7 +123,9 @@ def main():
     csv_raw = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='')
     logging.debug(f"XLSX: '{os.path.abspath(xlsx_file)}'")
     logging.debug(f"CSV: '{os.path.abspath(csv_raw)}'")
-    file_manager.xlsx_to_csv(xlsx_file, csv_raw)
+    excel_manager = ExcelWorkbookManager(xlsx_file)
+    file_manager.xlsx_to_csv(xlsx_file, csv_raw, dataset_sheet_name='dataset', ui=ui, artifact_cb=artifact_manager.add, manager=excel_manager)
+    excel_manager.close()
 
     logging.info(f"Formatting CSV file for Jira Import: '{os.path.abspath(csv_raw)}'")
     if not os.path.isfile(csv_raw):

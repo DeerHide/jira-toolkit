@@ -85,8 +85,8 @@ def main() -> int:
     root: Path = args.root
 
     dry_run: bool = args.dry_run
-    verbose: bool = args.verbose or args.vv
-    vverbose: bool = args.vv
+    verbose: bool = args.verbose or args.vverbose
+    vverbose: bool = args.vverbose
     just_do_it: bool = args.just_do_it
     if not just_do_it and not dry_run:
         print("You need to run this script with --just-do-it to actually remove the files.")

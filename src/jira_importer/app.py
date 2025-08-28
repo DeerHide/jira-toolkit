@@ -37,7 +37,7 @@ class App:
         self.event_close(exit_code=exit_code)
 
     @staticmethod
-    def event_fatal(exit_code: int = -1) -> None:
+    def event_fatal(exit_code: int = -1, message: str = "Fatal error!") -> None:
         logger.debug("event_fatal")
 
         # Show arguments if available
@@ -64,7 +64,7 @@ class App:
             _str += fmt.kv("args", App._args) + "\n"
             ui.panel("Script failed with the following arguments:", _str)
 
-        logger.critical("Fatal error.")
+        logger.critical(message)
         sys.exit(exit_code)
 
     @staticmethod

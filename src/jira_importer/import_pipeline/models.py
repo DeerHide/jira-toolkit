@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import re
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 
@@ -257,3 +258,9 @@ class ValidationContext:
             return True
         self.issue_id_seen[value] = None
         return False
+
+    _RE_ISSUE_ID = re.compile(r'^(?:[A-Za-z]+-\d+|\d+)$')
+
+    def invalid_issue_id(self, value: str) -> bool:
+        """Returns True if value is invalid; otherwise records it and returns False."""
+        return self._RE_ISSUE_ID.match(value) is None

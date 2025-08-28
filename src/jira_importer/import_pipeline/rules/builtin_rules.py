@@ -205,6 +205,18 @@ class IssueIdPresenceRule(IRowRule):
                     ),
                 )
             )
+        if ctx.invalid_issue_id(issue_id):
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="issueid.invalid",
+                        message=f"IssueId '{issue_id}' is invalid.",
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="issue id",
+                    ),
+                )
+            )
 
         return ValidationResult.empty()
 

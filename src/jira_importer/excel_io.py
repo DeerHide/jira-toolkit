@@ -90,7 +90,7 @@ class ExcelWorkbookManager:
         - Rows: subsequent non-empty rows (raw values as-is)
         Trailing empties are trimmed to header length.
         """
-        ws = self._get_ws(sheet)
+        ws = self._get_ws(sheet.lower())
         rows_iter = ws.iter_rows(values_only=True)
 
         header: Optional[List[str]] = None
@@ -125,7 +125,7 @@ class ExcelWorkbookManager:
         Read a two-column key/value sheet.
         A1:'key' B1:'value' header is optional; empty keys skipped.
         """
-        ws = self._get_ws(sheet, must_exist=False)
+        ws = self._get_ws(sheet.lower(), must_exist=False)
         if ws is None:
             return {}
 
@@ -173,7 +173,7 @@ class ExcelWorkbookManager:
         """
         Write run metadata to a dedicated sheet.
         """
-        ws = self._get_or_create_ws(sheet, replace=replace)
+        ws = self._get_or_create_ws(sheet.lower(), replace=replace)
         ws.append(["key", "value"])
         rows = [
             ("run_at_iso", meta.run_at_iso),
@@ -200,7 +200,7 @@ class ExcelWorkbookManager:
         """
         Write a compact report table, e.g., aggregated counts by code.
         """
-        ws = self._get_or_create_ws(sheet, replace=replace)
+        ws = self._get_or_create_ws(sheet.lower(), replace=replace)
         ws.append(list(header))
         for sev, count, code_or_msg in rows:
             ws.append([sev, count, code_or_msg])

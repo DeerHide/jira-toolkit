@@ -120,7 +120,7 @@ class ImportProcessor:
         if self._is_excel(self.path):
             mgr = ExcelWorkbookManager(self.path)
             mgr.load()
-            header, rows = XlsxSource(mgr, data_sheet="Data").read()
+            header, rows = XlsxSource(mgr, data_sheet="Dataset").read()
             self._excel_mgr = mgr  # set for lifetime of this call
             return header, rows
         else:

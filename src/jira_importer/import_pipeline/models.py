@@ -20,7 +20,7 @@ class ProblemSeverity(str, Enum):
     """Discrete severities used across validation and reporting."""
     ERROR = "error"
     WARNING = "warning"
-    FIX = "fix"  # indicates we applied (or can apply) a safe auto-fix
+    FIX = "fix"  # indicates we applied (or can apply) a safe auto-fix when auto-fix is enabled
 
 
 @dataclass(slots=True, frozen=True)
@@ -31,7 +31,7 @@ class Problem:
     Attributes:
         code: Stable machine code, e.g. 'priority.invalid', 'issueid.missing'.
         message: Human-friendly detail ready for console/Excel report.
-        severity: error | warning | fix.
+        severity: error | warning | fix. fix is only used when auto-fix is enabled.
         row_index: 1-based row index in the original spreadsheet/CSV (header = 1).
         col_key: Canonical column key when applicable (e.g. 'priority'); None for row-level.
     """
@@ -55,10 +55,16 @@ class ProcessingReport:
     fixes: int = 0
 
     @classmethod
-    def from_problems(cls, problems: Sequence[Problem]) -> "ProcessingReport":
-        e = sum(1 for p in problems if p.severity == ProblemSeverity.ERROR)
-        w = sum(1 for p in problems if p.severity == ProblemSeverity.WARNING)
-        f = sum(1 for p in problems if p.severity == ProblemSeverity.FIX)
+    def from_problems(cls, problems: Sequence[Problem], auto_fix_enabled: bool) -> "ProcessingReport":
+        if (auto_fix_enabled):
+            e = sum(1 for p in problems if p.severity == ProblemSeverity.ERROR)
+            w = sum(1 for p in problems if p.severity == ProblemSeverity.WARNING)
+            f = sum(1 for p in problems if p.severity == ProblemSeverity.FIX)
+        else:
+            e = sum(1 for p in problems if p.severity == ProblemSeverity.ERROR or p.severity == ProblemSeverity.FIX)
+            w = sum(1 for p in problems if p.severity == ProblemSeverity.WARNING)
+            f = 0
+
         return cls(errors=e, warnings=w, fixes=f)
 
 
@@ -79,7 +85,7 @@ class HeaderSchema:
 @dataclass(slots=True)
 class ColumnIndices:
     """
-    Column index map aligned with today’s processor, including optional columns
+    Column index map aligned with today's processor, including optional columns
     and the special list of child-issue columns.
 
     All indices are 0-based; None means column absent.

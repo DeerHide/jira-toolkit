@@ -29,6 +29,7 @@ from .sources.xlsx_source import XlsxSource
 from ..excel_io import ExcelWorkbookManager, ExcelProcessingMeta  # generic, lives top-level
 from .config_view import ConfigView  # typed access over your config object
 
+from ..log import logger
 
 class ImportProcessor:
     """
@@ -56,6 +57,7 @@ class ImportProcessor:
         self.enable_excel_rules = enable_excel_rules
         self.excel_rules_source = excel_rules_source
         self.enable_auto_fix = enable_auto_fix
+        logger.debug(f"ImportProcessor initialized: path={self.path}, config={self.config}, enable_excel_rules={self.enable_excel_rules}, excel_rules_source={self.excel_rules_source}, enable_auto_fix={self.enable_auto_fix}")
 
     def process(self) -> ProcessorResult:
         # Source
@@ -64,7 +66,7 @@ class ImportProcessor:
         # Resolve indices once (based on header + config mappings)
         indices = self._extract_indices(header_schema)
 
-        # Compose rules/fixes/validator
+        logger.debug(f"Compose rules/fixes/validator")
         cfg_view = ConfigView(self.config)
         rule_registry = build_registry(cfg_view, self._excel_loader_ctx())
         rules = rule_registry.get_rules()
@@ -72,14 +74,14 @@ class ImportProcessor:
         fix_registry = build_fix_registry(cfg_view) if self.enable_auto_fix else None
         validator = JiraImportValidator(rules=rules, fix_registry=fix_registry)
 
-        # Validate + apply patches row-by-row
+        logger.debug(f"Validate + apply patches row-by-row")
         problems: list[Problem] = []
         normalized_rows = _deep_copy_rows(rows)  # we’ll patch into this
         complex_children = []  # fill from your rules if needed
 
         issue_id_seen: dict[str, None] = {}
 
-        # row_index is 1-based (header = 1), so first data row is 2
+        logger.debug(f"row_index is 1-based (header = 1), so first data row is 2")
         for i, row in enumerate(rows, start=2):
             ctx = ValidationContext(
                 row_index=i,
@@ -96,8 +98,8 @@ class ImportProcessor:
             if result.problems:
                 problems.extend(result.problems)
 
-        # Build processor result
-        report = ProcessingReport.from_problems(problems)
+        logger.debug(f"Build processor result")
+        report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
         proc_result = ProcessorResult(
             header=header_schema.normalized,
             rows=normalized_rows,
@@ -107,7 +109,7 @@ class ImportProcessor:
             indices=indices,
         )
 
-        # Optional: write back to Excel (metadata/report)
+        logger.debug(f"Optional: write back to Excel (metadata/report)")
         if self._is_excel(self.path):
             pass
             #self._write_excel_meta(proc_result)

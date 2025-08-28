@@ -32,10 +32,9 @@ from .app import App
 from .config import Configuration
 from .artifacts import ArtifactManager
 from .fileops import FileManager
-from .userio import UserIO
+
 from .log import is_debug_mode, setup_logger, add_file_logging
-from .utils import resource_path, find_config_path
-from .csvprocessor import CSVProcessor
+from .utils import resource_path, find_config_path, open_browser
 from .import_pipeline.processor import ImportProcessor
 from .import_pipeline.reporting import ProblemReporter, ReportOptions
 from .import_pipeline.sinks.csv_sink import write_csv
@@ -101,7 +100,6 @@ def main():
 
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
-    user_prompt = UserIO()
     app = App(artifact_manager)
 
     if args.version:
@@ -145,11 +143,13 @@ def main():
     out_path = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='_jira_ready')
     logging.debug(f"out_path: {out_path}")
 
-    config, mgr = _load_config_for_input(in_path, args.data_sheet)
+    config_field, mgr = _load_config_for_input(in_path, args.data_sheet)
 
     # Process the CSV file
     ui.lf()
     ui.title_h2("Processing CSV file for Jira Import")
+
+    _result_code = 0
     try:
         processor = ImportProcessor(
             path=in_path,
@@ -186,7 +186,7 @@ def main():
         logging.info("Wrote output CSV → %s", out_path)
 
         # non-zero exit if there were errors (so CI can gate)
-        return 0 if result.report.errors == 0 else 1
+        _result_code = 0 if result.report.errors == 0 else 1
 
     except Exception as exc:
         logging.exception("Import failed: %s", exc)
@@ -197,6 +197,16 @@ def main():
                 mgr.close()
         except Exception:
             pass
+
+    if config.get_value('app.import.auto_open_page', default=False, expected_type=bool):
+        site_address = config.get_value('jira.connection.site_address', default='', expected_type=str)
+        if not 'BulkCreateSetupPage' in site_address:
+            site_address += '/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true'
+        open_browser(f"{site_address}")
+
+    ui.lf()
+    ui.full_panel(fmt.success("Processing complete. You can close this window now."))
+    app.event_close(exit_code=0, cleanup=True)
 
     return 0
     csv_raw = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='')
@@ -256,7 +266,7 @@ def main():
         site_address = config.get_value('jira.connection.site_address', default='', expected_type=str)
         if not 'BulkCreateSetupPage' in site_address:
             site_address += '/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true'
-        user_prompt.open_browser(f"{site_address}")
+        open_browser(f"{site_address}")
 
     ui.lf()
     ui.full_panel(fmt.success("Processing complete. You can close this window now."))

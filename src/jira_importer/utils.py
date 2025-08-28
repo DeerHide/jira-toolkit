@@ -12,6 +12,7 @@ Date: 2025
 import logging
 import sys
 import os
+import webbrowser
 import colorlog
 from typing import Optional
 
@@ -77,3 +78,18 @@ def find_config_path(config_filename: str, input_file_path: Optional[str] = None
     logger.warning(f"Configuration file '{config_filename}' not found in expected locations. Using default path.")
     logger.warning(f"Expected locations: {search_paths}")
     return config_filename
+
+
+def open_browser(url: str, logger_ref: Optional[logging.Logger] = None) -> bool:
+    """Open a URL in the user's default browser. Returns True on success."""
+    logger = logger_ref or logging.getLogger(__name__)
+    try:
+        logger.debug("Opening URL in browser: %s", url)
+        result = webbrowser.open(url, new=2)
+        if not result:
+            logger.warning("Failed to open URL in browser: %s", url)
+        return bool(result)
+    except Exception as e:  # pylint: disable=broad-except
+        # Keep broad except here to prevent UI crash due to platform/browser issues
+        logger.exception("Exception while opening URL %s: %s", url, e)
+        return False

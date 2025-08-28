@@ -238,12 +238,12 @@ class AssignIssueIdFixer(IFixer):
     Assigns a unique temporary IssueId when missing.
 
     Strategy:
-      - Use configurable prefix (default 'TMP-')
-      - Produce 'TMP-0001', 'TMP-0002', ... (row-index seeded, collision-checked)
+      - Use configurable prefix (default None - no prefix)
+      - Produce '0001', '0002', ... or 'TMP-0001', 'TMP-0002', ... (row-index seeded, collision-checked)
       - Ensure per-file uniqueness via ValidationContext.seen_issue_id()
     Config (optional):
-      - issueid.prefix: str (default 'TMP-')
-      - issueid.width: int (default 4)
+      - issueid.prefix: str | None (default None - no prefix)
+      - issueid.width: int (default 3)
     """
     def apply(self, problem: Problem, row: Sequence[Any], indices: ColumnIndices, ctx: ValidationContext) -> FixOutcome:
         if problem.code != "issueid.missing":
@@ -251,13 +251,13 @@ class AssignIssueIdFixer(IFixer):
         if indices.issue_id is None:
             return FixOutcome(applied=False)
 
-        prefix = str(_cfg_get(ctx, "issueid.prefix", "TMP-"))
-        width = int(_cfg_get(ctx, "issueid.width", 4))
+        prefix = _cfg_get(ctx, "issueid.prefix", None)
+        width = int(_cfg_get(ctx, "issueid.width", 3))
 
         # Start from row index and search for the next free id.
         n = max(1, int(problem.row_index or 1))
         for attempt in range(n, n + 100000):  # hard cap to avoid infinite loop
-            candidate = f"{prefix}{attempt:0{width}d}"
+            candidate = f"{prefix or ''}{attempt:0{width}d}"
             # seen_issue_id() records if not seen and returns False
             if not ctx.seen_issue_id(candidate):
                 return FixOutcome(applied=True, patch={indices.issue_id: candidate}, notes=f"IssueId assigned '{candidate}'.")

@@ -223,68 +223,6 @@ def main():
     app.event_close(exit_code=0, cleanup=True)
 
     return 0
-    csv_raw = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='')
-    logger.debug(f"XLSX: '{os.path.abspath(xlsx_file)}'")
-    logger.debug(f"CSV: '{os.path.abspath(csv_raw)}'")
-    excel_manager = ExcelWorkbookManager(xlsx_file)
-    file_manager.xlsx_to_csv(xlsx_file, csv_raw, dataset_sheet_name='dataset', ui=ui, artifact_cb=artifact_manager.add, manager=excel_manager)
-    excel_manager.close()
-
-    logger.info(f"Formatting CSV file for Jira Import: '{os.path.abspath(csv_raw)}'")
-    if not os.path.isfile(csv_raw):
-        ui.error(f"The CSV file '{csv_raw}' wasn't created. Please check the XLSX file path and try again.")
-        logger.error(f"Missing '{csv_raw}'")
-        App.event_fatal(exit_code=3, message=f"The CSV file '{csv_raw}' wasn't created. Please check the XLSX file path and try again.")
-
-    logger.info(f"Started processing '{os.path.abspath(csv_raw)}'")
-
-
-    # processing the CSV file
-    ui.lf()
-    ui.title_h2("Processing CSV file for Jira Import")
-
-    csv_jira = CSVProcessor(csv_raw, config)
-
-    # Show validation report after processing
-    csv_jira.show_report()
-
-    if csv_jira.problems_found():
-        ui.warning("The CSVProcessor has found errors or warnings in the input CSV file.")
-        ui.hint("You can review the report to decide whether these are blockers or not before continuing.")
-        ui.hint("Check your excel file and configuration if you see false positives.")
-        if not ui.prompt_yes_no("Do you want to continue?", default=False):
-            app.event_abort(exit_code=1)
-        else:
-            ui.success("Continuing...")
-
-    if not csv_jira.data:
-        ui.error("No data to write to Jira.")
-        logger.error("CSV file is empty.")
-        app.event_close(exit_code=1, cleanup=False)
-
-    #if args.import_to_cloud == 'none':
-    #    logging.info("Import to Atlassian Cloud via the API is disabled.")
-    #else:
-    #    logging.info(f"Import to Atlassian Cloud via the API: {args.import_to_cloud}")
-
-    csv_jira_output = file_manager.generate_output_filename(csv_raw, file_extension='csv', suffix='_JiraReady')
-
-    # Write the formatted CSV file to the output directory
-    ui.lf()
-    ui.title_h2("Writing CSV file to Jira")
-    ui.say(f"Destination: {fmt.path(csv_jira_output)}")
-    logger.info(f"Writing to: {os.path.abspath(csv_jira_output)}")
-    file_manager.write_csv_file(csv_jira_output, csv_jira, is_artifact=False)
-
-    if config.get_value('app.import.auto_open_page', default=False, expected_type=bool):
-        site_address = config.get_value('jira.connection.site_address', default='', expected_type=str)
-        if not 'BulkCreateSetupPage' in site_address:
-            site_address += '/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true'
-        open_browser(f"{site_address}")
-
-    ui.lf()
-    ui.full_panel(fmt.success("Processing complete. You can close this window now."))
-    app.event_close(exit_code=0, cleanup=True)
 
 # Main function
 if __name__ == "__main__":

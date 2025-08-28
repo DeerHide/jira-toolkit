@@ -123,11 +123,11 @@ class CSVProcessor:
                     self.header = next(csv_reader)
                 except StopIteration:
                     logging.error(f"The file '{self.path}' is empty.")
-                    App.event_fatal()
+                    App.event_fatal(exit_code=4, message=f"The file '{self.path}' is empty.")
                 self.data = [row for row in csv_reader]
         except FileNotFoundError:
             logging.error(f"File '{self.path}' not found.")
-            App.event_fatal()
+            App.event_fatal(exit_code=5, message=f"File '{self.path}' not found.")
 
     def format_header(self) -> List[str]:
         """Normalize header column names for processing."""

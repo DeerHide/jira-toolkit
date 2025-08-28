@@ -129,7 +129,7 @@ def main():
     if not os.path.isfile(xlsx_file):
         ui.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again.")
         logging.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
-        App.event_fatal()
+        App.event_fatal(exit_code=2, message=f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
 
 
     # Convert XLSX to CSV
@@ -190,7 +190,7 @@ def main():
 
     except Exception as exc:
         logging.exception("Import failed: %s", exc)
-        App.event_fatal(exit_code=3)
+        App.event_fatal(exit_code=3, message=f"Import failed: {exc}")
     finally:
         try:
             if mgr is not None:
@@ -210,7 +210,7 @@ def main():
     if not os.path.isfile(csv_raw):
         ui.error(f"The CSV file '{csv_raw}' wasn't created. Please check the XLSX file path and try again.")
         logging.error(f"Missing '{csv_raw}'")
-        App.event_fatal()
+        App.event_fatal(exit_code=3, message=f"The CSV file '{csv_raw}' wasn't created. Please check the XLSX file path and try again.")
 
     logging.info(f"Started processing '{os.path.abspath(csv_raw)}'")
 

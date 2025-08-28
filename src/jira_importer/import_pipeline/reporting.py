@@ -15,9 +15,9 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from .models import Problem, ProblemSeverity, ProcessorResult
 
 # Emojis consistent with the rest of the tool
-EMO_ERROR = "❌"
-EMO_WARN = "⚠️"
-EMO_FIX  = "🔧"
+EMO_ERROR = "❌ "
+EMO_WARN = "⚠️ "
+EMO_FIX  = "🔧 "
 
 
 @dataclass(slots=True)
@@ -92,7 +92,7 @@ class ProblemReporter:
             console.print(table)
 
         if self.opt.show_details and result.problems:
-            table = Table(show_lines=False, expand=False, title="Problem Details")
+            table = Table(show_lines=False, expand=False, title="")
             table.add_column("Row", justify="right")
             table.add_column("Severity")
             table.add_column("Code")

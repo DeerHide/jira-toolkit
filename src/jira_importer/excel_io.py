@@ -9,7 +9,6 @@ Date: 2025
 from __future__ import annotations
 
 from dataclasses import dataclass
-import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 import weakref
@@ -17,6 +16,7 @@ import weakref
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
+from .log import logger
 
 @dataclass(slots=True)
 class ExcelProcessingMeta:
@@ -95,7 +95,7 @@ class ExcelWorkbookManager:
         ws = self._get_ws(sheet)
         if ws is None:
             ws = self._get_or_create_ws(sheet.lower())
-            logging.warning(f"Worksheet '{sheet}' not found in '{self.path.name}'. Creating a new one.")
+            logger.warning(f"Worksheet '{sheet}' not found in '{self.path.name}'. Creating a new one.")
         if ws is None:
             raise RuntimeError(f"Worksheet '{sheet}' not found in '{self.path.name}'.")
         rows_iter = ws.iter_rows(values_only=True)
@@ -219,7 +219,7 @@ class ExcelWorkbookManager:
             raise RuntimeError("Workbook not loaded. Call load() first.")
         ws = self._wb[title] if title in self._wb.sheetnames else None
         if ws is None and must_exist:
-            logging.error(f"Worksheet '{title}' not found in '{self._wb.sheetnames}'.")
+            logger.error(f"Worksheet '{title}' not found in '{self._wb.sheetnames}'.")
             raise KeyError(f"Worksheet '{title}' not found in '{self.path.name}'.")
         return ws
 

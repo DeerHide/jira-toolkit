@@ -10,7 +10,7 @@ Date: 2025
 """
 
 from contextlib import suppress
-import logging
+from .log import logger
 import os
 import csv
 from typing import Any, Callable, Iterable, Optional
@@ -25,8 +25,6 @@ try:
     import pandas as pd  # optional
 except Exception:  # pragma: no cover
     pd = None  # type: ignore
-
-logger = logging.getLogger(__name__)
 
 class FileManager:
     """Manage file operations and integrate with `ArtifactManager`.

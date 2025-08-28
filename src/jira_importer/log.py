@@ -523,3 +523,5 @@ def add_file_logging(config: Any):
     except Exception as e:
         # Log unexpected errors
         logging.getLogger().warning(f"File logging setup failed (unexpected): {e}")
+
+logger = logging.getLogger(__name__)

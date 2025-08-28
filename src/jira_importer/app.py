@@ -9,14 +9,12 @@ License: MIT
 Date: 2025
 """
 
-import logging
+from .log import logger
 import sys
 import argparse
 from rich_argparse import RichHelpFormatter
 from .artifacts import ArtifactManager
 from .console import ui, fmt
-
-logger = logging.getLogger(__name__)
 
 class App:
     # Class variable to store command line arguments

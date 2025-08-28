@@ -12,11 +12,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 import weakref
+import logging
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
-from .log import logger
+logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class ExcelProcessingMeta:

@@ -10,7 +10,7 @@ Date: 2025
 """
 
 from contextlib import suppress
-from .log import logger
+import logging
 import os
 import csv
 from typing import Any, Callable, Iterable, Optional
@@ -20,6 +20,8 @@ import pandas as pd
 from .artifacts import ArtifactManager
 from .console import ui, fmt
 from .excel_io import ExcelWorkbookManager
+
+logger = logging.getLogger(__name__)
 
 try:
     import pandas as pd  # optional

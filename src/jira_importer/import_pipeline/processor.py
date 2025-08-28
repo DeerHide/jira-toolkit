@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 from typing import Iterable, List, Sequence
+import logging
 
 from .models import (
     ColumnIndices,
@@ -29,7 +30,7 @@ from .sources.xlsx_source import XlsxSource
 from ..excel_io import ExcelWorkbookManager, ExcelProcessingMeta  # generic, lives top-level
 from .config_view import ConfigView  # typed access over your config object
 
-from ..log import logger
+logger = logging.getLogger(__name__)
 
 class ImportProcessor:
     """

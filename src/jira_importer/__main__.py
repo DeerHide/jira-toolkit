@@ -91,6 +91,7 @@ def main():
 
     # Initialize logging with CLI override and config support
     setup_logger(logging.DEBUG if args.debug else None, config)
+    logger = logging.getLogger(__name__)
 
     # Add file logging if enabled in config
     from .log import add_file_logging
@@ -107,27 +108,27 @@ def main():
         ui.say("Jira Importer v1.0.0")
         app.event_close(exit_code=0, cleanup=False)
 
-    logging.info(f"Input: {args.input_file}")
+    logger.info(f"Input: {args.input_file}")
     ui.say(f"Excel file: {fmt.path(args.input_file)}")
-    logging.info(f"Config: {config_path}")
+    logger.info(f"Config: {config_path}")
     ui.say(f"Configuration file: {fmt.path(config_path)}")
 
-    logging.debug("Jira Importer initialized.")
-    logging.debug(f"Configuration loaded: {config.path}")
-    logging.debug(f"Debug mode: {is_debug_mode()}")
-    logging.debug(f"Input file: {args.input_file}")
-    logging.debug(fmt.kv("Input file", fmt.path(App._args.input_file)))
-    logging.debug(fmt.kv("Configuration", fmt.path(App._args.config)))
-    logging.debug(fmt.kv("Debug mode", App._args.debug))
-    logging.debug(fmt.kv("Version", App._args.version))
-    logging.debug(fmt.kv("Config default", App._args.config_default))
-    logging.debug(fmt.kv("Config input", App._args.config_input))
-    logging.debug(fmt.kv("args", App._args))
+    logger.debug("Jira Importer initialized.")
+    logger.debug(f"Configuration loaded: {config.path}")
+    logger.debug(f"Debug mode: {is_debug_mode()}")
+    logger.debug(f"Input file: {args.input_file}")
+    logger.debug(fmt.kv("Input file", fmt.path(App._args.input_file)))
+    logger.debug(fmt.kv("Configuration", fmt.path(App._args.config)))
+    logger.debug(fmt.kv("Debug mode", App._args.debug))
+    logger.debug(fmt.kv("Version", App._args.version))
+    logger.debug(fmt.kv("Config default", App._args.config_default))
+    logger.debug(fmt.kv("Config input", App._args.config_input))
+    logger.debug(fmt.kv("args", App._args))
 
     xlsx_file = args.input_file
     if not os.path.isfile(xlsx_file):
         ui.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again.")
-        logging.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
+        logger.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
         App.event_fatal(exit_code=2, message=f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
 
 
@@ -137,12 +138,12 @@ def main():
 
     in_path = Path(args.input_file)
     if not in_path.exists():
-        logging.error("Input path does not exist: %s", in_path)
+        logger.error("Input path does not exist: %s", in_path)
         ui.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again.")
         return 2
 
     out_path = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='_jira_ready')
-    logging.debug(f"out_path: {out_path}")
+    logger.debug(f"out_path: {out_path}")
 
     config_field, mgr = _load_config_for_input(in_path, args.data_sheet)
 
@@ -155,12 +156,12 @@ def main():
         processor = ImportProcessor(
             path=in_path,
             config=config,
-            ui=None,  # pipeline is UI-agnostic; reporting handled below
+            ui=ui,  # pipeline is UI-agnostic; reporting handled below
             enable_excel_rules=args.enable_excel_rules,
             excel_rules_source=str(in_path) if args.enable_excel_rules else None,
             enable_auto_fix=args.auto_fix,
         )
-        logging.debug(f"Processor:\n{processor.path}\nconfig: {processor.config}\nenable_excel_rules: {processor.enable_excel_rules}\nexcel_rules_source: {processor.excel_rules_source}\nenable_auto_fix: {processor.enable_auto_fix}")
+        logger.debug(f"Processor:\n{processor.path}\nconfig: {processor.config}\nenable_excel_rules: {processor.enable_excel_rules}\nexcel_rules_source: {processor.excel_rules_source}\nenable_auto_fix: {processor.enable_auto_fix}")
 
         result = processor.process()
 
@@ -169,6 +170,10 @@ def main():
             ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=False)).render(result)
         else:
             ProblemReporter(options=ReportOptions(show_details=False, show_aggregate_by_code=True)).render(result)
+
+        if (not processor.enable_auto_fix):
+            ui.warning(f"Auto-fix is disabled. Please fix the issues manually.")
+            ui.hint(f"You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag.")
 
         if result.report.errors > 0:
             if not ui.prompt_yes_no("Do you want to continue?", default=False):
@@ -192,13 +197,13 @@ def main():
         write_csv(result, out_path, config=config)
 
         ui.say(f"Output Import CSV Ready → {fmt.path(out_path)}")
-        logging.info("Wrote output CSV → %s", out_path)
+        logger.info("Wrote output CSV → %s", out_path)
 
         # non-zero exit if there were errors (so CI can gate)
         _result_code = 0 if result.report.errors == 0 else 1
 
     except Exception as exc:
-        logging.exception("Import failed: %s", exc)
+        logger.exception("Import failed: %s", exc)
         App.event_fatal(exit_code=3, message=f"Import failed: {exc}")
     finally:
         try:
@@ -219,19 +224,19 @@ def main():
 
     return 0
     csv_raw = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='')
-    logging.debug(f"XLSX: '{os.path.abspath(xlsx_file)}'")
-    logging.debug(f"CSV: '{os.path.abspath(csv_raw)}'")
+    logger.debug(f"XLSX: '{os.path.abspath(xlsx_file)}'")
+    logger.debug(f"CSV: '{os.path.abspath(csv_raw)}'")
     excel_manager = ExcelWorkbookManager(xlsx_file)
     file_manager.xlsx_to_csv(xlsx_file, csv_raw, dataset_sheet_name='dataset', ui=ui, artifact_cb=artifact_manager.add, manager=excel_manager)
     excel_manager.close()
 
-    logging.info(f"Formatting CSV file for Jira Import: '{os.path.abspath(csv_raw)}'")
+    logger.info(f"Formatting CSV file for Jira Import: '{os.path.abspath(csv_raw)}'")
     if not os.path.isfile(csv_raw):
         ui.error(f"The CSV file '{csv_raw}' wasn't created. Please check the XLSX file path and try again.")
-        logging.error(f"Missing '{csv_raw}'")
+        logger.error(f"Missing '{csv_raw}'")
         App.event_fatal(exit_code=3, message=f"The CSV file '{csv_raw}' wasn't created. Please check the XLSX file path and try again.")
 
-    logging.info(f"Started processing '{os.path.abspath(csv_raw)}'")
+    logger.info(f"Started processing '{os.path.abspath(csv_raw)}'")
 
 
     # processing the CSV file
@@ -254,7 +259,7 @@ def main():
 
     if not csv_jira.data:
         ui.error("No data to write to Jira.")
-        logging.error("CSV file is empty.")
+        logger.error("CSV file is empty.")
         app.event_close(exit_code=1, cleanup=False)
 
     #if args.import_to_cloud == 'none':
@@ -268,7 +273,7 @@ def main():
     ui.lf()
     ui.title_h2("Writing CSV file to Jira")
     ui.say(f"Destination: {fmt.path(csv_jira_output)}")
-    logging.info(f"Writing to: {os.path.abspath(csv_jira_output)}")
+    logger.info(f"Writing to: {os.path.abspath(csv_jira_output)}")
     file_manager.write_csv_file(csv_jira_output, csv_jira, is_artifact=False)
 
     if config.get_value('app.import.auto_open_page', default=False, expected_type=bool):

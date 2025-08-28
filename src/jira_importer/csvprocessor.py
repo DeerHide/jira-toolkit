@@ -18,10 +18,10 @@ import logging
 import csv
 import re
 from tqdm import tqdm # type: ignore
-from app import App
+from .app import App
 from typing import List
 from contextlib import nullcontext
-from console import ConsoleUI, fmt, ui
+from .console import ConsoleUI, fmt, ui
 
 
 unique_key_column = 'summary'

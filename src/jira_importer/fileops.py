@@ -17,9 +17,9 @@ from typing import Any, Callable, Iterable, Optional
 from pathlib import Path
 import pandas as pd
 
-from artifacts import ArtifactManager
-from console import ui, fmt
-from excel_io import ExcelWorkbookManager
+from .artifacts import ArtifactManager
+from .console import ui, fmt
+from .excel_io import ExcelWorkbookManager
 
 try:
     import pandas as pd  # optional

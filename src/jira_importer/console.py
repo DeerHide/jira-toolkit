@@ -11,6 +11,7 @@ Date: 2025
 
 from __future__ import annotations
 
+from pyclbr import Class
 import sys
 from dataclasses import dataclass
 from typing import Optional, Iterable, Sequence

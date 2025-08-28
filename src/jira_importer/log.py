@@ -21,7 +21,7 @@ try:
 except Exception:
     pass
 
-from utils import resource_path, get_logs_directory
+from .utils import resource_path, get_logs_directory
 
 # Logging format constants
 CONSOLE_FORMAT_TTY = "%(log_color)s%(levelname)s%(reset)s %(asctime)s %(name)s: %(message)s"

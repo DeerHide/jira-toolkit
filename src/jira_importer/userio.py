@@ -13,7 +13,7 @@ import logging
 import sys
 import webbrowser
 from typing import Callable, Optional
-from console import ui, fmt
+from .console import ui, fmt
 logger = logging.getLogger(__name__)
 
 class UserIO:

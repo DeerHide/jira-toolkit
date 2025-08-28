@@ -15,7 +15,7 @@ import os
 import colorlog
 from typing import Optional
 
-from console import ui, fmt
+from .console import ui, fmt
 
 logger = logging.getLogger(__name__)
 

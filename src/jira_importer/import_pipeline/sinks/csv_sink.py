@@ -40,7 +40,7 @@ def write_csv(
 
     """
     out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    #out_path.parent.mkdir(parents=True, exist_ok=True)
 
     cfg = ConfigView(config) if config is not None else None
 

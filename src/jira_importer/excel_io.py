@@ -9,8 +9,10 @@ Date: 2025
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+import weakref
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
@@ -90,7 +92,12 @@ class ExcelWorkbookManager:
         - Rows: subsequent non-empty rows (raw values as-is)
         Trailing empties are trimmed to header length.
         """
-        ws = self._get_ws(sheet.lower())
+        ws = self._get_ws(sheet)
+        if ws is None:
+            ws = self._get_or_create_ws(sheet.lower())
+            logging.warning(f"Worksheet '{sheet}' not found in '{self.path.name}'. Creating a new one.")
+        if ws is None:
+            raise RuntimeError(f"Worksheet '{sheet}' not found in '{self.path.name}'.")
         rows_iter = ws.iter_rows(values_only=True)
 
         header: Optional[List[str]] = None
@@ -125,7 +132,7 @@ class ExcelWorkbookManager:
         Read a two-column key/value sheet.
         A1:'key' B1:'value' header is optional; empty keys skipped.
         """
-        ws = self._get_ws(sheet.lower(), must_exist=False)
+        ws = self._get_ws(sheet, must_exist=False)
         if ws is None:
             return {}
 
@@ -173,7 +180,7 @@ class ExcelWorkbookManager:
         """
         Write run metadata to a dedicated sheet.
         """
-        ws = self._get_or_create_ws(sheet.lower(), replace=replace)
+        ws = self._get_or_create_ws(sheet, replace=replace)
         ws.append(["key", "value"])
         rows = [
             ("run_at_iso", meta.run_at_iso),
@@ -200,7 +207,7 @@ class ExcelWorkbookManager:
         """
         Write a compact report table, e.g., aggregated counts by code.
         """
-        ws = self._get_or_create_ws(sheet.lower(), replace=replace)
+        ws = self._get_or_create_ws(sheet, replace=replace)
         ws.append(list(header))
         for sev, count, code_or_msg in rows:
             ws.append([sev, count, code_or_msg])
@@ -212,6 +219,7 @@ class ExcelWorkbookManager:
             raise RuntimeError("Workbook not loaded. Call load() first.")
         ws = self._wb[title] if title in self._wb.sheetnames else None
         if ws is None and must_exist:
+            logging.error(f"Worksheet '{title}' not found in '{self._wb.sheetnames}'.")
             raise KeyError(f"Worksheet '{title}' not found in '{self.path.name}'.")
         return ws
 

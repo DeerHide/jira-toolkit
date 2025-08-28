@@ -77,6 +77,7 @@ def find_config_path(config_filename: str, input_file_path: Optional[str] = None
     ui.error(f"Configuration file '{fmt_config_filename}' not found in expected locations. Using default path.")
     logger.warning(f"Configuration file '{config_filename}' not found in expected locations. Using default path.")
     logger.warning(f"Expected locations: {search_paths}")
+    ui.error(f"Expected locations: {search_paths}")
     return config_filename
 
 
@@ -91,5 +92,6 @@ def open_browser(url: str, logger_ref: Optional[logging.Logger] = None) -> bool:
         return bool(result)
     except Exception as e:  # pylint: disable=broad-except
         # Keep broad except here to prevent UI crash due to platform/browser issues
+        ui.error(f"Failed to open URL in browser: {url}")
         logger.exception("Exception while opening URL %s: %s", url, e)
         return False

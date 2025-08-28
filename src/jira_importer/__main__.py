@@ -10,6 +10,8 @@ Date: 2025
 """
 
 # Import libraries
+from pathlib import Path
+from typing import Any
 import warnings
 import pandas as pd
 import os
@@ -42,6 +44,24 @@ from .import_pipeline.sinks.csv_sink import write_csv
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
+def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:
+    """
+    Return (config_like, excel_manager_or_None).
+
+    - For XLSX input, read 'Config' via ExcelWorkbookManager (keeps things generic).
+    - For CSV input, return {} (you can replace this with your own config loader).
+    """
+    if in_path.suffix.lower() in {".xlsx", ".xlsm"}:
+        mgr = ExcelWorkbookManager(in_path)
+        mgr.load()
+        cfg = mgr.read_config(sheet="Config")
+        # ImportProcessor will also create/use a manager for meta/report writing.
+        return cfg, mgr
+    return {}, None
+
+def _default_out_path(in_path: Path) -> Path:
+    return f"{in_path.stem}_jira_ready.csv"
+
 def main():
     """Main function for the Jira Importer application."""
     args = App.parse_args()
@@ -57,12 +77,15 @@ def main():
     if args.config_default:
         # Use default config filename in script location
         config_path = find_config_path('config_importer.json', args.input_file, config_default=True)
+        logging.debug(f"config_default: {config_path}")
     elif args.config_input:
         # Use default config filename in input file location
         config_path = find_config_path('config_importer.json', args.input_file, config_input=True)
+        logging.debug(f"config_input: {config_path}")
     else:
         # Use specified config file with default search behavior
         config_path = find_config_path(args.config, args.input_file)
+        logging.debug(f"!config_default & !config_input: {config_path}")
 
     config = Configuration(config_path, cfg_req=cfg_req)
 
@@ -75,7 +98,6 @@ def main():
 
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")
-
 
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
@@ -91,28 +113,19 @@ def main():
     logging.info(f"Config: {config_path}")
     ui.say(f"Configuration file: {fmt.path(config_path)}")
 
-
-    #if args.import_to_cloud == 'none':
-    #    logging.info("Import to Atlassian Cloud via the API is disabled.")
-    #else:
-    #    logging.info(f"Import to Atlassian Cloud via the API: {args.import_to_cloud}")
-
     logging.debug("Jira Importer initialized.")
     logging.debug(f"Configuration loaded: {config.path}")
-    logging.debug(f"Artifact manager initialized: {artifact_manager.delete_enabled.__class__}")
-    logging.debug(f"File manager initialized: {file_manager.artifact_manager.__class__}")
-    logging.debug(f"User interaction initialized: {user_prompt.__class__}")
-    logging.debug(f"App initialized: {app.__class__}")
     logging.debug(f"Debug mode: {is_debug_mode()}")
     logging.debug(f"Input file: {args.input_file}")
-    logging.debug(f"Configuration file: {config_path}")
+    logging.debug(fmt.kv("Input file", fmt.path(App._args.input_file)))
+    logging.debug(fmt.kv("Configuration", fmt.path(App._args.config)))
+    logging.debug(fmt.kv("Debug mode", App._args.debug))
+    logging.debug(fmt.kv("Version", App._args.version))
+    logging.debug(fmt.kv("Config default", App._args.config_default))
+    logging.debug(fmt.kv("Config input", App._args.config_input))
+    logging.debug(fmt.kv("args", App._args))
 
     xlsx_file = args.input_file
-    #if os.path.isdir(xlsx_file):
-    #    ui.error(f"The XLSX file '{xlsx_file}' is a directory. Please check the file path and try again.")
-    #    logging.error(f"The XLSX file '{xlsx_file}' is a directory. Please check the file path and try again.")
-    #    App.event_fatal()
-
     if not os.path.isfile(xlsx_file):
         ui.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again.")
         logging.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
@@ -123,6 +136,69 @@ def main():
     ui.lf()
     ui.title_h2("Converting XLSX file to CSV")
 
+    in_path = Path(args.input_file)
+    if not in_path.exists():
+        logging.error("Input path does not exist: %s", in_path)
+        ui.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again.")
+        return 2
+
+    out_path = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='_jira_ready')
+    logging.debug(f"out_path: {out_path}")
+
+    config, mgr = _load_config_for_input(in_path, args.data_sheet)
+
+    # Process the CSV file
+    ui.lf()
+    ui.title_h2("Processing CSV file for Jira Import")
+    try:
+        processor = ImportProcessor(
+            path=in_path,
+            config=config,
+            ui=None,  # pipeline is UI-agnostic; reporting handled below
+            enable_excel_rules=args.enable_excel_rules,
+            excel_rules_source=str(in_path) if args.enable_excel_rules else None,
+            enable_auto_fix=args.auto_fix,
+        )
+        logging.debug(f"Processor:\n{processor.path}\nconfig: {processor.config}\nenable_excel_rules: {processor.enable_excel_rules}\nexcel_rules_source: {processor.excel_rules_source}\nenable_auto_fix: {processor.enable_auto_fix}")
+
+        result = processor.process()
+
+        # Report
+        if not args.no_report:
+            ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=True)).render(result)
+
+        # Apply Jira Cloud ×60 quirk in the SINK if requested
+        if args.fix_cloud_estimates:
+            if isinstance(config, dict):
+                config = {**config, "jira.cloud.estimate.multiply_by_60": True}
+            else:
+                # minimal dict-like wrapper if config isn't a dict
+                class _Cfg(dict):
+                    def get(self, k, d=None):  # type: ignore[override]
+                        return super().get(k, d)
+                temp = _Cfg()
+                temp.update({"jira.cloud.estimate.multiply_by_60": True})
+                config = temp
+
+        write_csv(result, out_path, config=config)
+
+        ui.say(f"Output Import CSV Ready → {fmt.path(out_path)}")
+        logging.info("Wrote output CSV → %s", out_path)
+
+        # non-zero exit if there were errors (so CI can gate)
+        return 0 if result.report.errors == 0 else 1
+
+    except Exception as exc:
+        logging.exception("Import failed: %s", exc)
+        App.event_fatal(exit_code=3)
+    finally:
+        try:
+            if mgr is not None:
+                mgr.close()
+        except Exception:
+            pass
+
+    return 0
     csv_raw = file_manager.generate_output_filename(xlsx_file, file_extension='csv', suffix='')
     logging.debug(f"XLSX: '{os.path.abspath(xlsx_file)}'")
     logging.debug(f"CSV: '{os.path.abspath(csv_raw)}'")

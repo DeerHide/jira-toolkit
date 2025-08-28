@@ -85,24 +85,24 @@ class App:
         config_group.add_argument("-cd", "--config-default", help="Get the configuration path from the application location", action='store_true')
         config_group.add_argument("-ci", "--config-input", help="Get the configuration path from the input file location", action='store_true')
 
-        output_group = parser.add_mutually_exclusive_group()
-        output_group.add_argument("-o", "--out", default=None, help="Output CSV path (default: ./dist/<input>.processed.csv)")
-        output_group.add_argument("-od", "--out-default", default=None, help="Output CSV path in the application location (default: ./dist/<input>.processed.csv)", action='store_true')
-        output_group.add_argument("-oi", "--out-input", default=None, help="Output CSV path in the input file location (default: ./dist/<input>.processed.csv)", action='store_true')
-        output_group.add_argument("-oc", "--out-current", default=None, help="Output CSV path in the current directory", action='store_true')
+        #output_group = parser.add_mutually_exclusive_group()
+        #output_group.add_argument("-o", "--out", default=None, help="Output CSV path (default: <input>.processed.csv)")
+        #output_group.add_argument("-od", "--out-default", default=None, help="Output CSV path in the application location (default: <input>.processed.csv)", action='store_true')
+        #output_group.add_argument("-oi", "--out-input", default=None, help="Output CSV path in the input file location (default: <input>.processed.csv)", action='store_true')
+        #output_group.add_argument("-oc", "--out-current", default=None, help="Output CSV path in the current directory", action='store_true')
 
-        parser.add_argument("--data-sheet", default="Data", help="XLSX data sheet name (default: Data)")
-        parser.add_argument("--enable-excel-rules", action="store_true",
+        parser.add_argument("--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
+        parser.add_argument("--enable-excel-rules", default=False, action="store_true",
                    help="Enable loading rules from Excel (scaffold only; safe to leave off).")
-        parser.add_argument("--auto-fix", action="store_true",
+        parser.add_argument("--auto-fix", default=False, action="store_true",
                    help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).")
-        parser.add_argument("--apply-cloud-quirk", action="store_true",
-                   help="Apply Jira Cloud ×60 estimate quirk IN THE SINK (kept out of rules/fixes).")
         parser.add_argument("--no-report", action="store_true", help="Do not print the validation report.")
+
+        parser.add_argument("--fix-cloud-estimates", default=False, action="store_true",
+                   help="Apply Jira Cloud ×60 estimate quirk IN THE SINK (kept out of rules/fixes).")
 
         parser.add_argument("-v", "--version", help="Show version", action='store_true')
         parser.add_argument("-d", "--debug", help="Enable debug mode", action='store_true')
-        #parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')
 
         args = parser.parse_args()
         # Store args in class variable for access by event_fatal

@@ -61,6 +61,7 @@ def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWo
 def _default_out_path(in_path: Path) -> Path:
     return f"{in_path.stem}_jira_ready.csv"
 
+
 def main():
     """Main function for the Jira Importer application."""
     args = App.parse_args()
@@ -165,7 +166,15 @@ def main():
 
         # Report
         if not args.no_report:
-            ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=True)).render(result)
+            ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=False)).render(result)
+        else:
+            ProblemReporter(options=ReportOptions(show_details=False, show_aggregate_by_code=True)).render(result)
+
+        if result.report.errors > 0:
+            if not ui.prompt_yes_no("Do you want to continue?", default=False):
+                app.event_abort(exit_code=1)
+            else:
+                ui.success("Continuing...")
 
         # Apply Jira Cloud ×60 quirk in the SINK if requested
         if args.fix_cloud_estimates:

@@ -9,13 +9,14 @@
     "resources": "rsc"
   },
   "files": {
-    "requirements": "rsc/requirements.txt",
+    "requirements": "requirements.txt",
     "icon": "build/icons/deerhide_default.ico",
     "license": "LICENSE",
     "readme": "README.md",
     "version": "build/version/VSVersionInfo"
   },
   "pyinstaller": {
+    "onefile": true,
     "console": true,
     "name": "jira_importer",
     "add_data": [
@@ -38,8 +39,8 @@
     "digest_algorithm": "SHA256"
   },
   "build_options": {
-    "clean_dist": false,
-    "clean_temp": false,
+    "clean_dist": true,
+    "clean_temp": true,
     "check_dependencies": true,
     "install_requirements": true,
     "copy_documentation": true,

@@ -1,0 +1,51 @@
+{
+    // Editor settings to match pre-commit rules
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.eol": "\n",
+    "files.trimFinalNewlines": true,
+
+    // Python settings
+    "python.defaultInterpreterPath": "./.venv/Scripts/python.exe",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+
+    // JSON settings
+    "json.format.enable": true,
+    "json.validate.enable": true,
+
+    // YAML settings
+    "yaml.format.enable": true,
+    "yaml.validate": true,
+
+    // File associations
+    "files.associations": {
+        "*.yaml": "yaml",
+        "*.yml": "yaml"
+    },
+
+    // Auto save
+    "files.autoSave": "onFocusChange",
+
+    // Exclude patterns
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.pytest_cache": true,
+        "**/.pytype": true,
+        "**/build/temp": true,
+        "**/dist": true,
+        "**/.venv": true
+    },
+
+    // Search exclude
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.pytest_cache": true,
+        "**/.pytype": true,
+        "**/build/temp": true,
+        "**/dist": true,
+        "**/.venv": true
+    }
+}

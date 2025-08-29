@@ -5,22 +5,24 @@
     "build": "build",
     "dist": "dist",
     "temp": "build/temp",
-    "source": "src/jira_importer",
-    "resources": "rsc"
+    "source": "src",
+    "resources": "resources"
   },
   "files": {
-    "requirements": "rsc/requirements.txt",
+    "requirements": "requirements.lock",
     "icon": "build/icons/deerhide_default.ico",
     "license": "LICENSE",
     "readme": "README.md",
     "version": "build/version/VSVersionInfo"
   },
   "pyinstaller": {
+    "onefile": true,
     "console": true,
     "name": "jira_importer",
     "add_data": [
       "deerhide_default.ico;.",
-      "VSVersionInfo;."
+      "VSVersionInfo;.",
+      "resources;resources"
     ],
     "options": {
       "icon": "deerhide_default.ico",
@@ -38,16 +40,16 @@
     "digest_algorithm": "SHA256"
   },
   "build_options": {
-    "clean_dist": false,
-    "clean_temp": false,
+    "clean_dist": true,
+    "clean_temp": true,
     "check_dependencies": true,
     "install_requirements": true,
     "copy_documentation": true,
     "build_version_file": true
   },
   "dependencies": {
-    "required": ["PyInstaller", "pandas"],
-    "optional": []
+    "required": [ "pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog"],
+    "optional": ["colorama"]
   },
   "output_control": {
     "verbose": true,

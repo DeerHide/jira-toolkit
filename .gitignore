@@ -6,7 +6,6 @@ parts/
 dist/
 .svn/
 .DS_Store
-.vscode/
 
 src/v-*/
 v-*/
@@ -49,8 +48,3 @@ venv.bak/
 .env_vars
 *.env_vars
 build/version/build-counter.json
-
-# Legacy
-rsc/VSVersionInfo
-rsc/templates/ImportTemplate.csv
-rsc/templates/ImportTemplate_JiraReady.csv

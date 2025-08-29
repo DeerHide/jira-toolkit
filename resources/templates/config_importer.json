@@ -23,7 +23,11 @@
         "skip_report": false
       },
       "logging": {
-        "write_to_file": false
+        "write_to_file": true,
+        "console_output": true,
+        "log_level": "INFO",
+        "max_log_size_mb": 10,
+        "max_log_files": 5
       }
     },
     "jira": {
@@ -75,7 +79,7 @@
     "metadata": {
       "version": 5,
       "description": "Jira Importer Configuration",
-      "last_updated": "2025-08-15"
+      "last_updated": "2025-08-29"
     },
     "documentation": {
       "description": "Jira Importer Configuration File",

@@ -86,6 +86,7 @@ class App:
         config_group.add_argument("-cd", "--config-default", help="Get the configuration path from the application location", action='store_true')
         config_group.add_argument("-ci", "--config-input", help="Get the configuration path from the input file location", action='store_true')
 
+        # TODO: Add output group
         #output_group = parser.add_mutually_exclusive_group()
         #output_group.add_argument("-o", "--out", default=None, help="Output CSV path (default: <input>.processed.csv)")
         #output_group.add_argument("-od", "--out-default", default=None, help="Output CSV path in the application location (default: <input>.processed.csv)", action='store_true')

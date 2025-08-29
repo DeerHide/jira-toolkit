@@ -1,5 +1,3 @@
-# src/jira_importer/import_pipeline/rules/registry.py
-
 """
 script name: registry.py
 description: This script contains the registry for the Jira Importer.

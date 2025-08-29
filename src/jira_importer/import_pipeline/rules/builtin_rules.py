@@ -1,5 +1,3 @@
-# src/jira_importer/import_pipeline/rules/builtin_rules.py
-
 """
 script name: builtin_rules.py
 description: This script contains the built-in rules for the Jira Importer.

@@ -10,6 +10,7 @@ Date: 2025
 """
 
 # Import libraries
+# TODO: Move most used libraries to init
 from pathlib import Path
 from typing import Any
 import warnings
@@ -20,6 +21,7 @@ import logging
 from tqdm import tqdm
 
 # Global variables
+# TODO: Move to init
 Warning = Critical = False
 cfg_req = 1
 debug_mode = False
@@ -43,6 +45,8 @@ from .import_pipeline.sinks.csv_sink import write_csv
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
+# TODO: Add a loading config for the excel file in the excel_io.py file
+# TODO: Move to utils
 def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:
     """
     Return (config_like, excel_manager_or_None).
@@ -58,13 +62,15 @@ def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWo
         return cfg, mgr
     return {}, None
 
+# TODO: Move to utils
 def _default_out_path(in_path: Path) -> Path:
     return f"{in_path.stem}_jira_ready.csv"
 
-
+# TODO: Move main logic to the app
 def main():
     """Main function for the Jira Importer application."""
     args = App.parse_args()
+    # TODO: Move to cli
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say("Authors:", fmt.default("Julien (@tom4897)"), ", ", fmt.default("Alain (@Nakool)"))
     ui.say(fmt.kv("License", "MIT"))
@@ -170,6 +176,7 @@ def main():
         result = processor.process()
 
         # Report
+        # TODO: Extract as a function
         if not args.no_report:
             ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=False)).render(result)
         else:
@@ -216,6 +223,7 @@ def main():
         except Exception:
             pass
 
+    # TODO: Move logic to utils
     if config.get_value('app.import.auto_open_page', default=False, expected_type=bool):
         site_address = config.get_value('jira.connection.site_address', default='', expected_type=str)
         if not 'BulkCreateSetupPage' in site_address:

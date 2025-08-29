@@ -8,7 +8,7 @@ Author: Julien (@tom4897)
 License: MIT
 Date: 2025
 """
-
+# TODO: Use structlog for logging
 import logging
 import os
 import sys

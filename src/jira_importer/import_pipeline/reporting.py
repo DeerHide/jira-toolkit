@@ -43,6 +43,7 @@ class ProblemReporter:
         # Lazy import Rich if present
         try:
             from rich.console import Console  # type: ignore
+            # TODO: Change this to use ui instance of consoleIO
             from rich.table import Table     # type: ignore
             self._Console = Console
             self._Table = Table

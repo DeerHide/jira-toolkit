@@ -76,7 +76,9 @@ class ProblemReporter:
         Table = self._Table      # type: ignore
         console = Console()
 
-        console.rule("[bold]Jira Import Validation Report")
+        #console.rule("[bold]Jira Import Validation Report")
+        console.print("[bold]Jira Import Validation Report")
+        console.print("")
         console.print(self._summary_rich(result))
 
         if self.opt.show_aggregate_by_code:

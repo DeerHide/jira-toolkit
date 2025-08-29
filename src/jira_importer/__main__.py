@@ -70,8 +70,9 @@ def main():
     ui.say(fmt.kv("License", "MIT"))
     ui.say(fmt.kv("Version", "1.0.0"))
 
+    # --- Initialization ---
     ui.lf()
-    ui.title_h2("Initializing Jira Importer")
+    ui.progress_light("Initializing Jira Importer")
 
     # Handle mutually exclusive configuration arguments
     if args.config_default:
@@ -125,16 +126,17 @@ def main():
     logger.debug(fmt.kv("Config input", App._args.config_input))
     logger.debug(fmt.kv("args", App._args))
 
+    ui.success_light("Jira Importer initialized")
+
+    # --- Checking input file ---
+    ui.lf()
+    ui.progress_light("Checking input file")
+
     xlsx_file = args.input_file
     if not os.path.isfile(xlsx_file):
         ui.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again.")
         logger.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
         App.event_fatal(exit_code=2, message=f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
-
-
-    # Convert XLSX to CSV
-    ui.lf()
-    ui.title_h2("Converting XLSX file to CSV")
 
     in_path = Path(args.input_file)
     if not in_path.exists():
@@ -147,9 +149,11 @@ def main():
 
     config_field, mgr = _load_config_for_input(in_path, args.data_sheet)
 
-    # Process the CSV file
+    ui.success_light("Input file is valid")
+
+    # --- Processing Dataset file ---
     ui.lf()
-    ui.title_h2("Processing CSV file for Jira Import")
+    ui.progress_light("Processing CSV file for Jira Import")
 
     _result_code = 0
     try:

@@ -33,6 +33,9 @@ from rich.table import Table
 from rich.theme import Theme
 from rich.traceback import install as install_rich_traceback
 
+# TODO: Add a light theme for the console
+# TODO: Add a dark theme for the console
+# TODO: Invert light/bold styles logic
 THEME = Theme({
     # Base tones
     "text": "white",
@@ -47,6 +50,14 @@ THEME = Theme({
     "warning": "bold yellow",
     "error": "bold red",
     "debug": "magenta",
+    "wip": "bold yellow",
+    "info.light": "cyan",
+    "success.light": "green",
+    "warning.light": "yellow",
+    "error.light": "red",
+    "debug.light": "magenta",
+    "wip.light": " yellow",
+    "progress.light": "cyan",
 
     # Code-ish bits
     "key": "bold white",
@@ -89,6 +100,7 @@ class ConsoleStyle:
     prefix_warning: str = "⚠️ "
     prefix_error: str = "❌ "
     prefix_debug: str = "🐛 "
+    prefix_progress: str = "🔄 "
 
     # Panel defaults
     panel_border: str = "accent.dim"
@@ -149,6 +161,13 @@ class Fmt:
     def required(self, text: str) -> str: return self.style(text, "required")
     def danger(self, text: str) -> str: return self.style(text, "danger")
     def note(self, text: str) -> str: return self.style(text, "note")
+    def progress(self, text: str) -> str: return self.style(text, "progress")
+    def warning_light(self, text: str) -> str: return self.style(text, "warning.light")
+    def error_light(self, text: str) -> str: return self.style(text, "error.light")
+    def info_light(self, text: str) -> str: return self.style(text, "info.light")
+    def success_light(self, text: str) -> str: return self.style(text, "success.light")
+    def debug_light(self, text: str) -> str: return self.style(text, "debug.light")
+    def progress_light(self, text: str) -> str: return self.style(text, "progress.light")
 
     # Titles & ornaments
     def t_h1(self, text: str) -> str: return self.style(text, "title.h1")
@@ -181,8 +200,7 @@ class ConsoleUI:
     def say(self, *parts: str, sep: str = " ") -> None:
         self.c.print(sep.join(parts))
 
-    def lf(self) -> None:
-        self.c.print("\n")
+    def lf(self) -> None: self.c.print("")
 
     # --- Messages
     def success(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[success]{self.style.prefix_success if prefix else ''} {msg}[/]")
@@ -190,6 +208,13 @@ class ConsoleUI:
     def warning(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[warning]{self.style.prefix_warning if prefix else ''} {msg}[/]")
     def error(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[error]{self.style.prefix_error if prefix else ''} {msg}[/]")
     def debug(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[debug]{self.style.prefix_debug if prefix else ''} {msg}[/]")
+    def wip(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[wip]{self.style.prefix_wip if prefix else ''} {msg}[/]")
+    def warning_light(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[warning.light]{self.style.prefix_warning if prefix else ''} {msg}[/]")
+    def error_light(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[error.light]{self.style.prefix_error if prefix else ''} {msg}[/]")
+    def info_light(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[info.light]{self.style.prefix_info if prefix else ''} {msg}[/]")
+    def success_light(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[success.light]{self.style.prefix_success if prefix else ''} {msg}[/]")
+    def debug_light(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[debug.light]{self.style.prefix_debug if prefix else ''} {msg}[/]")
+    def progress_light(self, msg: str, prefix:bool=True) -> None: self.c.print(f"[progress.light]{self.style.prefix_progress if prefix else ''} {msg}[/]")
 
     def hint(self, msg: str) -> None: self.c.print(f"[hint]{msg}[/]")
     def example(self, msg: str) -> None: self.c.print(f"[example]{msg}[/]")

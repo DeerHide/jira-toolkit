@@ -61,7 +61,8 @@ class App:
             _str += fmt.kv("Version", App._args.version) + "\n"
             _str += fmt.kv("Config default", App._args.config_default) + "\n"
             _str += fmt.kv("Config input", App._args.config_input) + "\n"
-            _str += fmt.kv("args", App._args) + "\n"
+            for arg in App._args.__dict__:
+                _str += fmt.kv(arg, App._args.__dict__[arg]) + "\n"
             ui.panel("Script failed with the following arguments:", _str)
 
         logger.critical(message)
@@ -81,7 +82,7 @@ class App:
         parser.add_argument("input_file", help="Excel XLSX file", default='import.xlsx')
 
         config_group = parser.add_mutually_exclusive_group()
-        config_group.add_argument("-c", "--config", help="Configuration file path", default='config_importer.json')
+        config_group.add_argument("-c", "--config", help="Configuration file path", default='config_importer.json', type=str)
         config_group.add_argument("-cd", "--config-default", help="Get the configuration path from the application location", action='store_true')
         config_group.add_argument("-ci", "--config-input", help="Get the configuration path from the input file location", action='store_true')
 
@@ -103,6 +104,8 @@ class App:
 
         parser.add_argument("-v", "--version", help="Show version", action='store_true')
         parser.add_argument("-d", "--debug", help="Enable debug mode", action='store_true')
+        parser.add_argument("-v", "--version", help="Show version", action='store_true')
+        #parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')
 
         args = parser.parse_args()
         # Store args in class variable for access by event_fatal

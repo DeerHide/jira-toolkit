@@ -303,7 +303,7 @@ graph LR
 ## 🔧 Component Details
 
 ### Import Pipeline (`import_pipeline/`)
-The heart of the app - a modern, modular pipeline for processing Jira import data:
+The main processing logic - handles validation, fixes, and data transformation:
 
 - **`processor.py`** - Main orchestrator that handles the entire flow
 - **`models.py`** - Data structures and interfaces for the pipeline
@@ -320,7 +320,7 @@ The heart of the app - a modern, modular pipeline for processing Jira import dat
 - Handles validation and defaults
 
 ### Excel Integration (`excel_io.py`)
-- Modern Excel workbook management
+- Excel workbook management
 - Direct XLSX processing (no intermediate CSV conversion)
 - Metadata writing and processing reports
 

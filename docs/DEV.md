@@ -96,13 +96,13 @@ src/jira_importer/               # Main application package
 
 ## 🏗️ Architecture Overview
 
-The Jira Importer Toolkit uses a modern, modular import pipeline:
+The Jira Importer Toolkit uses a modular import pipeline:
 
 - **ImportProcessor** - Main orchestrator that handles the entire pipeline flow
 - **Immutable Processing** - Rules and fixes return patches instead of mutating data in-place
 - **Extensible Validation** - Built-in rules + framework for Excel-defined rules
 - **Auto-fix System** - Safe, configurable fixes for common validation issues
-- **Rich Reporting** - Beautiful console output with problem aggregation
+- **Rich Reporting** - Console output with problem aggregation and tables
 
 Want the nitty-gritty details? Check out **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
@@ -140,7 +140,7 @@ Want the nitty-gritty details? Check out **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 ## 🔧 Key Components
 
 ### Import Pipeline (`import_pipeline/`)
-The heart of the app - a modern, modular pipeline for processing Jira import data:
+The main processing logic - handles validation, fixes, and data transformation:
 
 - **`processor.py`** - Main orchestrator that handles the entire flow
 - **`models.py`** - Data structures and interfaces for the pipeline
@@ -151,7 +151,7 @@ The heart of the app - a modern, modular pipeline for processing Jira import dat
 - **`sinks/`** - Output writers (CSV, future cloud integration)
 - **`reporting.py`** - Rich problem reporting with emojis and tables
 
-### Cool Features
+### Key Features
 - **Direct XLSX processing** (no intermediate CSV conversion)
 - **Rich console UI** with tables and formatting
 - **Excel metadata writing** and processing reports

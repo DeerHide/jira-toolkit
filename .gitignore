@@ -9,7 +9,8 @@ dist/
 
 src/v-*/
 v-*/
-rsc/VSVersionInfo
+build/version/VSVersionInfo
+build/version/build-counter.json
 build/configs/v-*.json
 logs/
 jira_importer_logs/
@@ -46,5 +47,4 @@ env.bak/
 venv.bak/
 .env_vars
 *.env_vars
-rsc/templates/ImportTemplate.csv
-rsc/templates/ImportTemplate_JiraReady.csv
+build/version/build-counter.json

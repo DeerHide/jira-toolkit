@@ -9,13 +9,14 @@
     "resources": "rsc"
   },
   "files": {
-    "requirements": "rsc/requirements.txt",
+    "requirements": "requirements.txt",
     "icon": "build/icons/deerhide_default.ico",
     "license": "LICENSE",
     "readme": "README.md",
     "version": "build/version/VSVersionInfo"
   },
   "pyinstaller": {
+    "onefile": false,
     "console": true,
     "name": "jira_importer",
     "add_data": [

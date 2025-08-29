@@ -104,7 +104,6 @@ class App:
 
         parser.add_argument("-v", "--version", help="Show version", action='store_true')
         parser.add_argument("-d", "--debug", help="Enable debug mode", action='store_true')
-        parser.add_argument("-v", "--version", help="Show version", action='store_true')
         #parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')
 
         args = parser.parse_args()

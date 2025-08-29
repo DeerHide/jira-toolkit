@@ -5,11 +5,11 @@
     "build": "build",
     "dist": "dist",
     "temp": "build/temp",
-    "source": "src/jira_importer",
-    "resources": "rsc"
+    "source": "src",
+    "resources": "resources"
   },
   "files": {
-    "requirements": "requirements.txt",
+    "requirements": "requirements.lock",
     "icon": "build/icons/deerhide_default.ico",
     "license": "LICENSE",
     "readme": "README.md",
@@ -21,7 +21,8 @@
     "name": "jira_importer",
     "add_data": [
       "deerhide_default.ico;.",
-      "VSVersionInfo;."
+      "VSVersionInfo;.",
+      "resources;resources"
     ],
     "options": {
       "icon": "deerhide_default.ico",

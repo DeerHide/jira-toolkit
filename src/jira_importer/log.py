@@ -8,7 +8,7 @@ Author: Julien (@tom4897)
 License: MIT
 Date: 2025
 """
-
+# TODO: Use structlog for logging
 import logging
 import os
 import sys
@@ -21,7 +21,7 @@ try:
 except Exception:
     pass
 
-from utils import resource_path, get_logs_directory
+from .utils import resource_path, get_logs_directory
 
 # Logging format constants
 CONSOLE_FORMAT_TTY = "%(log_color)s%(levelname)s%(reset)s %(asctime)s %(name)s: %(message)s"
@@ -49,6 +49,9 @@ DEFAULT_DEBUG_LEVEL = logging.DEBUG
 # File logging defaults
 DEFAULT_MAX_LOG_SIZE_MB = 10
 DEFAULT_MAX_LOG_FILES = 5
+
+# Console logging defaults
+DEFAULT_CONSOLE_OUTPUT = False
 
 _CONFIGURED = False
 
@@ -99,6 +102,13 @@ class LoggingConfig:
                 self.config.get_value('app.logging.write_to_file', default=False)
             )
         return self._file_logging_enabled
+
+    @property
+    def console_output_enabled(self) -> bool:
+        """Check if console output is enabled in config."""
+        if self.config:
+            return self.config.get_value('app.logging.console_output', default=DEFAULT_CONSOLE_OUTPUT)
+        return DEFAULT_CONSOLE_OUTPUT
 
     @property
     def file_settings(self) -> dict:
@@ -352,7 +362,20 @@ def setup_logger(level_override: Optional[int] = None, config: Optional[Any] = N
     root_logger.setLevel(logging_config.level)
 
     # Setup console logging
-    #_setup_console_logging(logging_config.level)
+    if logging_config.console_output_enabled:
+        _setup_console_logging(logging_config.level)
+    else:
+        # Remove all existing handlers to prevent any console output
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        # Add a null handler to prevent default stderr output
+        from logging import NullHandler
+        root_logger.addHandler(NullHandler())
+
+        # Set propagate to False for all loggers to prevent inheritance
+        # This ensures child loggers don't output to the root logger's handlers
+        logging.getLogger().propagate = False
 
     # Capture warnings via logging
     logging.captureWarnings(True)

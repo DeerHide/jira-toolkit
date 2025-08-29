@@ -15,8 +15,6 @@ import json
 from pathlib import Path
 from typing import Any, Optional, Type, TypeVar
 
-from userio import ui
-
 T = TypeVar('T')
 
 logger = logging.getLogger(__name__)
@@ -36,7 +34,6 @@ class Configuration:
         self.cfg_req = cfg_req
         if self.version_check():
             logger.critical("Wrong file config version or missing version key.")
-            ui.warning("Wrong file config version or missing version key.")
             #raise ConfigurationError("Wrong file config version or missing version key.")
         logger.debug(f"Configuration content: {self._redacted_content()}")
 

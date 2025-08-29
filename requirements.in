@@ -1,0 +1,17 @@
+# Core logging
+logging # stdlib shim
+structlog
+
+# Console / UI
+rich
+rich-argparse
+tqdm
+colorlog
+colorama; platform_system == "Windows"
+
+# Data handling
+pandas
+openpyxl
+
+# Dev tooling
+pre-commit

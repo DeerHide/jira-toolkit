@@ -50,8 +50,34 @@ def get_logs_directory() -> str:
         return temp_logs_dir
 
 
-def find_config_path(config_filename: str, input_file_path: Optional[str] = None, config_default: bool = False, config_input: bool = False) -> str:
+def find_config_path(config_filename: str, input_file_path: Optional[str] = None, config_default: bool = False, config_input: bool = False, config_specific: bool = False) -> str:
     search_paths = []
+
+    # If config_specific is True (when -c is used), only try the exact path provided
+    if config_specific:
+        # Check if it's an absolute path
+        if os.path.isabs(config_filename):
+            search_paths.append(config_filename)
+        else:
+            # For relative paths, try relative to current working directory
+            search_paths.append(os.path.abspath(config_filename))
+
+        logger.debug(f"Specific config path provided, searching only in: {search_paths}")
+        for path in search_paths:
+            if os.path.isfile(path):
+                logger.debug(f"Found configuration file: {path}")
+                return path
+
+        # If not found, return the original path (let the caller handle the error)
+        fmt_config_filename = fmt.path(config_filename)
+        ui.error(f"Configuration file '{fmt_config_filename}' not found.")
+        logger.warning(f"Configuration file '{config_filename}' not found.")
+        return config_filename
+
+    # Original logic for other cases (config_default, config_input, etc.)
+    # First, check if the config_filename is an absolute path or relative to current working directory
+    if os.path.isabs(config_filename) or os.path.isfile(config_filename):
+        search_paths.append(config_filename)
 
     if config_input:
         if input_file_path:

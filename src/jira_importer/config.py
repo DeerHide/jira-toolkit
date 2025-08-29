@@ -15,6 +15,8 @@ import json
 from pathlib import Path
 from typing import Any, Optional, Type, TypeVar
 
+from userio import ui
+
 T = TypeVar('T')
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,8 @@ class Configuration:
         self.cfg_req = cfg_req
         if self.version_check():
             logger.critical("Wrong file config version or missing version key.")
-            raise ConfigurationError("Wrong file config version or missing version key.")
+            ui.warning("Wrong file config version or missing version key.")
+            #raise ConfigurationError("Wrong file config version or missing version key.")
         logger.debug(f"Configuration content: {self._redacted_content()}")
 
     def version_check(self):
@@ -45,7 +48,7 @@ class Configuration:
             # Fallback to old structure
             logger.warning("Using legacy configuration structure. Please migrate to 'metadata.version' and nested keys.")
             cfg_version = self.content.get("app.config.version")
-        
+
         logger.debug(f"Config version: {cfg_version} ({self.cfg_req} needed)")
         if cfg_version is None:
             logger.error("Missing version in configuration.")
@@ -90,17 +93,17 @@ class Configuration:
             )
 
         return value  # type: ignore[return-value]
-    
+
     def _get_nested_value(self, key):
         keys = key.split('.')
         current = self.content
-        
+
         for k in keys:
             if isinstance(current, dict) and k in current:
                 current = current[k]
             else:
                 return None
-        
+
         return current
 
     def _redacted_content(self) -> dict:

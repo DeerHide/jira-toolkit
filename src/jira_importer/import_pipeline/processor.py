@@ -115,6 +115,7 @@ class ImportProcessor:
             if result.problems:
                 problems.extend(result.problems)
 
+        # TODO: Add a report for the skipped rows
         if skipped_rows > 0:
             logger.info(f"Skipped {skipped_rows} rows with RowType = SKIP")
 

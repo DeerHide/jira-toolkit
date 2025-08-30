@@ -27,7 +27,7 @@ cfg_req = 1
 debug_mode = False
 
 # Import classes
-from .console import ConsoleUI, fmt, ui
+from .console import ConsoleIO
 from .excel_io import ExcelWorkbookManager
 
 from .app import App
@@ -44,6 +44,9 @@ from .import_pipeline.sinks.csv_sink import write_csv
 # Suppress specific warnings from openpyxl
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+
+ui = ConsoleIO.getUI()
+fmt = ui.fmt
 
 # TODO: Add a loading config for the excel file in the excel_io.py file
 # TODO: Move to utils

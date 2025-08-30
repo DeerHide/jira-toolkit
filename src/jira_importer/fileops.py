@@ -18,10 +18,11 @@ from pathlib import Path
 import pandas as pd
 
 from .artifacts import ArtifactManager
-from .console import ui, fmt
+from .console import ConsoleIO
 from .excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
+ui = ConsoleIO.getUI()
 
 try:
     import pandas as pd  # optional

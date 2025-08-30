@@ -161,6 +161,9 @@ class ProcessorResult:
         report: Aggregated counts (errors/warnings/fixes).
         complex_children: Ranges found that require external handling.
         indices: Column indices used during processing.
+        original_row_count: Total number of rows in the source data.
+        processed_row_count: Number of rows after skipping and processing.
+        skipped_row_count: Number of rows that were skipped during processing.
     """
     header: List[str]
     rows: List[List[Any]]
@@ -168,6 +171,9 @@ class ProcessorResult:
     report: ProcessingReport = field(default_factory=ProcessingReport)
     complex_children: List[ComplexChildIssue] = field(default_factory=list)
     indices: Optional[ColumnIndices] = None
+    original_row_count: Optional[int] = None
+    processed_row_count: Optional[int] = None
+    skipped_row_count: Optional[int] = None
 
 
 # rule & fix contracts definitions

@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jira-toolkit"
+version = "1.0.0"
+description = "A utility for batch-importing tasks from Excel into Jira"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Julien", email = "tom4897@example.com"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "rich>=13.0.0",
+    "rich-argparse>=1.7.0",
+    "tqdm>=4.65.0",
+    "structlog>=23.0.0",
+    "colorlog>=6.7.0",
+    "PyYAML>=6.0",
+    "logging>=0.4.9.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.0.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+jira-importer = "jira_importer.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 150
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 80
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--cov=jira_importer", "--cov-report=term-missing"]
+
+[flake8]
+max-line-length = 150
+
+[tool.ruff]
+# Same as Black.
+line-length = 120
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["D","F","E","W","I","UP","PL","N","RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 120
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

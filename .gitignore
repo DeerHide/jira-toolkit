@@ -1,3 +1,4 @@
+# Project-specific
 temp/
 build/temp/
 lib/
@@ -5,8 +6,6 @@ lib64/
 parts/
 dist/
 .svn/
-.DS_Store
-
 src/v-*/
 v-*/
 build/version/VSVersionInfo
@@ -26,6 +25,21 @@ __pycache__/
 *$py.class
 .pytype/
 .pytest_cache/
+*.so
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Build
 *.manifest
@@ -37,6 +51,15 @@ target/
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Testing & coverage
+htmlcov/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
+*.py,cover
+
 # Environments
 .env
 .venv
@@ -47,4 +70,22 @@ env.bak/
 venv.bak/
 .env_vars
 *.env_vars
-build/version/build-counter.json
+
+# Type checking
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

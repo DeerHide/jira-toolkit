@@ -29,8 +29,10 @@ from .sources.csv_source import CsvSource
 from .sources.xlsx_source import XlsxSource
 from ..excel_io import ExcelWorkbookManager, ExcelProcessingMeta  # generic, lives top-level
 from .config_view import ConfigView  # typed access over your config object
+from ..console import ConsoleIO
 
 logger = logging.getLogger(__name__)
+ui = ConsoleIO.getUI()
 
 class ImportProcessor:
     """
@@ -54,7 +56,6 @@ class ImportProcessor:
     ) -> None:
         self.path = Path(path)
         self.config = config
-        self.ui = ui
         self.enable_excel_rules = enable_excel_rules
         self.excel_rules_source = excel_rules_source
         self.enable_auto_fix = enable_auto_fix
@@ -83,21 +84,46 @@ class ImportProcessor:
         issue_id_seen: dict[str, None] = {}
 
         logger.debug(f"row_index is 1-based (header = 1), so first data row is 2")
-        for i, row in enumerate(rows, start=2):
-            ctx = ValidationContext(
-                row_index=i,
-                config=cfg_view,
-                feature_flags={"excel_rules": self.enable_excel_rules},
-                auto_fix_enabled=self.enable_auto_fix,
-                issue_id_seen=issue_id_seen,
-            )
-            result: ValidationResult = validator.validate_row(row, indices, ctx)
 
-            if result.patch:
-                _apply_patch_inplace(normalized_rows, row_idx=i - 2, patch=result.patch)
+        # Add progress tracking if UI is available
+        if ui and hasattr(ui, 'progress'):
+            with ui.progress() as progress:
+                task = progress.add_task("Processing rows", total=len(rows))
 
-            if result.problems:
-                problems.extend(result.problems)
+                for i, row in enumerate(rows, start=2):
+                    ctx = ValidationContext(
+                        row_index=i,
+                        config=cfg_view,
+                        feature_flags={"excel_rules": self.enable_excel_rules},
+                        auto_fix_enabled=self.enable_auto_fix,
+                        issue_id_seen=issue_id_seen,
+                    )
+                    result: ValidationResult = validator.validate_row(row, indices, ctx)
+
+                    if result.patch:
+                        _apply_patch_inplace(normalized_rows, row_idx=i - 2, patch=result.patch)
+
+                    if result.problems:
+                        problems.extend(result.problems)
+
+                    progress.advance(task)
+        else:
+            # Fallback without progress tracking
+            for i, row in enumerate(rows, start=2):
+                ctx = ValidationContext(
+                    row_index=i,
+                    config=cfg_view,
+                    feature_flags={"excel_rules": self.enable_excel_rules},
+                    auto_fix_enabled=self.enable_auto_fix,
+                    issue_id_seen=issue_id_seen,
+                )
+                result: ValidationResult = validator.validate_row(row, indices, ctx)
+
+                if result.patch:
+                    _apply_patch_inplace(normalized_rows, row_idx=i - 2, patch=result.patch)
+
+                if result.problems:
+                    problems.extend(result.problems)
 
         logger.debug(f"Build processor result")
         report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)

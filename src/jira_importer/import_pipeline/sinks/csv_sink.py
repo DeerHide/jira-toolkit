@@ -18,7 +18,9 @@ from typing import Any
 from ..models import ProcessorResult
 from ..config_view import ConfigView
 from .sink_utils import times60_estimates_inplace
+from ...console import ConsoleIO
 
+ui = ConsoleIO.getUI()
 
 def write_csv(
     result: ProcessorResult,
@@ -52,7 +54,17 @@ def write_csv(
     with out_path.open("w", encoding=encoding, newline=newline) as fh:
         w = csv.writer(fh)
         w.writerow(result.header)
-        for row in result.rows:
-            w.writerow(row)
+
+        # Add progress tracking if UI is available
+        if ui and hasattr(ui, 'progress'):
+            with ui.progress() as progress:
+                task = progress.add_task("Writing CSV", total=len(result.rows))
+                for row in result.rows:
+                    w.writerow(row)
+                    progress.advance(task)
+        else:
+            # Fallback without progress tracking
+            for row in result.rows:
+                w.writerow(row)
 
     return out_path

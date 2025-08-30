@@ -16,9 +16,10 @@ import webbrowser
 import colorlog
 from typing import Optional
 
-from .console import ui, fmt
+from .console import ConsoleIO
 
 logger = logging.getLogger(__name__)
+ui = ConsoleIO.getUI()
 
 def resource_path(relative_path: str) -> str:
     if hasattr(sys, '_MEIPASS'):

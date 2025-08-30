@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 import weakref
 import logging
+from .console import ConsoleIO
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 logger = logging.getLogger(__name__)
+ui = ConsoleIO.getUI()
 
 @dataclass(slots=True)
 class ExcelProcessingMeta:
@@ -117,15 +119,37 @@ class ExcelWorkbookManager:
             return [], []
 
         # read rows
-        for raw in rows_iter:
-            row = list(raw or [])
-            if self._is_empty_row(row):
-                continue
-            if len(row) > len(header):
-                row = row[: len(header)]
-            elif len(row) < len(header):
-                row.extend([None] * (len(header) - len(row)))
-            data.append(row)
+        # First pass to count rows for progress tracking
+        rows_list = list(rows_iter)
+        total_rows = len(rows_list)
+
+        # Add progress tracking if UI is available
+        if ui and hasattr(ui, 'progress'):
+            with ui.progress() as progress:
+                task = progress.add_task("Reading Excel data", total=total_rows)
+
+                for raw in rows_list:
+                    row = list(raw or [])
+                    if self._is_empty_row(row):
+                        progress.advance(task)
+                        continue
+                    if len(row) > len(header):
+                        row = row[: len(header)]
+                    elif len(row) < len(header):
+                        row.extend([None] * (len(header) - len(row)))
+                    data.append(row)
+                    progress.advance(task)
+        else:
+            # Fallback without progress tracking
+            for raw in rows_list:
+                row = list(raw or [])
+                if self._is_empty_row(row):
+                    continue
+                if len(row) > len(header):
+                    row = row[: len(header)]
+                elif len(row) < len(header):
+                    row.extend([None] * (len(header) - len(row)))
+                data.append(row)
 
         return header, data
 

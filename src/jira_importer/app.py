@@ -76,15 +76,15 @@ class App:
             formatter_class=RichHelpFormatter,
             epilog="""
             Example:
-            jira-importer -c config_importer.json -d dataset.xlsx
+            jira-importer dataset.xlsx -c config_importer.json -d -y
             """,
         )
         parser.add_argument("input_file", help="Excel XLSX file", default='import.xlsx')
 
         config_group = parser.add_mutually_exclusive_group()
         config_group.add_argument("-c", "--config", help="Configuration file path", default='config_importer.json', type=str)
-        config_group.add_argument("-cd", "--config-default", help="Get the configuration path from the application location", action='store_true')
         config_group.add_argument("-ci", "--config-input", help="Get the configuration path from the input file location", action='store_true')
+        config_group.add_argument("-cd", "--config-default", help="Get the configuration path from the application location", action='store_true')
 
         # TODO: Add output group
         #output_group = parser.add_mutually_exclusive_group()
@@ -92,6 +92,10 @@ class App:
         #output_group.add_argument("-od", "--out-default", default=None, help="Output CSV path in the application location (default: <input>.processed.csv)", action='store_true')
         #output_group.add_argument("-oi", "--out-input", default=None, help="Output CSV path in the input file location (default: <input>.processed.csv)", action='store_true')
         #output_group.add_argument("-oc", "--out-current", default=None, help="Output CSV path in the current directory", action='store_true')
+
+        auto_yes_group = parser.add_mutually_exclusive_group()
+        auto_yes_group.add_argument("-y", "-f", "--auto-yes", default=False, action="store_true", help="Auto-yes all prompts")
+        auto_yes_group.add_argument("-n", "--auto-no", default=False, action="store_true", help="Auto-no all prompts")
 
         parser.add_argument("--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
         parser.add_argument("--enable-excel-rules", default=False, action="store_true",

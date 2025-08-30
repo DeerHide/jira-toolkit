@@ -69,7 +69,6 @@ def _default_out_path(in_path: Path) -> Path:
 # TODO: Move main logic to the app
 def main():
     """Main function for the Jira Importer application."""
-    args = App.parse_args()
     # TODO: Move to cli
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say("Authors:", fmt.default("Julien (@tom4897)"), ", ", fmt.default("Alain (@Nakool)"))
@@ -79,6 +78,7 @@ def main():
     # --- Initialization ---
     ui.lf()
     ui.progress_light("Initializing Jira Importer")
+    args = App.parse_args()
 
     # Handle mutually exclusive configuration arguments
     if args.config_default:
@@ -187,10 +187,17 @@ def main():
             ui.hint(f"You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag.")
 
         if result.report.errors > 0:
-            if not ui.prompt_yes_no("Do you want to continue?", default=False):
+
+            if args.auto_yes:
+                ui.success("-y or --auto-yes flag is set. Continuing...")
+            elif args.auto_no:
+                ui.error("-n or --auto-no flag is set. Aborting...")
                 app.event_abort(exit_code=1)
             else:
-                ui.success("Continuing...")
+                if not ui.prompt_yes_no("Do you want to continue?", default=False):
+                    app.event_abort(exit_code=1)
+                else:
+                    ui.success("Continuing...")
 
         # Apply Jira Cloud ×60 quirk in the SINK if requested
         if args.fix_cloud_estimates:

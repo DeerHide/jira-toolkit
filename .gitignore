@@ -14,6 +14,7 @@ build/configs/v-*.json
 logs/
 jira_importer_logs/
 *.log
+sandbox/
 
 *.psd
 ~$*.xlsx

@@ -14,8 +14,9 @@ import sys
 import argparse
 from rich_argparse import RichHelpFormatter
 from .artifacts import ArtifactManager
-from .console import ui, fmt
+from .console import ConsoleIO
 
+ui, fmt = ConsoleIO.getComponents()
 logger = logging.getLogger(__name__)
 
 class App:
@@ -55,14 +56,14 @@ class App:
                 logger.critical(f"  Version: {App._args.version}")
             logger.critical(f" args: {App._args}")
             ui.error("Fatal event raised!")
-            _str = "\n" + fmt.kv("Input file", fmt.path(App._args.input_file)) + "\n"
-            _str += fmt.kv("Configuration", fmt.path(App._args.config)) + "\n"
-            _str += fmt.kv("Debug mode", App._args.debug) + "\n"
-            _str += fmt.kv("Version", App._args.version) + "\n"
-            _str += fmt.kv("Config default", App._args.config_default) + "\n"
-            _str += fmt.kv("Config input", App._args.config_input) + "\n"
+            _str = "\n" + ui.fmt.kv("Input file", ui.fmt.path(App._args.input_file)) + "\n"
+            _str += ui.fmt.kv("Configuration", ui.fmt.path(App._args.config)) + "\n"
+            _str += ui.fmt.kv("Debug mode", App._args.debug) + "\n"
+            _str += ui.fmt.kv("Version", App._args.version) + "\n"
+            _str += ui.fmt.kv("Config default", App._args.config_default) + "\n"
+            _str += ui.fmt.kv("Config input", App._args.config_input) + "\n"
             for arg in App._args.__dict__:
-                _str += fmt.kv(arg, App._args.__dict__[arg]) + "\n"
+                _str += ui.fmt.kv(arg, App._args.__dict__[arg]) + "\n"
             ui.panel("Script failed with the following arguments:", _str)
 
         logger.critical(message)

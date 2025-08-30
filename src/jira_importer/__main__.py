@@ -208,7 +208,7 @@ def main():
                 temp.update({"jira.cloud.estimate.multiply_by_60": True})
                 config = temp
 
-        write_csv(result, out_path, config=config, ui=ui)
+        write_csv(result, out_path, config=config)
 
         ui.say(f"Output Import CSV Ready → {fmt.path(out_path)}")
         logger.info("Wrote output CSV → %s", out_path)

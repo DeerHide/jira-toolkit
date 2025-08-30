@@ -235,7 +235,7 @@ def _parse_estimate_to_seconds(
 @dataclass(slots=True)
 class AssignIssueIdFixer(IFixer):
     """
-    Assigns a unique temporary IssueId when missing.
+    Assigns a unique temporary IssueId when missing or invalid.
 
     Strategy:
       - Use configurable prefix (default None - no prefix)
@@ -246,7 +246,7 @@ class AssignIssueIdFixer(IFixer):
       - issueid.width: int (default 3)
     """
     def apply(self, problem: Problem, row: Sequence[Any], indices: ColumnIndices, ctx: ValidationContext) -> FixOutcome:
-        if problem.code != "issueid.missing":
+        if problem.code not in ["issueid.missing", "issueid.invalid"]:
             return FixOutcome(applied=False)
         if indices.issue_id is None:
             return FixOutcome(applied=False)
@@ -278,4 +278,5 @@ def get_builtin_fixers() -> Dict[str, IFixer]:
         "priority.missing":     PriorityNormalizeFixer(),
         "estimate.invalid_format": EstimateNormalizeFixer(),
         "issueid.missing":      AssignIssueIdFixer(),
+        "issueid.invalid":      AssignIssueIdFixer(),
     }

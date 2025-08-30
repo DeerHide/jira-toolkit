@@ -36,10 +36,20 @@ def get_git_commit_hash():
         print(f"Warning: Could not execute Git command: {e}")
         return "unknown"
 
+def get_git_branch():
+    """Get the Git branch from Git."""
+    try:
+        result = subprocess.run(['git', 'branch', '--show-current'], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        return result.stdout.strip()
+    except Exception as e:
+        print(f"Warning: Could not execute Git command: {e}")
+        return "unknown"
+
+
 def get_version_info():
     """Read version info from counter file and increment build number."""
     counter_file = os.path.join(os.path.dirname(__file__), BUILD_COUNTER_FILE)
-    
+
     try:
         if os.path.exists(counter_file):
             with open(counter_file, 'r', encoding='utf-8') as f:
@@ -50,7 +60,7 @@ def get_version_info():
                 build_number = data.get('build_number', 0) + 1
         else:
             major, minor, patch, build_number = 0, 1, 0, 0
-        
+
         # Save the updated version info
         version_data = {
             'major': major,
@@ -60,10 +70,10 @@ def get_version_info():
         }
         with open(counter_file, 'w', encoding='utf-8') as f:
             json.dump(version_data, f, indent=2)
-        
+
         version_string = f"{major}.{minor}.{patch}"
         full_version = f"{major}.{minor}.{patch}.{build_number}"
-        
+
         return version_string, full_version, major, minor, patch, build_number
     except Exception as e:
         print(f"Warning: Could not manage version info: {e}")
@@ -75,7 +85,8 @@ def main():
 
     prod_version = f"{major}.{minor}.{patch}.{build_number}"
     file_version = f"{major}.{minor}.{patch}.{build_number}"
-    
+    git_branch = get_git_branch()
+
     version_info_content = f"""\
 VSVersionInfo(
   ffi=FixedFileInfo(
@@ -99,7 +110,7 @@ VSVersionInfo(
         StringStruct('FileVersion', '{file_version}'),
         StringStruct('InternalName', 'jira_importer'),
         StringStruct('LegalCopyright', 'Copyright (c) 2025 Julien (@tom4897), Alain (@nakool). Licensed under the MIT License.'),
-        StringStruct('OriginalFilename', 'jira_importer.exe @rev {special_build}'),
+        StringStruct('OriginalFilename', 'jira_importer.exe @branch {git_branch} @rev {special_build}'),
         StringStruct('ProductName', 'Jira Importer'),
         StringStruct('ProductVersion', '{prod_version}'),
         StringStruct('Author', 'Julien (@tom4897), Alain (@nakool)'),
@@ -126,6 +137,7 @@ VSVersionInfo(
         print(f"Build number: {build_number}")
         print(f"Full version: {full_version}")
         print(f"Rev: {special_build}")
+        print(f"Branch: {git_branch}")
     except Exception as e:
         print(f"Error generating version file: {e}")
         sys.exit(1)

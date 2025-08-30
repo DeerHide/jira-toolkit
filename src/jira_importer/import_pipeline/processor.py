@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import Iterable, List, Sequence, Optional
 import logging
 
 from .models import (
@@ -85,6 +85,9 @@ class ImportProcessor:
 
         issue_id_seen: dict[str, None] = {}
         skipped_rows = 0
+
+        # Pre-populate issue_id_seen with existing Issue IDs to avoid conflicts during auto-fixing
+        self._pre_populate_issue_ids(rows, indices, issue_id_seen)
 
         logger.debug(f"row_index is 1-based (header = 1), so first data row is 2")
         for i, row in enumerate(rows, start=2):
@@ -265,6 +268,26 @@ class ImportProcessor:
             return False
 
         return str(rowtype_value).strip().upper() in skip_issuetypes
+
+    def _pre_populate_issue_ids(self, rows: list[Sequence[object]], indices: ColumnIndices, issue_id_seen: dict[str, None]) -> None:
+        """
+        Pre-populates the issue_id_seen dictionary with all existing Issue IDs from the source data.
+        This is necessary to avoid conflicts when auto-fixing AssignIssueIdFixer.
+        """
+        if indices.issue_id is None:
+            return
+
+        for row in rows:
+            issue_id_value = self._cell_str(row, indices.issue_id)
+            if issue_id_value:  # _cell_str already handles None, empty strings, etc.
+                issue_id_seen[issue_id_value] = None
+
+    def _cell_str(self, row: Sequence[object], idx: Optional[int]) -> str:
+        """Helper function to safely extract string values from cells."""
+        if idx is None or idx < 0 or idx >= len(row):
+            return ""
+        v = row[idx]
+        return "" if v is None else str(v).strip()
 
 
 # Helpers

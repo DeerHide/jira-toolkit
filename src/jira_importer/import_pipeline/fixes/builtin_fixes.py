@@ -235,28 +235,27 @@ def _parse_estimate_to_seconds(
 @dataclass(slots=True)
 class AssignIssueIdFixer(IFixer):
     """
-    Assigns a unique temporary IssueId when missing.
+    Assigns a unique temporary IssueId when missing or invalid.
 
     Strategy:
       - Use configurable prefix (default None - no prefix)
-      - Produce '0001', '0002', ... or 'TMP-0001', 'TMP-0002', ... (row-index seeded, collision-checked)
+      - Produce '0001', '0002', ... or 'TMP-0001', 'TMP-0002', ... (collision-checked)
       - Ensure per-file uniqueness via ValidationContext.seen_issue_id()
     Config (optional):
       - issueid.prefix: str | None (default None - no prefix)
       - issueid.width: int (default 3)
     """
     def apply(self, problem: Problem, row: Sequence[Any], indices: ColumnIndices, ctx: ValidationContext) -> FixOutcome:
-        if problem.code != "issueid.missing":
+        if problem.code not in ["issueid.missing", "issueid.invalid"]:
             return FixOutcome(applied=False)
         if indices.issue_id is None:
             return FixOutcome(applied=False)
 
         prefix = _cfg_get(ctx, "issueid.prefix", None)
-        width = int(_cfg_get(ctx, "issueid.width", 3))
+        width = int(_cfg_get(ctx, "issueid.width", 1))
 
-        # Start from row index and search for the next free id.
-        n = max(1, int(problem.row_index or 1))
-        for attempt in range(n, n + 100000):  # hard cap to avoid infinite loop
+        # Start from 1 and search for the next free id, ensuring we don't conflict with existing IDs
+        for attempt in range(1, 100000):  # hard cap to avoid infinite loop
             candidate = f"{prefix or ''}{attempt:0{width}d}"
             # seen_issue_id() records if not seen and returns False
             if not ctx.seen_issue_id(candidate):
@@ -279,4 +278,5 @@ def get_builtin_fixers() -> Dict[str, IFixer]:
         "priority.missing":     PriorityNormalizeFixer(),
         "estimate.invalid_format": EstimateNormalizeFixer(),
         "issueid.missing":      AssignIssueIdFixer(),
+        "issueid.invalid":      AssignIssueIdFixer(),
     }

@@ -72,7 +72,6 @@ def _default_out_path(in_path: Path) -> Path:
 # TODO: Move main logic to the app
 def main():
     """Main function for the Jira Importer application."""
-    args = App.parse_args()
     # TODO: Move to cli
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say("Authors:", fmt.default("Julien (@tom4897)"), ", ", fmt.default("Alain (@Nakool)"))
@@ -82,6 +81,14 @@ def main():
     # --- Initialization ---
     ui.lf()
     ui.progress_light("Initializing Jira Importer")
+    args = App.parse_args()
+    # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
+    if getattr(args, "auto_yes", False):
+        autoreply = True
+    elif getattr(args, "auto_no", False):
+        autoreply = False
+    else:
+        autoreply = None
 
     # Handle mutually exclusive configuration arguments
     if args.config_default:
@@ -190,7 +197,8 @@ def main():
             ui.hint(f"You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag.")
 
         if result.report.errors > 0:
-            if not ui.prompt_yes_no("Do you want to continue?", default=False):
+
+            if not ui.prompt_yes_no("Do you want to continue?", default=False, auto_reply=autoreply):
                 app.event_abort(exit_code=1)
             else:
                 ui.success("Continuing...")

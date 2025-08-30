@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import Iterable, List, Sequence, Optional
 import logging
 
 from .models import (
@@ -29,10 +29,8 @@ from .sources.csv_source import CsvSource
 from .sources.xlsx_source import XlsxSource
 from ..excel_io import ExcelWorkbookManager, ExcelProcessingMeta  # generic, lives top-level
 from .config_view import ConfigView  # typed access over your config object
-from ..console import ConsoleIO
 
 logger = logging.getLogger(__name__)
-ui = ConsoleIO.getUI()
 
 class ImportProcessor:
     """
@@ -56,6 +54,7 @@ class ImportProcessor:
     ) -> None:
         self.path = Path(path)
         self.config = config
+        self.ui = ui
         self.enable_excel_rules = enable_excel_rules
         self.excel_rules_source = excel_rules_source
         self.enable_auto_fix = enable_auto_fix
@@ -76,54 +75,57 @@ class ImportProcessor:
         fix_registry = build_fix_registry(cfg_view) if self.enable_auto_fix else None
         validator = JiraImportValidator(rules=rules, fix_registry=fix_registry)
 
+        skip_enabled = cfg_view.get("validation.skip_rowtype", True)
+        skip_issuetypes = cfg_view.get("validation.skip_issuetypes", ["comment", "note", "skip"])
+
         logger.debug(f"Validate + apply patches row-by-row")
         problems: list[Problem] = []
-        normalized_rows = _deep_copy_rows(rows)  # we’ll patch into this
+        normalized_rows = []  # Build dynamically, only including non-skipped rows
         complex_children = []  # fill from your rules if needed
 
         issue_id_seen: dict[str, None] = {}
+        skipped_rows = 0
+        original_row_count = len(rows)
+
+        # Pre-populate issue_id_seen with existing Issue IDs to avoid conflicts during auto-fixing
+        self._pre_populate_issue_ids(rows, indices, issue_id_seen)
 
         logger.debug(f"row_index is 1-based (header = 1), so first data row is 2")
+        for i, row in enumerate(rows, start=2):
+            # Skip rows with RowType = "SKIP"
+            if self._should_skip_row_rowtype(row, indices, skip_enabled):
+                skipped_rows += 1
+                logger.debug(f"Skipping row {i} (RowType = SKIP)")
+                continue
 
-        # Add progress tracking if UI is available
-        if ui and hasattr(ui, 'progress'):
-            with ui.progress() as progress:
-                task = progress.add_task("Processing rows", total=len(rows))
+            # Skip rows with Issue Type = "Epic"
+            if self._should_skip_row_issuetype(row, indices, skip_issuetypes):
+                skipped_rows += 1
+                logger.debug(f"Skipping row {i} (Issue Type = EPIC)")
+                continue
 
-                for i, row in enumerate(rows, start=2):
-                    ctx = ValidationContext(
-                        row_index=i,
-                        config=cfg_view,
-                        feature_flags={"excel_rules": self.enable_excel_rules},
-                        auto_fix_enabled=self.enable_auto_fix,
-                        issue_id_seen=issue_id_seen,
-                    )
-                    result: ValidationResult = validator.validate_row(row, indices, ctx)
+            # Add non-skipped row to normalized_rows
+            normalized_rows.append(list(row))
 
-                    if result.patch:
-                        _apply_patch_inplace(normalized_rows, row_idx=i - 2, patch=result.patch)
+            ctx = ValidationContext(
+                row_index=i,
+                config=cfg_view,
+                feature_flags={"excel_rules": self.enable_excel_rules},
+                auto_fix_enabled=self.enable_auto_fix,
+                issue_id_seen=issue_id_seen,
+            )
+            result: ValidationResult = validator.validate_row(row, indices, ctx)
 
-                    if result.problems:
-                        problems.extend(result.problems)
+            if result.patch:
+                # Apply patch to the last added row (current row index in normalized_rows)
+                _apply_patch_inplace(normalized_rows, row_idx=len(normalized_rows) - 1, patch=result.patch)
 
-                    progress.advance(task)
-        else:
-            # Fallback without progress tracking
-            for i, row in enumerate(rows, start=2):
-                ctx = ValidationContext(
-                    row_index=i,
-                    config=cfg_view,
-                    feature_flags={"excel_rules": self.enable_excel_rules},
-                    auto_fix_enabled=self.enable_auto_fix,
-                    issue_id_seen=issue_id_seen,
-                )
-                result: ValidationResult = validator.validate_row(row, indices, ctx)
+            if result.problems:
+                problems.extend(result.problems)
 
-                if result.patch:
-                    _apply_patch_inplace(normalized_rows, row_idx=i - 2, patch=result.patch)
-
-                if result.problems:
-                    problems.extend(result.problems)
+        # TODO: Add a report for the skipped rows
+        if skipped_rows > 0:
+            logger.info(f"Skipped {skipped_rows} rows (RowType = SKIP or Issue Type in skip list)")
 
         logger.debug(f"Build processor result")
         report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
@@ -136,10 +138,14 @@ class ImportProcessor:
             indices=indices,
         )
 
+        # Store row counts for Excel metadata
+        proc_result.original_row_count = original_row_count
+        proc_result.processed_row_count = len(normalized_rows)
+        proc_result.skipped_row_count = skipped_rows
+
         logger.debug(f"Optional: write back to Excel (metadata/report)")
         if self._is_excel(self.path):
-            pass
-            #self._write_excel_meta(proc_result)
+            self._write_excel_meta(proc_result)
 
         return proc_result
 
@@ -213,8 +219,9 @@ class ImportProcessor:
             run_at_iso=datetime.now(timezone.utc).isoformat(),
             app_version=str(getattr(self.config, "version", "")) or "unknown",
             source_path=str(mgr.path),
-            rows_in=len(result.rows),
-            rows_out=len(result.rows),
+            rows_in=result.original_row_count,
+            rows_out=result.processed_row_count,
+            skipped_rows=result.skipped_row_count,
             errors=result.report.errors,
             warnings=result.report.warnings,
             fixes=result.report.fixes,
@@ -233,6 +240,82 @@ class ImportProcessor:
     @staticmethod
     def _is_excel(path: Path) -> bool:
         return path.suffix.lower() in {".xlsx", ".xlsm"}
+
+    def _should_skip_row_rowtype(self, row: Sequence[object], indices: ColumnIndices, skip_enabled: bool) -> bool:
+        """
+        Check if a row should be skipped based on RowType = "SKIP".
+
+        Args:
+            row: The row data to check
+            indices: Column indices for accessing row data
+            config_view: Configuration view to check if skipping is enabled
+
+        Returns:
+            True if the row should be skipped, False otherwise
+        """
+        # Check if row skipping is enabled in config
+        if not skip_enabled:
+            return False
+
+        if indices.rowtype is None:
+            return False
+
+        if indices.rowtype >= len(row):
+            return False
+
+        rowtype_value = row[indices.rowtype]
+        if rowtype_value is None:
+            return False
+
+        return str(rowtype_value).strip().upper() == "SKIP"
+
+    def _should_skip_row_issuetype(self, row: Sequence[object], indices: ColumnIndices, skip_issuetypes: list[str]) -> bool:
+        """
+        Check if a row should be skipped based on Issue Type.
+
+        Args:
+            row: The row data to check
+            indices: Column indices for accessing row data
+            skip_issuetypes: List of Issue Type values that should be skipped
+
+        Returns:
+            True if the row should be skipped, False otherwise
+        """
+        if indices.issuetype is None:
+            return False
+
+        if indices.issuetype >= len(row):
+            return False
+
+        issuetype_value = row[indices.issuetype]
+        if issuetype_value is None:
+            return False
+
+        # Convert to uppercase and strip whitespace for comparison
+        issuetype_str = str(issuetype_value).strip().upper()
+
+        # Check if the Issue Type is in the skip list (case-insensitive)
+        return any(skip_type.strip().upper() == issuetype_str for skip_type in skip_issuetypes)
+
+    def _pre_populate_issue_ids(self, rows: list[Sequence[object]], indices: ColumnIndices, issue_id_seen: dict[str, None]) -> None:
+        """
+        Pre-populates the issue_id_seen dictionary with all existing Issue IDs from the source data.
+        This is necessary to avoid conflicts when auto-fixing AssignIssueIdFixer.
+        """
+        if indices.issue_id is None:
+            return
+
+        for row in rows:
+            issue_id_value = self._cell_str(row, indices.issue_id)
+            if issue_id_value:  # _cell_str already handles None, empty strings, etc.
+                issue_id_seen[issue_id_value] = None
+
+    def _cell_str(self, row: Sequence[object], idx: Optional[int]) -> str:
+        """Helper function to safely extract string values from cells."""
+        if idx is None or idx < 0 or idx >= len(row):
+            return ""
+        v = row[idx]
+        return "" if v is None else str(v).strip()
 
 
 # Helpers

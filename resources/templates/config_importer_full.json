@@ -10,6 +10,12 @@
     },
     "validation": {
       "skip_all": false,
+      "skip_rowtype": true,
+      "skip_issuetypes": [
+        "comment",
+        "note",
+        "skip"
+      ],
       "skip_checks": {
         "description": false,
         "fixversion": false,

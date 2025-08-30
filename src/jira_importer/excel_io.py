@@ -32,6 +32,7 @@ class ExcelProcessingMeta:
     source_path: str
     rows_in: int
     rows_out: int
+    skipped_rows: int
     errors: int
     warnings: int
     fixes: int
@@ -213,6 +214,7 @@ class ExcelWorkbookManager:
             ("source_path", meta.source_path),
             ("rows_in", meta.rows_in),
             ("rows_out", meta.rows_out),
+            ("skipped_rows", meta.skipped_rows),
             ("errors", meta.errors),
             ("warnings", meta.warnings),
             ("fixes", meta.fixes),

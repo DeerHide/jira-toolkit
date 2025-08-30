@@ -79,6 +79,13 @@ def main():
     ui.lf()
     ui.progress_light("Initializing Jira Importer")
     args = App.parse_args()
+    # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
+    if getattr(args, "auto_yes", False):
+        autoreply = True
+    elif getattr(args, "auto_no", False):
+        autoreply = False
+    else:
+        autoreply = None
 
     # Handle mutually exclusive configuration arguments
     if args.config_default:
@@ -188,16 +195,10 @@ def main():
 
         if result.report.errors > 0:
 
-            if args.auto_yes:
-                ui.success("-y or --auto-yes flag is set. Continuing...")
-            elif args.auto_no:
-                ui.error("-n or --auto-no flag is set. Aborting...")
+            if not ui.prompt_yes_no("Do you want to continue?", default=False, auto_reply=autoreply):
                 app.event_abort(exit_code=1)
             else:
-                if not ui.prompt_yes_no("Do you want to continue?", default=False):
-                    app.event_abort(exit_code=1)
-                else:
-                    ui.success("Continuing...")
+                ui.success("Continuing...")
 
         # Apply Jira Cloud ×60 quirk in the SINK if requested
         if args.fix_cloud_estimates:

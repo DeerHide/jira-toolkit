@@ -94,8 +94,8 @@ class App:
         #output_group.add_argument("-oc", "--out-current", default=None, help="Output CSV path in the current directory", action='store_true')
 
         auto_yes_group = parser.add_mutually_exclusive_group()
-        auto_yes_group.add_argument("-y", "-f", "--auto-yes", default=False, action="store_true", help="Auto-yes all prompts")
-        auto_yes_group.add_argument("-n", "--auto-no", default=False, action="store_true", help="Auto-no all prompts")
+        auto_yes_group.add_argument("-y", "-f", "--auto-yes", default=None, action="store_true", help="Auto-yes all prompts")
+        auto_yes_group.add_argument("-n", "--auto-no", default=None, action="store_true", help="Auto-no all prompts")
 
         parser.add_argument("--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
         parser.add_argument("--enable-excel-rules", default=False, action="store_true",

@@ -363,6 +363,7 @@ class ConsoleUI:
         *,
         default: bool | None = None,
         max_attempts: int = 3,
+        auto_reply: bool = None,
     ) -> bool:
         """
         Yes/No confirmation prompt (returns True/False).
@@ -373,6 +374,14 @@ class ConsoleUI:
         - On EOF/KeyboardInterrupt: returns default if provided, else False.
         - After `max_attempts` invalid tries: returns default if provided, else False.
         """
+
+        if auto_reply is not None:
+            if auto_reply:
+                self.say(fmt.success("Auto-yes flag is set. Continuing..."))
+            else:
+                self.say(fmt.error("Auto-no flag is set. Aborting..."))
+            return auto_reply
+
         # Non-interactive fallback
         if not sys.stdin.isatty():
             if default is not None:

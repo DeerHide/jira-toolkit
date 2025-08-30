@@ -28,7 +28,6 @@ __pycache__/
 .pytest_cache/
 *.so
 .Python
-build/
 develop-eggs/
 downloads/
 eggs/

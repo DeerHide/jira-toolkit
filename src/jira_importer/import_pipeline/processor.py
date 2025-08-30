@@ -75,15 +75,31 @@ class ImportProcessor:
         fix_registry = build_fix_registry(cfg_view) if self.enable_auto_fix else None
         validator = JiraImportValidator(rules=rules, fix_registry=fix_registry)
 
+        skip_enabled = cfg_view.get("validation.skip_rowtype", True)
+        skip_issuetypes = cfg_view.get("validation.skip_issuetypes", ["comment", "note", "skip"])
+
         logger.debug(f"Validate + apply patches row-by-row")
         problems: list[Problem] = []
-        normalized_rows = _deep_copy_rows(rows)  # we’ll patch into this
+        normalized_rows = _deep_copy_rows(rows)  # we'll patch into this
         complex_children = []  # fill from your rules if needed
 
         issue_id_seen: dict[str, None] = {}
+        skipped_rows = 0
 
         logger.debug(f"row_index is 1-based (header = 1), so first data row is 2")
         for i, row in enumerate(rows, start=2):
+            # Skip rows with RowType = "SKIP"
+            if self._should_skip_row_rowtype(row, indices, skip_enabled):
+                skipped_rows += 1
+                logger.debug(f"Skipping row {i} (RowType = SKIP)")
+                continue
+
+            # Skip rows with Issue Type = "Epic"
+            if self._should_skip_row_issuetype(row, indices, skip_issuetypes):
+                skipped_rows += 1
+                logger.debug(f"Skipping row {i} (Issue Type = EPIC)")
+                continue
+
             ctx = ValidationContext(
                 row_index=i,
                 config=cfg_view,
@@ -98,6 +114,9 @@ class ImportProcessor:
 
             if result.problems:
                 problems.extend(result.problems)
+
+        if skipped_rows > 0:
+            logger.info(f"Skipped {skipped_rows} rows with RowType = SKIP")
 
         logger.debug(f"Build processor result")
         report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
@@ -207,6 +226,44 @@ class ImportProcessor:
     @staticmethod
     def _is_excel(path: Path) -> bool:
         return path.suffix.lower() in {".xlsx", ".xlsm"}
+
+    def _should_skip_row_rowtype(self, row: Sequence[object], indices: ColumnIndices, skip_enabled: bool) -> bool:
+        """
+        Check if a row should be skipped based on RowType = "SKIP".
+
+        Args:
+            row: The row data to check
+            indices: Column indices for accessing row data
+            config_view: Configuration view to check if skipping is enabled
+
+        Returns:
+            True if the row should be skipped, False otherwise
+        """
+        # Check if row skipping is enabled in config
+        if not skip_enabled:
+            return False
+
+        if indices.rowtype is None:
+            return False
+
+        if indices.rowtype >= len(row):
+            return False
+
+        rowtype_value = row[indices.rowtype]
+        if rowtype_value is None:
+            return False
+
+        return str(rowtype_value).strip().upper() == "SKIP"
+
+    def _should_skip_row_issuetype(self, row: Sequence[object], indices: ColumnIndices, skip_issuetypes: list[str]) -> bool:
+        """
+        Check if a row should be skipped based on Issue Type = "Epic".
+        """
+        rowtype_value = row[indices.issuetype]
+        if rowtype_value is None:
+            return False
+
+        return str(rowtype_value).strip().upper() in skip_issuetypes
 
 
 # Helpers

@@ -11,6 +11,7 @@ v-*/
 build/version/VSVersionInfo
 build/version/build-counter.json
 build/configs/v-*.json
+build/logs/
 logs/
 jira_importer_logs/
 *.log

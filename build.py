@@ -267,22 +267,6 @@ def detect_platform() -> str:
     except Exception:
         return "other"
 
-def conditional_print(message, config, message_type="info") -> None:
-    """Print message based on configuration settings."""
-    if not config.get("output_control", {}).get("verbose", True):
-        return
-
-    # Check specific message type controls
-    _logger.debug(f"{message_type} {message}")
-    if message_type == "warning" and not config.get("output_control", {}).get("show_warnings", True):
-        return
-    elif message_type == "debug" and not config.get("output_control", {}).get("show_debug_info", False):
-        return
-    elif message_type == "progress" and not config.get("output_control", {}).get("show_progress", True):
-        return
-
-    print(message)
-
 def check_dependencies(config) -> None:
     """Check if required dependencies are available."""
     if not config["build_options"]["check_dependencies"]:
@@ -623,9 +607,6 @@ def main() -> None:
     if not copy_build_files(CONFIG):
         _logger.warning("❌ Failed to copy build files")
         sys.exit(1)
-
-    sys.exit(0)
-
 
     # Build executable
     _logger.info("🔨 Building executable...")

@@ -16,12 +16,77 @@ import os
 import sys
 import json
 import time
+import logging
+from datetime import datetime
 
-# File/Directory operation utilities with failsafe mechanisms
-def safe_remove_directory(directory_path, config, description="directory"):
+
+BASE_LOG_DIR = "build/logs"
+LOG_LEVEL = logging.DEBUG
+
+def _detect_tty() -> bool:
+    """Detect if stderr supports TTY (colors)."""
+    return hasattr(sys.stderr, 'isatty') and sys.stderr.isatty()
+
+class LoggerManager:
+    def __init__(self, base_dir: str = BASE_LOG_DIR) -> None:
+        self.base_dir = base_dir
+        self.logger = None
+        self.setup()
+
+    @property
+    def level(self) -> int:
+        """Get the resolved log level with proper priority."""
+        if self._resolved_level is None:
+            self._resolved_level = self._resolve_level()
+        return self._resolved_level
+
+    @property
+    def is_tty(self) -> bool:
+        """Check if terminal supports colors."""
+        if self._is_tty is None:
+            self._is_tty = _detect_tty()
+        return self._is_tty
+
+    def setup(self) -> logging.Logger:
+        now = datetime.now()
+        date_str = now.strftime("%Y%m%d")
+
+        os.makedirs(self.base_dir, exist_ok=True)
+        log_file = os.path.join(self.base_dir, f"{date_str}_build_jira_importer.log")
+
+        root_logger = logging.getLogger()
+        root_logger.setLevel(LOG_LEVEL)
+
+        if root_logger.handlers:
+            root_logger.handlers.clear()
+
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(LOG_LEVEL)
+        file_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(funcName)s:%(lineno)d %(message)s")
+        file_handler.setFormatter(file_formatter)
+
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(LOG_LEVEL)
+        console_formatter = logging.Formatter("%(asctime)s %(message)s")
+        console_handler.setFormatter(console_formatter)
+
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
+
+        self.logger = logging.getLogger(__name__)
+        return self.logger
+
+    def get_logger(self) -> logging.Logger:
+        if self.logger is None:
+            return self.setup()
+        return self.logger
+
+_logger = LoggerManager(BASE_LOG_DIR).get_logger()
+
+def safe_remove_directory(directory_path, config, description="directory") -> bool:
     """Safely remove a directory with retry logic and proper error handling."""
     if not os.path.exists(directory_path):
-        conditional_print(f"⏭️  {description.capitalize()} does not exist: {directory_path}", config, "debug")
+        _logger.info(f"⏭️  {description.capitalize()} does not exist: {directory_path}")
         return True
 
     max_retries = 3
@@ -29,35 +94,35 @@ def safe_remove_directory(directory_path, config, description="directory"):
 
     for attempt in range(max_retries):
         try:
-            conditional_print(f"🧹 Removing {description}: {directory_path}", config, "progress")
+            _logger.info(f"🧹 Removing {description}: {directory_path}")
             shutil.rmtree(directory_path)
-            conditional_print(f"✅ Successfully removed {description}: {directory_path}", config, "progress")
+            _logger.info(f"✅ Successfully removed {description}: {directory_path}")
             return True
         except PermissionError as e:
             if attempt < max_retries - 1:
-                conditional_print(f"⚠️  Permission error removing {description} (attempt {attempt + 1}/{max_retries}): {e}", config, "warning")
-                conditional_print(f"⏳ Waiting {retry_delay} seconds before retry...", config, "debug")
+                _logger.warning(f"⚠️  Permission error removing {description} (attempt {attempt + 1}/{max_retries}): {e}")
+                _logger.warning(f"⏳ Waiting {retry_delay} seconds before retry...")
                 time.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
             else:
-                conditional_print(f"❌ Failed to remove {description} after {max_retries} attempts: {e}", config, "warning")
+                _logger.error(f"❌ Failed to remove {description} after {max_retries} attempts: {e}")
                 return False
         except OSError as e:
             if attempt < max_retries - 1:
-                conditional_print(f"⚠️  OS error removing {description} (attempt {attempt + 1}/{max_retries}): {e}", config, "warning")
-                conditional_print(f"⏳ Waiting {retry_delay} seconds before retry...", config, "debug")
+                _logger.warning(f"⚠️  OS error removing {description} (attempt {attempt + 1}/{max_retries}): {e}")
+                _logger.warning(f"⏳ Waiting {retry_delay} seconds before retry...")
                 time.sleep(retry_delay)
                 retry_delay *= 2
             else:
-                conditional_print(f"❌ Failed to remove {description} after {max_retries} attempts: {e}", config, "warning")
+                _logger.error(f"❌ Failed to remove {description} after {max_retries} attempts: {e}")
                 return False
         except Exception as e:
-            conditional_print(f"❌ Unexpected error removing {description}: {e}", config, "warning")
+            _logger.error(f"❌ Unexpected error removing {description}: {e}")
             return False
 
     return False
 
-def safe_create_directory(directory_path, config, description="directory", clean_if_exists=False):
+def safe_create_directory(directory_path, config, description="directory", clean_if_exists=False) -> bool:
     """Safely create a directory with optional cleaning and proper error handling."""
     try:
         if clean_if_exists and os.path.exists(directory_path):
@@ -65,19 +130,19 @@ def safe_create_directory(directory_path, config, description="directory", clean
                 return False
 
         os.makedirs(directory_path, exist_ok=True)
-        conditional_print(f"✅ Created/ensured {description}: {directory_path}", config, "progress")
+        _logger.info(f"✅ Created/ensured {description}: {directory_path}")
         return True
     except PermissionError as e:
-        conditional_print(f"❌ Permission error creating {description}: {e}", config, "warning")
+        _logger.error(f"❌ Permission error creating {description}: {e}")
         return False
     except OSError as e:
-        conditional_print(f"❌ OS error creating {description}: {e}", config, "warning")
+        _logger.error(f"❌ OS error creating {description}: {e}")
         return False
     except Exception as e:
-        conditional_print(f"❌ Unexpected error creating {description}: {e}", config, "warning")
+        _logger.error(f"❌ Unexpected error creating {description}: {e}")
         return False
 
-def safe_copy_file(source_path, dest_path, config, description="file"):
+def safe_copy_file(source_path, dest_path, config, description="file") -> bool:
     """Safely copy a file with proper error handling."""
     try:
         # Ensure destination directory exists
@@ -87,70 +152,70 @@ def safe_copy_file(source_path, dest_path, config, description="file"):
                 return False
 
         shutil.copy2(source_path, dest_path)
-        conditional_print(f"✅ Successfully copied {description}: {source_path} → {dest_path}", config, "progress")
+        _logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
         return True
     except FileNotFoundError as e:
-        conditional_print(f"❌ Source {description} not found: {source_path}", config, "warning")
+        _logger.error(f"❌ Source {description} not found: {source_path}")
         return False
     except PermissionError as e:
-        conditional_print(f"❌ Permission error copying {description}: {e}", config, "warning")
+        _logger.error(f"❌ Permission error copying {description}: {e}")
         return False
     except OSError as e:
-        conditional_print(f"❌ OS error copying {description}: {e}", config, "warning")
+        _logger.error(f"❌ OS error copying {description}: {e}")
         return False
     except Exception as e:
-        conditional_print(f"❌ Unexpected error copying {description}: {e}", config, "warning")
+        _logger.error(f"❌ Unexpected error copying {description}: {e}")
         return False
 
-def safe_copy_directory(source_path, dest_path, config, description="directory"):
+def safe_copy_directory(source_path, dest_path, config, description="directory") -> bool:
     """Safely copy a directory with proper error handling."""
     try:
         # Remove destination if it exists
         if os.path.exists(dest_path):
-            conditional_print(f"🗑️  Removing existing {description}: {dest_path}", config, "progress")
+            _logger.info(f"🗑️  Removing existing {description}: {dest_path}")
             if not safe_remove_directory(dest_path, config, description):
                 return False
 
         shutil.copytree(source_path, dest_path)
-        conditional_print(f"✅ Successfully copied {description}: {source_path} → {dest_path}", config, "progress")
+        _logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
         return True
     except FileNotFoundError as e:
-        conditional_print(f"❌ Source {description} not found: {source_path}", config, "warning")
+        _logger.error(f"❌ Source {description} not found: {source_path}")
         return False
     except PermissionError as e:
-        conditional_print(f"❌ Permission error copying {description}: {e}", config, "warning")
+        _logger.error(f"❌ Permission error copying {description}: {e}")
         return False
     except OSError as e:
-        conditional_print(f"❌ OS error copying {description}: {e}", config, "warning")
+        _logger.error(f"❌ OS error copying {description}: {e}")
         return False
     except Exception as e:
-        conditional_print(f"❌ Unexpected error copying {description}: {e}", config, "warning")
+        _logger.error(f"❌ Unexpected error copying {description}: {e}")
         return False
 
-def safe_file_exists(file_path, config, description="file"):
+def safe_file_exists(file_path, config, description="file") -> bool:
     """Safely check if a file exists with proper error handling."""
     try:
         exists = os.path.isfile(file_path)
         if not exists:
-            conditional_print(f"⚠️  {description.capitalize()} not found: {file_path}", config, "debug")
+            _logger.warning(f"⚠️  {description.capitalize()} not found: {file_path}")
         return exists
     except Exception as e:
-        conditional_print(f"❌ Error checking {description}: {e}", config, "debug")
+        _logger.debug(f"❌ Error checking {description}: {e}")
         return False
 
-def safe_directory_exists(directory_path, config, description="directory"):
+def safe_directory_exists(directory_path, config, description="directory") -> bool:
     """Safely check if a directory exists with proper error handling."""
     try:
         exists = os.path.isdir(directory_path)
         if not exists:
-            conditional_print(f"⚠️  {description.capitalize()} not found: {directory_path}", config, "debug")
+            _logger.debug(f"⚠️  {description.capitalize()} not found: {directory_path}")
         return exists
     except Exception as e:
-        conditional_print(f"❌ Error checking {description}: {e}", config, "debug")
+        _logger.debug(f"❌ Error checking {description}: {e}")
         return False
 
 # Load configuration
-def load_config(config_path=None):
+def load_config(config_path=None) -> dict:
     """Load build configuration from JSON file."""
     if config_path is None:
         # Default to shipping config
@@ -188,7 +253,7 @@ def load_config(config_path=None):
 # Global CONFIG variable (will be set in main function)
 CONFIG = None
 
-def detect_platform():
+def detect_platform() -> str:
     """Detect the current OS platform as one of: windows, macos, linux, other."""
     try:
         platform_key = sys.platform
@@ -202,12 +267,13 @@ def detect_platform():
     except Exception:
         return "other"
 
-def conditional_print(message, config, message_type="info"):
+def conditional_print(message, config, message_type="info") -> None:
     """Print message based on configuration settings."""
     if not config.get("output_control", {}).get("verbose", True):
         return
 
     # Check specific message type controls
+    _logger.debug(f"{message_type} {message}")
     if message_type == "warning" and not config.get("output_control", {}).get("show_warnings", True):
         return
     elif message_type == "debug" and not config.get("output_control", {}).get("show_debug_info", False):
@@ -217,24 +283,24 @@ def conditional_print(message, config, message_type="info"):
 
     print(message)
 
-def check_dependencies(config):
+def check_dependencies(config) -> None:
     """Check if required dependencies are available."""
     if not config["build_options"]["check_dependencies"]:
-        conditional_print("⏭️  Dependency checking disabled in config", config)
+        _logger.info("⏭️  Dependency checking disabled in config")
         return
 
     for dependency in config["dependencies"]["required"]:
         try:
             __import__(dependency.lower())
-            conditional_print(f"✅ {dependency} is available", config, "progress")
+            _logger.info(f"✅ {dependency} is available")
         except ImportError:
-            conditional_print(f"❌ {dependency} not found. Installing...", config, "warning")
+            _logger.warning(f"❌ {dependency} not found. Installing...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", dependency.lower()])
 
-def sign_executable(executable_path, config):
+def sign_executable(executable_path, config) -> bool:
     """Sign the executable with the certificate if available."""
     if not config["code_signing"]["enabled"]:
-        conditional_print("⏭️  Code signing disabled in config", config)
+        _logger.info("⏭️  Code signing disabled in config")
         return False
 
     certificate_path = config["code_signing"]["certificate"]
@@ -243,11 +309,11 @@ def sign_executable(executable_path, config):
     digest_algorithm = config["code_signing"]["digest_algorithm"]
 
     if not safe_file_exists(certificate_path, config, "certificate"):
-        conditional_print("Skipping code signing...", config, "warning")
+        _logger.warning("Skipping code signing...")
         return False
 
     if not safe_file_exists(signtool_path, config, "signtool"):
-        conditional_print("Skipping code signing...", config, "warning")
+        _logger.warning("Skipping code signing...")
         return False
 
     if not safe_file_exists(executable_path, config, "executable"):
@@ -265,28 +331,28 @@ def sign_executable(executable_path, config):
             executable_path
         ]
 
-        conditional_print(f"🔐 Signing executable: {executable_path}", config, "progress")
-        conditional_print(f"Using certificate: {certificate_path}", config, "debug")
+        _logger.info(f"🔐 Signing executable: {executable_path}")
+        _logger.debug(f"Using certificate: {certificate_path}")
 
         result = subprocess.run(sign_cmd, capture_output=True, text=True)
 
         if result.returncode == 0:
-            conditional_print("✅ Executable signed successfully!", config, "progress")
+            _logger.info("✅ Executable signed successfully!")
             return True
         else:
-            conditional_print(f"❌ Code signing failed with error code: {result.returncode}", config, "warning")
-            conditional_print(f"Error output: {result.stderr}", config, "debug")
+            _logger.warning(f"❌ Code signing failed with error code: {result.returncode}")
+            _logger.debug(f"Error output: {result.stderr}")
             return False
 
     except FileNotFoundError:
-        conditional_print(f"❌ {signtool_path} not found. Make sure Windows SDK is installed.", config, "warning")
-        conditional_print("You can install it via Visual Studio Installer or download from Microsoft.", config, "warning")
+        _logger.warning(f"❌ {signtool_path} not found. Make sure Windows SDK is installed.")
+        _logger.warning("You can install it via Visual Studio Installer or download from Microsoft.")
         return False
     except Exception as e:
-        conditional_print(f"❌ Error during code signing: {e}", config, "warning")
+        _logger.error(f"❌ Error during code signing: {e}")
         return False
 
-def clean_directories(config, config_name):
+def clean_directories(config, config_name) -> bool:
     """Clean dist directory and prepare temp directory."""
     dist_dir = config["directories"]["dist"]
     temp_dir = config["directories"]["temp"]
@@ -294,23 +360,23 @@ def clean_directories(config, config_name):
     # Clean config-specific dist subdirectory if specified
     config_dist_dir = os.path.join(dist_dir, config_name)
     if not safe_create_directory(config_dist_dir, config, "config dist directory", clean_if_exists=True):
-        conditional_print(f"❌ Failed to prepare config dist directory: {config_dist_dir}", config, "warning")
+        _logger.warning(f"❌ Failed to prepare config dist directory: {config_dist_dir}")
         return False
 
     # Clean temp directory only if clean_temp is enabled
     if config["build_options"]["clean_temp"]:
         if not safe_create_directory(temp_dir, config, "temp directory", clean_if_exists=True):
-            conditional_print(f"❌ Failed to prepare temp directory: {temp_dir}", config, "warning")
+            _logger.warning(f"❌ Failed to prepare temp directory: {temp_dir}")
             return False
     else:
         # Just ensure temp directory exists
         if not safe_create_directory(temp_dir, config, "temp directory"):
-            conditional_print(f"❌ Failed to ensure temp directory exists: {temp_dir}", config, "warning")
+            _logger.warning(f"❌ Failed to ensure temp directory exists: {temp_dir}")
             return False
 
     return True
 
-def build_version_file(config):
+def build_version_file(config) -> None:
     """Build the version file."""
     if config["build_options"]["build_version_file"]:
         # Import and run the version generation script directly
@@ -325,17 +391,17 @@ def build_version_file(config):
             import generate_version  # type: ignore # noqa: F401
             # The script should run its main logic when imported
             generate_version.main()
-            conditional_print("✅ Version file generated successfully", config, "progress")
+            _logger.info("✅ Version file generated successfully")
         except ImportError as e:
-            conditional_print(f"❌ Failed to import generate_version.py: {e}", config, "warning")
+            _logger.error(f"❌ Failed to import generate_version.py: {e}")
             sys.exit(1)
         finally:
             # Clean up the path
             sys.path.pop(0)
     else:
-        conditional_print("⏭️  Version file generation disabled in config", config)
+        _logger.info("⏭️  Version file generation disabled in config")
 
-def copy_build_files(config):
+def copy_build_files(config) -> bool:
     """Copy necessary files to temp directory."""
     icon_file = config["files"]["icon"]
     version_file = config["files"]["version"]
@@ -345,7 +411,7 @@ def copy_build_files(config):
 
     # Ensure temp directory exists (in case clean_directories wasn't called)
     if not safe_create_directory(temp_dir, config, "temp directory"):
-        conditional_print(f"❌ Failed to ensure temp directory exists: {temp_dir}", config, "warning")
+        _logger.warning(f"❌ Failed to ensure temp directory exists: {temp_dir}")
         return False
 
     # Copy icon and version files (these will overwrite existing files)
@@ -369,12 +435,12 @@ def copy_build_files(config):
         if not safe_copy_directory(resources_dir, temp_resources_dir, config, "resources directory"):
             return False
     else:
-        conditional_print(f"⚠️  Resources directory not found: {resources_dir}", config, "debug")
+        _logger.warning(f"⚠️  Resources directory not found: {resources_dir}")
 
-    conditional_print("✅ Build files copied to temp directory successfully", config, "progress")
+    _logger.info("✅ Build files copied to temp directory successfully")
     return True
 
-def build_executable(config, config_name):
+def build_executable(config, config_name) -> bool:
     """Build the executable using PyInstaller."""
     src_dir = config["directories"]["source"]
     # Look for the entry point script first
@@ -392,7 +458,7 @@ def build_executable(config, config_name):
             else:
                 raise FileNotFoundError(f"No entry point script found in {src_dir} for PyInstaller compilation.")
 
-    conditional_print(f"🔨 Building executable from: {main_script}", config, "progress")
+    _logger.info(f"🔨 Building executable from: {main_script}")
 
     # Get absolute paths for better reliability
     temp_dir = os.path.abspath(config["directories"]["temp"])
@@ -447,18 +513,18 @@ def build_executable(config, config_name):
         pyinstaller_cmd.append("src/jira_importer_main.py")
 
         subprocess.check_call(pyinstaller_cmd)
-        conditional_print("✅ Executable built successfully!", config, "progress")
+        _logger.info("✅ Executable built successfully!")
     except subprocess.CalledProcessError as e:
-        conditional_print(f"❌ PyInstaller build failed: {e}", config, "warning")
+        _logger.error(f"❌ PyInstaller build failed: {e}")
         sys.exit(1)
     finally:
         # Always restore original working directory
         os.chdir(original_cwd)
 
-def copy_documentation(config, config_name):
+def copy_documentation(config, config_name) -> bool:
     """Copy documentation files to dist directory."""
     if not config["build_options"]["copy_documentation"]:
-        conditional_print("⏭️  Documentation copying disabled in config", config)
+        _logger.info("⏭️  Documentation copying disabled in config")
         return True
 
     dist_dir = config["directories"]["dist"]
@@ -469,7 +535,7 @@ def copy_documentation(config, config_name):
     config_dist_dir = os.path.join(dist_dir, config_name)
 
     if not safe_directory_exists(config_dist_dir, config, "config dist directory"):
-        conditional_print(f"⚠️  Warning: Could not find dist directory at {config_dist_dir}", config, "warning")
+        _logger.warning(f"⚠️  Warning: Could not find dist directory at {config_dist_dir}")
         return False
 
     license_dest = os.path.join(config_dist_dir, f"{config['pyinstaller']['name']}_LICENSE.md")
@@ -483,25 +549,25 @@ def copy_documentation(config, config_name):
         success = False
 
     if success:
-        conditional_print("✅ Documentation copied successfully", config, "progress")
+        _logger.info("✅ Documentation copied successfully")
 
     return success
 
-def cleanup_temp_files(config):
+def cleanup_temp_files(config) -> bool:
     """Clean up temporary files after build completion."""
     temp_dir = config["directories"]["temp"]
 
     if safe_directory_exists(temp_dir, config, "temp directory"):
         if safe_remove_directory(temp_dir, config, "temp directory"):
-            conditional_print("✅ Temporary files cleaned up successfully", config, "progress")
+            _logger.info("✅ Temporary files cleaned up successfully")
         else:
-            conditional_print("⚠️  Warning: Could not clean up temp directory", config, "warning")
+            _logger.warning("⚠️  Warning: Could not clean up temp directory")
     else:
-        conditional_print("⏭️  No temp directory to clean up", config, "debug")
+        _logger.debug("⏭️  No temp directory to clean up")
 
     return True
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-c", "--config",
                        help="Build configuration name (default: shipping)\n"
@@ -515,56 +581,56 @@ def main():
 
     # Detect and display platform
     current_platform = detect_platform()
-    conditional_print(f"🖥️  Detected platform: {current_platform}", CONFIG, "progress")
+    _logger.info(f"🖥️  Detected platform: {current_platform}")
 
-    if not current_platform == "Windows":
-        conditional_print("platform not supported", CONFIG, "warning")
-        sys.exit(1)
-
-    conditional_print("🚀 Starting Jira Importer build process...", CONFIG, "progress")
-    conditional_print("=" * 50, CONFIG)
-    conditional_print(f"📋 Using configuration: {args.config}", CONFIG, "progress")
-    conditional_print("=" * 50, CONFIG)
+    _logger.info("🚀 Starting Jira Importer build process...")
+    print("=" * 20)
+    _logger.info(f"📋 Using configuration: {args.config}")
+    print("=" * 20)
 
     # Check dependencies
-    conditional_print("📋 Checking dependencies...", CONFIG, "progress")
+    _logger.info("📋 Checking dependencies...")
     check_dependencies(CONFIG)
 
     # Install requirements
     if CONFIG["build_options"]["install_requirements"]:
-        conditional_print("📦 Installing requirements...", CONFIG, "progress")
+        _logger.info("📦 Installing requirements...")
         try:
             requirements_file = CONFIG["files"]["requirements"]
             subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_file])
-            conditional_print("✅ Requirements installed successfully", CONFIG, "progress")
+            _logger.info("✅ Requirements installed successfully")
         except subprocess.CalledProcessError as e:
-            conditional_print(f"❌ Failed to install requirements: {e}", CONFIG, "warning")
+            _logger.error(f"❌ Failed to install requirements: {e}")
             sys.exit(1)
     else:
-        conditional_print("⏭️  Requirements installation disabled in config", CONFIG)
+        _logger.info("⏭️  Requirements installation disabled in config")
 
     # Clean and prepare directories
     if CONFIG["build_options"]["clean_dist"]:
-        conditional_print("🧹 Preparing build environment...", CONFIG, "progress")
+        _logger.info("🧹 Preparing build environment...")
         if not clean_directories(CONFIG, args.config):
-            conditional_print("❌ Failed to prepare build environment", CONFIG, "warning")
+            _logger.warning("❌ Failed to prepare build environment")
             sys.exit(1)
     else:
-        conditional_print("⏭️  Directory cleaning disabled in config", CONFIG)
+        _logger.info("⏭️  Directory cleaning disabled in config")
 
     # Build version file
-    conditional_print("🔨 Building version file...", CONFIG, "progress")
+    _logger.info("🔨 Building version file...")
     build_version_file(CONFIG)
 
     # Copy build files
-    conditional_print("📁 Copying build files...", CONFIG, "progress")
+    _logger.info("📁 Copying build files...")
     if not copy_build_files(CONFIG):
-        conditional_print("❌ Failed to copy build files", CONFIG, "warning")
+        _logger.warning("❌ Failed to copy build files")
         sys.exit(1)
 
+    sys.exit(0)
+
+
     # Build executable
-    conditional_print("🔨 Building executable...", CONFIG, "progress")
+    _logger.info("🔨 Building executable...")
     build_executable(CONFIG, args.config) # Pass config_name as an argument
+
 
     # Code signing (optional)
     dist_dir = CONFIG["directories"]["dist"]
@@ -572,38 +638,38 @@ def main():
     executable_path = os.path.join(config_dist_dir, f"{CONFIG['pyinstaller']['name']}.exe")
 
     if safe_file_exists(executable_path, CONFIG, "executable"):
-        conditional_print("\n" + "="*50, CONFIG)
-        conditional_print("🔐 CODE SIGNING", CONFIG, "progress")
-        conditional_print("="*50, CONFIG)
+        print("\n" + "="*50)
+        _logger.info("🔐 CODE SIGNING")
+        print("="*50)
         sign_executable(executable_path, CONFIG)
     else:
-        conditional_print(f"⚠️  Warning: Expected executable not found at {executable_path}", CONFIG, "warning")
-        conditional_print("Checking for executable in dist directory...", CONFIG, "debug")
+        _logger.warning(f"⚠️  Warning: Expected executable not found at {executable_path}")
+        _logger.debug("Checking for executable in dist directory...")
         # List contents of dist directory to help debug
         if safe_directory_exists(config_dist_dir, CONFIG, "config dist directory"):
             for root, dirs, files in os.walk(config_dist_dir):
                 for file in files:
                     if file.endswith('.exe'):
-                        conditional_print(f"Found executable: {os.path.join(root, file)}", CONFIG, "debug")
+                        _logger.debug(f"Found executable: {os.path.join(root, file)}")
 
     # Copy documentation
-    conditional_print("📚 Copying documentation...", CONFIG, "progress")
+    _logger.info("📚 Copying documentation...")
     if not copy_documentation(CONFIG, args.config):  # Pass config_name
-        conditional_print("⚠️  Warning: Failed to copy documentation", CONFIG, "warning")
+        _logger.warning("⚠️  Warning: Failed to copy documentation")
 
     # Clean up temporary files based on config setting
     if CONFIG["build_options"]["clean_temp"]:
         if not cleanup_temp_files(CONFIG):
-            conditional_print("⚠️  Warning: Failed to clean up temporary files", CONFIG, "warning")
+            _logger.warning("⚠️  Warning: Failed to clean up temporary files")
     else:
-        conditional_print("💾 Keeping temporary files (clean_temp disabled in config)", CONFIG, "progress")
+        _logger.info("💾 Keeping temporary files (clean_temp disabled in config)")
         temp_dir = CONFIG["directories"]["temp"]
-        conditional_print(f"📁 Temp files location: {temp_dir}", CONFIG, "progress")
+        _logger.info(f"📁 Temp files location: {temp_dir}")
 
-    conditional_print("\n" + "="*50, CONFIG)
-    conditional_print("🎉 Build completed successfully!", CONFIG, "progress")
-    conditional_print(f"📦 Executable location: {config_dist_dir}", CONFIG, "progress")
-    conditional_print("="*50, CONFIG)
+    print("\n" + "="*50)
+    _logger.info("🎉 Build completed successfully!")
+    _logger.info(f"📦 Executable location: {config_dist_dir}")
+    print("="*50)
 
 if __name__ == "__main__":
     main()

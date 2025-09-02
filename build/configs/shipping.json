@@ -1,8 +1,6 @@
 {
   "directories": {
-    "app_input": "jira_importer",
     "app_output": "jira importer",
-    "build": "build",
     "dist": "dist",
     "temp": "build/temp",
     "source": "src",
@@ -26,9 +24,6 @@
     ],
     "options": {
       "icon": "deerhide_default.ico",
-      "workpath": "pyinstaller_work",
-      "specpath": ".",
-      "paths": "src",
       "version_file": "VSVersionInfo"
     }
   },
@@ -48,14 +43,7 @@
     "build_version_file": true
   },
   "dependencies": {
-    "required": [ "pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog"],
-    "optional": ["colorama"]
-  },
-  "output_control": {
-    "verbose": true,
-    "show_progress": true,
-    "show_warnings": true,
-    "show_debug_info": false,
-    "show_timestamps": true
+    "required": [ "pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog" ],
+    "optional": ["colorama" ]
   }
 }

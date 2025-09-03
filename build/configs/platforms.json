@@ -1,0 +1,63 @@
+{
+  "windows": {
+    "files": {
+      "icon": "build/icons/deerhide_default.ico",
+      "version": "build/version/VSVersionInfo"
+    },
+    "pyinstaller": {
+      "onefile": true,
+      "console": true,
+      "name": "jira_importer",
+      "add_data": [
+        "deerhide_default.ico;.",
+        "VSVersionInfo;.",
+        "resources;resources"
+      ]
+    },
+    "code_signing": {
+      "enabled": true,
+      "certificate": "../../Certificates/deerhide_win_shipping.cert",
+      "signtool": "../../../../Apps/Windows Kits/10/App Certification Kit/signtool.exe",
+      "timestamp_server": "http://timestamp.digicert.com",
+      "digest_algorithm": "SHA256"
+    }
+  },
+  "macos": {
+    "files": {
+      "icon": "build/icons/deerhide_default.icns",
+      "version": "build/version/Info.plist"
+    },
+    "pyinstaller": {
+      "onefile": true,
+      "console": true,
+      "name": "jira_importer",
+      "add_data": [
+        "deerhide_default.icns;.",
+        "Info.plist;.",
+        "resources;resources"
+      ]
+    },
+    "code_signing": {
+      "enabled": true,
+      "identity": "Developer ID Application: Your Name (TEAM_ID)",
+      "timestamp": true
+    }
+  },
+  "linux": {
+    "files": {
+      "icon": "build/icons/deerhide_default.png"
+    },
+    "pyinstaller": {
+      "onefile": true,
+      "console": true,
+      "name": "jira_importer",
+      "add_data": [
+        "deerhide_default.png;.",
+        "resources;resources"
+      ]
+    },
+    "code_signing": {
+      "enabled": false
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "dev": {
+    "pyinstaller": {
+      "onefile": false
+    },
+    "build_options": {
+      "clean_temp": false,
+      "check_dependencies": false,
+      "install_requirements": false,
+      "copy_documentation": false
+    },
+    "code_signing": {
+      "enabled": false
+    },
+    "output_control": {
+      "show_debug_info": true
+    }
+  },
+  "shipping": {
+    "pyinstaller": {
+      "onefile": true
+    },
+    "build_options": {
+      "clean_temp": true,
+      "check_dependencies": true,
+      "install_requirements": true,
+      "copy_documentation": true
+    },
+    "code_signing": {
+      "enabled": true
+    }
+  }
+}

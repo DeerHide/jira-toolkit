@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "name": "jira_importer",
+    "version": "1.0.0",
+    "description": "Jira Importer Application"
+  },
+  "directories": {
+    "dist": "dist",
+    "temp": "build/temp",
+    "source": "src",
+    "resources": "resources"
+  },
+  "files": {
+    "requirements": "requirements.lock",
+    "license": "LICENSE",
+    "readme": "README.md"
+  },
+  "dependencies": {
+    "required": ["pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog"]
+  },
+  "build_options": {
+    "clean_dist": true,
+    "clean_temp": true,
+    "check_dependencies": true,
+    "install_requirements": true,
+    "copy_documentation": true,
+    "build_version_file": true
+  },
+  "output_control": {
+    "verbose": true,
+    "show_progress": true,
+    "show_warnings": true,
+    "show_debug_info": false
+  }
+}

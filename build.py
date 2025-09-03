@@ -216,28 +216,48 @@ def safe_directory_exists(directory_path, config, description="directory") -> bo
 
 # Load configuration
 def load_config(config_path=None) -> dict:
-    """Load build configuration from JSON file."""
+    """Load build configuration with platform and profile support."""
     if config_path is None:
-        # Default to shipping config
-        config_path = "shipping"
-    elif not os.path.isabs(config_path):
-        # If relative path, assume it's a build name (without .json extension)
-        config_path = config_path
+        # Default to windows-shipping config
+        config_path = "windows-shipping"
 
-    # Construct the full path to the config file
-    if not config_path.endswith('.json'):
-        config_file = f"{config_path}.json"
-    else:
-        config_file = config_path
+    # Parse config name (e.g., "windows-dev", "macos-shipping")
+    parts = config_path.split('-')
+    platform = parts[0]
+    profile = parts[1] if len(parts) > 1 else "shipping"
 
     config_dir = "build/configs"
-    full_config_path = os.path.join(config_dir, config_file)
 
     try:
-        with open(full_config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print(f"❌ Configuration file not found: {full_config_path}")
+        # Load base config
+        base_config_path = os.path.join(config_dir, "base.json")
+        with open(base_config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        # Load platform config
+        platforms_config_path = os.path.join(config_dir, "platforms.json")
+        with open(platforms_config_path, 'r', encoding='utf-8') as f:
+            platforms = json.load(f)
+            if platform not in platforms:
+                raise ValueError(f"Unknown platform: {platform}")
+            config = deep_merge(config, platforms[platform])
+
+        # Load profile config
+        profiles_config_path = os.path.join(config_dir, "profiles.json")
+        with open(profiles_config_path, 'r', encoding='utf-8') as f:
+            profiles = json.load(f)
+            if profile not in profiles:
+                raise ValueError(f"Unknown profile: {profile}")
+            config = deep_merge(config, profiles[profile])
+
+        # Add platform and profile info
+        config["platform"] = platform
+        config["profile"] = profile
+
+        return config
+
+    except FileNotFoundError as e:
+        print(f"❌ Configuration file not found: {e}")
         print(f"Available configurations in {config_dir}:")
         if os.path.exists(config_dir):
             for file in os.listdir(config_dir):
@@ -249,6 +269,22 @@ def load_config(config_path=None) -> dict:
     except json.JSONDecodeError as e:
         print(f"❌ Invalid JSON in configuration file: {e}")
         sys.exit(1)
+    except ValueError as e:
+        print(f"❌ Configuration error: {e}")
+        print(f"Supported platforms: windows, macos, linux")
+        print(f"Supported profiles: dev, shipping")
+        print(f"Example: windows-dev, macos-shipping")
+        sys.exit(1)
+
+def deep_merge(base: dict, override: dict) -> dict:
+    """Deep merge two dictionaries."""
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
 
 # Global CONFIG variable (will be set in main function)
 CONFIG = None
@@ -387,26 +423,36 @@ def build_version_file(config) -> None:
 
 def copy_build_files(config) -> bool:
     """Copy necessary files to temp directory."""
-    icon_file = config["files"]["icon"]
-    version_file = config["files"]["version"]
     temp_dir = config["directories"]["temp"]
     src_dir = config["directories"]["source"]
     resources_dir = config["directories"]["resources"]
+
+    # Copy icon and version files if they exist
+    icon_file = config["files"].get("icon")
+    version_file = config["files"].get("version")
 
     # Ensure temp directory exists (in case clean_directories wasn't called)
     if not safe_create_directory(temp_dir, config, "temp directory"):
         _logger.warning(f"❌ Failed to ensure temp directory exists: {temp_dir}")
         return False
 
-    # Copy icon and version files (these will overwrite existing files)
-    icon_dest = os.path.join(temp_dir, "deerhide_default.ico")
-    version_dest = os.path.join(temp_dir, "VSVersionInfo")
+    # Copy icon file if it exists
+    if icon_file:
+        icon_filename = os.path.basename(icon_file)
+        icon_dest = os.path.join(temp_dir, icon_filename)
+        if not safe_copy_file(icon_file, icon_dest, config, "icon file"):
+            return False
+    else:
+        _logger.info("⏭️  No icon file specified for this platform")
 
-    if not safe_copy_file(icon_file, icon_dest, config, "icon file"):
-        return False
-
-    if not safe_copy_file(version_file, version_dest, config, "version file"):
-        return False
+    # Copy version file if it exists
+    if version_file:
+        version_filename = os.path.basename(version_file)
+        version_dest = os.path.join(temp_dir, version_filename)
+        if not safe_copy_file(version_file, version_dest, config, "version file"):
+            return False
+    else:
+        _logger.info("⏭️  No version file specified for this platform")
 
     # Handle src directory - remove if exists, then copy
     temp_src_dir = os.path.join(temp_dir, "src")
@@ -468,13 +514,25 @@ def build_executable(config, config_name) -> bool:
 
         pyinstaller_cmd.extend([
             "--console" if config["pyinstaller"]["console"] else "--windowed",
-            "--icon", config["pyinstaller"]["options"]["icon"],
             "--distpath", dist_dir,  # Use config-specific dist directory
             "--workpath", work_dir,  # Use absolute path
             "--specpath", spec_dir,  # Use absolute path
             "--paths", "src",  # Use local src directory
             "--name", config["pyinstaller"]["name"],
-            "--version-file", config["pyinstaller"]["options"]["version_file"],
+        ])
+
+        # Add icon if specified
+        if config["files"].get("icon"):
+            icon_filename = os.path.basename(config["files"]["icon"])
+            pyinstaller_cmd.extend(["--icon", icon_filename])
+
+        # Add version file if specified
+        if config["files"].get("version"):
+            version_filename = os.path.basename(config["files"]["version"])
+            pyinstaller_cmd.extend(["--version-file", version_filename])
+
+        # Add hidden imports
+        pyinstaller_cmd.extend([
             "--hidden-import", "jira_importer",
             "--hidden-import", "jira_importer.console",
             "--hidden-import", "jira_importer.excel_io",
@@ -515,7 +573,7 @@ def copy_documentation(config, config_name) -> bool:
     license_file = config["files"]["license"]
     readme_file = config["files"]["readme"]
 
-    # Use config-specific dist directory (single file structure)
+    # Use config-specific dist directory
     config_dist_dir = os.path.join(dist_dir, config_name)
 
     if not safe_directory_exists(config_dist_dir, config, "config dist directory"):
@@ -554,10 +612,11 @@ def cleanup_temp_files(config) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-c", "--config",
-                       help="Build configuration name (default: shipping)\n"
-                            "Configurations are stored in build/configs/BUILDNAME.json\n"
-                            "Examples: shipping, dev, debug, release",
-                       default="shipping")
+                       help="Build configuration name (default: windows-shipping)\n"
+                            "Format: PLATFORM-PROFILE (e.g., windows-dev, macos-shipping)\n"
+                            "Platforms: windows, macos, linux\n"
+                            "Profiles: dev, shipping",
+                       default="windows-shipping")
     args = parser.parse_args()
 
     # Load configuration based on argument
@@ -570,6 +629,8 @@ def main() -> None:
     _logger.info("🚀 Starting Jira Importer build process...")
     print("=" * 20)
     _logger.info(f"📋 Using configuration: {args.config}")
+    _logger.info(f"🖥️  Platform: {CONFIG['platform']}")
+    _logger.info(f"📦 Profile: {CONFIG['profile']}")
     print("=" * 20)
 
     # Check dependencies
@@ -616,7 +677,16 @@ def main() -> None:
     # Code signing (optional)
     dist_dir = CONFIG["directories"]["dist"]
     config_dist_dir = os.path.join(dist_dir, args.config)  # Use config-specific dist directory
-    executable_path = os.path.join(config_dist_dir, f"{CONFIG['pyinstaller']['name']}.exe")
+
+    # Determine executable extension based on platform
+    if CONFIG["platform"] == "windows":
+        executable_ext = ".exe"
+    elif CONFIG["platform"] == "macos":
+        executable_ext = ""
+    else:  # linux
+        executable_ext = ""
+
+    executable_path = os.path.join(config_dist_dir, f"{CONFIG['pyinstaller']['name']}{executable_ext}")
 
     if safe_file_exists(executable_path, CONFIG, "executable"):
         print("\n" + "="*50)

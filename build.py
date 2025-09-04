@@ -17,6 +17,8 @@ import json
 import time
 import logging
 from datetime import datetime
+from pathlib import Path
+from typing import Optional, Union
 from scripts.pyinstaller_hooks import BuildContext, BuildUtils
 
 
@@ -89,136 +91,151 @@ class LoggerManager:
 
 _logger = LoggerManager(BASE_LOG_DIR).get_logger()
 
-def safe_remove_directory(directory_path, config, description="directory") -> bool:
-    """Safely remove a directory with retry logic and proper error handling."""
-    if not os.path.exists(directory_path):
-        _logger.info(f"⏭️  {description.capitalize()} does not exist: {directory_path}")
-        return True
 
-    max_retries = 3
-    retry_delay = 1  # seconds
+class SafeFileOperations:
+    """Generic file operations handler with consistent error handling and retry logic."""
 
-    for attempt in range(max_retries):
-        try:
+    def __init__(self, max_retries: int = 3, retry_delay: int = 1):
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+
+    def _handle_operation_with_retry(self, operation_name: str, operation_func, *args, **kwargs) -> bool:
+        """Execute an operation with retry logic and consistent error handling."""
+        for attempt in range(self.max_retries):
+            try:
+                return operation_func(*args, **kwargs)
+            except PermissionError as e:
+                if attempt < self.max_retries - 1:
+                    _logger.warning(f"⚠️  Permission error during {operation_name} (attempt {attempt + 1}/{self.max_retries}): {e}")
+                    _logger.warning(f"⏳ Waiting {self.retry_delay} seconds before retry...")
+                    time.sleep(self.retry_delay)
+                    self.retry_delay *= 2  # Exponential backoff
+                else:
+                    _logger.error(f"❌ Failed {operation_name} after {self.max_retries} attempts: {e}")
+                    return False
+            except OSError as e:
+                if attempt < self.max_retries - 1:
+                    _logger.warning(f"⚠️  OS error during {operation_name} (attempt {attempt + 1}/{self.max_retries}): {e}")
+                    _logger.warning(f"⏳ Waiting {self.retry_delay} seconds before retry...")
+                    time.sleep(self.retry_delay)
+                    self.retry_delay *= 2
+                else:
+                    _logger.error(f"❌ Failed {operation_name} after {self.max_retries} attempts: {e}")
+                    return False
+            except Exception as e:
+                _logger.error(f"❌ Unexpected error during {operation_name}: {e}")
+                return False
+        return False
+
+    def remove_directory(self, directory_path: Union[str, Path], description: str = "directory") -> bool:
+        """Safely remove a directory with retry logic and proper error handling."""
+        directory_path = Path(directory_path)
+
+        if not directory_path.exists():
+            _logger.info(f"⏭️  {description.capitalize()} does not exist: {directory_path}")
+            return True
+
+        def _remove_operation():
             _logger.info(f"🧹 Removing {description}: {directory_path}")
             shutil.rmtree(directory_path)
             _logger.info(f"✅ Successfully removed {description}: {directory_path}")
             return True
-        except PermissionError as e:
-            if attempt < max_retries - 1:
-                _logger.warning(f"⚠️  Permission error removing {description} (attempt {attempt + 1}/{max_retries}): {e}")
-                _logger.warning(f"⏳ Waiting {retry_delay} seconds before retry...")
-                time.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
-            else:
-                _logger.error(f"❌ Failed to remove {description} after {max_retries} attempts: {e}")
+
+        return self._handle_operation_with_retry(f"removing {description}", _remove_operation)
+
+    def create_directory(self, directory_path: Union[str, Path], description: str = "directory", clean_if_exists: bool = False) -> bool:
+        """Safely create a directory with optional cleaning and proper error handling."""
+        directory_path = Path(directory_path)
+
+        def _create_operation():
+            if clean_if_exists and directory_path.exists():
+                if not self.remove_directory(directory_path, description):
+                    return False
+
+            directory_path.mkdir(parents=True, exist_ok=True)
+            _logger.info(f"✅ Created/ensured {description}: {directory_path}")
+            return True
+
+        return self._handle_operation_with_retry(f"creating {description}", _create_operation)
+
+    def copy_file(self, source_path: Union[str, Path], dest_path: Union[str, Path], description: str = "file") -> bool:
+        """Safely copy a file with proper error handling."""
+        source_path = Path(source_path)
+        dest_path = Path(dest_path)
+
+        def _copy_operation():
+            # Ensure destination directory exists
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+            shutil.copy2(source_path, dest_path)
+            _logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
+            return True
+
+        try:
+            if not source_path.exists():
+                _logger.error(f"❌ Source {description} not found: {source_path}")
                 return False
-        except OSError as e:
-            if attempt < max_retries - 1:
-                _logger.warning(f"⚠️  OS error removing {description} (attempt {attempt + 1}/{max_retries}): {e}")
-                _logger.warning(f"⏳ Waiting {retry_delay} seconds before retry...")
-                time.sleep(retry_delay)
-                retry_delay *= 2
-            else:
-                _logger.error(f"❌ Failed to remove {description} after {max_retries} attempts: {e}")
-                return False
+
+            return self._handle_operation_with_retry(f"copying {description}", _copy_operation)
         except Exception as e:
-            _logger.error(f"❌ Unexpected error removing {description}: {e}")
+            _logger.error(f"❌ Unexpected error copying {description}: {e}")
             return False
 
-    return False
+    def copy_directory(self, source_path: Union[str, Path], dest_path: Union[str, Path], description: str = "directory") -> bool:
+        """Safely copy a directory with proper error handling."""
+        source_path = Path(source_path)
+        dest_path = Path(dest_path)
 
-def safe_create_directory(directory_path, config, description="directory", clean_if_exists=False) -> bool:
-    """Safely create a directory with optional cleaning and proper error handling."""
-    try:
-        if clean_if_exists and os.path.exists(directory_path):
-            if not safe_remove_directory(directory_path, config, description):
+        def _copy_operation():
+            # Remove destination if it exists
+            if dest_path.exists():
+                _logger.info(f"🗑️  Removing existing {description}: {dest_path}")
+                if not self.remove_directory(dest_path, description):
+                    return False
+
+            shutil.copytree(source_path, dest_path)
+            _logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
+            return True
+
+        try:
+            if not source_path.exists():
+                _logger.error(f"❌ Source {description} not found: {source_path}")
                 return False
 
-        os.makedirs(directory_path, exist_ok=True)
-        _logger.info(f"✅ Created/ensured {description}: {directory_path}")
-        return True
-    except PermissionError as e:
-        _logger.error(f"❌ Permission error creating {description}: {e}")
-        return False
-    except OSError as e:
-        _logger.error(f"❌ OS error creating {description}: {e}")
-        return False
-    except Exception as e:
-        _logger.error(f"❌ Unexpected error creating {description}: {e}")
-        return False
+            return self._handle_operation_with_retry(f"copying {description}", _copy_operation)
+        except Exception as e:
+            _logger.error(f"❌ Unexpected error copying {description}: {e}")
+            return False
 
-def safe_copy_file(source_path, dest_path, config, description="file") -> bool:
-    """Safely copy a file with proper error handling."""
-    try:
-        # Ensure destination directory exists
-        dest_dir = os.path.dirname(dest_path)
-        if dest_dir and not os.path.exists(dest_dir):
-            if not safe_create_directory(dest_dir, config, "destination directory"):
-                return False
+    def file_exists(self, file_path: Union[str, Path], description: str = "file") -> bool:
+        """Safely check if a file exists with proper error handling."""
+        file_path = Path(file_path)
 
-        shutil.copy2(source_path, dest_path)
-        _logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
-        return True
-    except FileNotFoundError as e:
-        _logger.error(f"❌ Source {description} not found: {source_path}")
-        return False
-    except PermissionError as e:
-        _logger.error(f"❌ Permission error copying {description}: {e}")
-        return False
-    except OSError as e:
-        _logger.error(f"❌ OS error copying {description}: {e}")
-        return False
-    except Exception as e:
-        _logger.error(f"❌ Unexpected error copying {description}: {e}")
-        return False
+        try:
+            exists = file_path.is_file()
+            if not exists:
+                _logger.warning(f"⚠️  {description.capitalize()} not found: {file_path}")
+            return exists
+        except Exception as e:
+            _logger.debug(f"❌ Error checking {description}: {e}")
+            return False
 
-def safe_copy_directory(source_path, dest_path, config, description="directory") -> bool:
-    """Safely copy a directory with proper error handling."""
-    try:
-        # Remove destination if it exists
-        if os.path.exists(dest_path):
-            _logger.info(f"🗑️  Removing existing {description}: {dest_path}")
-            if not safe_remove_directory(dest_path, config, description):
-                return False
+    def directory_exists(self, directory_path: Union[str, Path], description: str = "directory") -> bool:
+        """Safely check if a directory exists with proper error handling."""
+        directory_path = Path(directory_path)
 
-        shutil.copytree(source_path, dest_path)
-        _logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
-        return True
-    except FileNotFoundError as e:
-        _logger.error(f"❌ Source {description} not found: {source_path}")
-        return False
-    except PermissionError as e:
-        _logger.error(f"❌ Permission error copying {description}: {e}")
-        return False
-    except OSError as e:
-        _logger.error(f"❌ OS error copying {description}: {e}")
-        return False
-    except Exception as e:
-        _logger.error(f"❌ Unexpected error copying {description}: {e}")
-        return False
+        try:
+            exists = directory_path.is_dir()
+            if not exists:
+                _logger.debug(f"⚠️  {description.capitalize()} not found: {directory_path}")
+            return exists
+        except Exception as e:
+            _logger.debug(f"❌ Error checking {description}: {e}")
+            return False
 
-def safe_file_exists(file_path, config, description="file") -> bool:
-    """Safely check if a file exists with proper error handling."""
-    try:
-        exists = os.path.isfile(file_path)
-        if not exists:
-            _logger.warning(f"⚠️  {description.capitalize()} not found: {file_path}")
-        return exists
-    except Exception as e:
-        _logger.debug(f"❌ Error checking {description}: {e}")
-        return False
 
-def safe_directory_exists(directory_path, config, description="directory") -> bool:
-    """Safely check if a directory exists with proper error handling."""
-    try:
-        exists = os.path.isdir(directory_path)
-        if not exists:
-            _logger.debug(f"⚠️  {description.capitalize()} not found: {directory_path}")
-        return exists
-    except Exception as e:
-        _logger.debug(f"❌ Error checking {description}: {e}")
-        return False
+# Create a global instance for file operations
+_safe_ops = SafeFileOperations()
 
 def check_dependencies(config) -> None:
     """Check if required dependencies are available."""
@@ -241,18 +258,18 @@ def clean_directories(config, config_name) -> bool:
 
     # Clean config-specific dist subdirectory if specified
     config_dist_dir = os.path.join(dist_dir, config_name)
-    if not safe_create_directory(config_dist_dir, config, "config dist directory", clean_if_exists=True):
+    if not _safe_ops.create_directory(config_dist_dir, "config dist directory", clean_if_exists=True):
         _logger.warning(f"❌ Failed to prepare config dist directory: {config_dist_dir}")
         return False
 
     # Clean temp directory only if clean_temp is enabled
     if config["build_options"]["clean_temp"]:
-        if not safe_create_directory(temp_dir, config, "temp directory", clean_if_exists=True):
+        if not _safe_ops.create_directory(temp_dir, "temp directory", clean_if_exists=True):
             _logger.warning(f"❌ Failed to prepare temp directory: {temp_dir}")
             return False
     else:
         # Just ensure temp directory exists
-        if not safe_create_directory(temp_dir, config, "temp directory"):
+        if not _safe_ops.create_directory(temp_dir, "temp directory"):
             _logger.warning(f"❌ Failed to ensure temp directory exists: {temp_dir}")
             return False
 
@@ -269,7 +286,7 @@ def copy_build_files(config) -> bool:
     version_file = config["files"].get("version")
 
     # Ensure temp directory exists (in case clean_directories wasn't called)
-    if not safe_create_directory(temp_dir, config, "temp directory"):
+    if not _safe_ops.create_directory(temp_dir, "temp directory"):
         _logger.warning(f"❌ Failed to ensure temp directory exists: {temp_dir}")
         return False
 
@@ -277,7 +294,7 @@ def copy_build_files(config) -> bool:
     if icon_file:
         icon_filename = os.path.basename(icon_file)
         icon_dest = os.path.join(temp_dir, icon_filename)
-        if not safe_copy_file(icon_file, icon_dest, config, "icon file"):
+        if not _safe_ops.copy_file(icon_file, icon_dest, "icon file"):
             return False
     else:
         _logger.info("⏭️  No icon file specified for this platform")
@@ -286,20 +303,20 @@ def copy_build_files(config) -> bool:
     if version_file:
         version_filename = os.path.basename(version_file)
         version_dest = os.path.join(temp_dir, version_filename)
-        if not safe_copy_file(version_file, version_dest, config, "version file"):
+        if not _safe_ops.copy_file(version_file, version_dest, "version file"):
             return False
     else:
         _logger.info("⏭️  No version file specified for this platform")
 
     # Handle src directory - remove if exists, then copy
     temp_src_dir = os.path.join(temp_dir, "src")
-    if not safe_copy_directory(src_dir, temp_src_dir, config, "source directory"):
+    if not _safe_ops.copy_directory(src_dir, temp_src_dir, "source directory"):
         return False
 
     # Handle resources directory - copy if it exists
     if os.path.exists(resources_dir):
         temp_resources_dir = os.path.join(temp_dir, "resources")
-        if not safe_copy_directory(resources_dir, temp_resources_dir, config, "resources directory"):
+        if not _safe_ops.copy_directory(resources_dir, temp_resources_dir, "resources directory"):
             return False
     else:
         _logger.warning(f"⚠️  Resources directory not found: {resources_dir}")
@@ -413,7 +430,7 @@ def copy_documentation(config, config_name) -> bool:
     # Use config-specific dist directory
     config_dist_dir = os.path.join(dist_dir, config_name)
 
-    if not safe_directory_exists(config_dist_dir, config, "config dist directory"):
+    if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
         _logger.warning(f"⚠️  Warning: Could not find dist directory at {config_dist_dir}")
         return False
 
@@ -421,10 +438,10 @@ def copy_documentation(config, config_name) -> bool:
     readme_dest = os.path.join(config_dist_dir, f"{config['pyinstaller']['name']}_README.md")
 
     success = True
-    if not safe_copy_file(license_file, license_dest, config, "license file"):
+    if not _safe_ops.copy_file(license_file, license_dest, "license file"):
         success = False
 
-    if not safe_copy_file(readme_file, readme_dest, config, "readme file"):
+    if not _safe_ops.copy_file(readme_file, readme_dest, "readme file"):
         success = False
 
     if success:
@@ -436,8 +453,8 @@ def cleanup_temp_files(config) -> bool:
     """Clean up temporary files after build completion."""
     temp_dir = config["directories"]["temp"]
 
-    if safe_directory_exists(temp_dir, config, "temp directory"):
-        if safe_remove_directory(temp_dir, config, "temp directory"):
+    if _safe_ops.directory_exists(temp_dir, "temp directory"):
+        if _safe_ops.remove_directory(temp_dir, "temp directory"):
             _logger.info("✅ Temporary files cleaned up successfully")
         else:
             _logger.warning("⚠️  Warning: Could not clean up temp directory")
@@ -521,7 +538,7 @@ def main() -> None:
     executable_ext = ".exe" if build_context.platform_tag == "windows" else ""
     executable_path = os.path.join(config_dist_dir, f"{CONFIG_PYI['name']}{executable_ext}")
 
-    if safe_file_exists(executable_path, CONFIG, "executable"):
+    if _safe_ops.file_exists(executable_path, "executable"):
         print("\n" + "="*50)
         _logger.info("🔐 CODE SIGNING")
         print("="*50)
@@ -531,7 +548,7 @@ def main() -> None:
         _logger.warning(f"⚠️  Warning: Expected executable not found at {executable_path}")
         _logger.debug("Checking for executable in dist directory...")
         # List contents of dist directory to help debug
-        if safe_directory_exists(config_dist_dir, CONFIG, "config dist directory"):
+        if _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
             for root, dirs, files in os.walk(config_dist_dir):
                 for file in files:
                     if file.endswith('.exe'):

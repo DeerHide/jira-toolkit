@@ -74,14 +74,29 @@ def main():
     """Main function for the Jira Importer application."""
     # TODO: Move to cli
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
-    ui.say("Authors:", fmt.default("Julien (@tom4897)"), ", ", fmt.default("Alain (@Nakool)"))
-    ui.say(fmt.kv("License", "MIT"))
-    ui.say(fmt.kv("Version", "1.0.0"))
+    ui.say(fmt.bold("Authors:"), fmt.default("Julien (@tom4897)"), fmt.default("Alain (@Nakool)"))
+    ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
 
     # --- Initialization ---
     ui.lf()
     ui.progress_light("Initializing Jira Importer")
     args = App.parse_args()
+
+    # Handle version flag early, before any configuration loading
+    if args.version:
+        # Create a minimal config for version display
+        class MinimalConfig:
+            def get_value(self, key, default=None, expected_type=None):
+                return default
+
+        minimal_config = MinimalConfig()
+        artifact_manager = ArtifactManager(minimal_config)
+        app = App(artifact_manager)
+        app.print_version()
+        app.event_close(exit_code=0, cleanup=False)
+
+    logger.info(f"Version: {app.version_info}")
+
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
     if getattr(args, "auto_yes", False):
         autoreply = True
@@ -120,10 +135,6 @@ def main():
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
     app = App(artifact_manager)
-
-    if args.version:
-        ui.say("Jira Importer v1.0.0")
-        app.event_close(exit_code=0, cleanup=False)
 
     logger.info(f"Input: {args.input_file}")
     ui.say(f"Excel file: {fmt.path(args.input_file)}")

@@ -15,6 +15,13 @@ import argparse
 from rich_argparse import RichHelpFormatter
 from .artifacts import ArtifactManager
 from .console import ConsoleIO
+try:
+    from .version import __version_info__, __git_revision__, __git_branch__, __build_date__
+except ImportError:
+    __version_info__ = (0, 0, 0, 0)
+    __git_revision__ = "HASH"
+    __git_branch__ = "local"
+    __build_date__ = "2035-01-01"
 
 ui, fmt = ConsoleIO.getComponents()
 logger = logging.getLogger(__name__)
@@ -25,6 +32,16 @@ class App:
 
     def __init__(self, artifact_manager: ArtifactManager):
         self.artifact_manager = artifact_manager
+        self.version_info = __version_info__
+        self.git_revision = __git_revision__
+        self.git_branch = __git_branch__
+        self.build_date = __build_date__
+
+    def print_version(self) -> None:
+        ui.say(f"Jira Importer {self.version_info}")
+        ui.say(f"Git revision: {self.git_revision}")
+        ui.say(f"Git branch: {self.git_branch}")
+        ui.say(f"Build date: {self.build_date}")
 
     def event_close(self, exit_code: int = 0, cleanup: bool = True) -> None:
         if cleanup:
@@ -72,6 +89,20 @@ class App:
 
     @staticmethod
     def parse_args() -> argparse.Namespace:
+        # First, check if --version is in the arguments
+        if "--version" in sys.argv or "-v" in sys.argv:
+            # Create a minimal parser just for version
+            parser = argparse.ArgumentParser(add_help=False)
+            parser.add_argument("-v", "--version", action='store_true')
+            args, _ = parser.parse_known_args()
+            if args.version:
+                # Create a minimal args object with version=True
+                class VersionArgs:
+                    def __init__(self):
+                        self.version = True
+                        self.input_file = None
+                return VersionArgs()
+
         parser = argparse.ArgumentParser(
             prog="jira-importer",
             description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",

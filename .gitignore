@@ -8,7 +8,7 @@ dist/
 .svn/
 src/v-*/
 v-*/
-build/version/VSVersionInfo
+build/version/*
 build/version/build-counter.json
 build/configs/v-*.json
 build/logs/

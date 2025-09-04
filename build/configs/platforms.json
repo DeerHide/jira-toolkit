@@ -32,13 +32,11 @@
       "console": true,
       "name": "jira_importer",
       "add_data": [
-        "deerhide_default.icns;.",
-        "Info.plist;.",
-        "resources;resources"
+        "resources:resources"
       ]
     },
     "code_signing": {
-      "enabled": true,
+      "enabled": false,
       "identity": "Developer ID Application: Your Name (TEAM_ID)",
       "timestamp": true
     }
@@ -52,8 +50,8 @@
       "console": true,
       "name": "jira_importer",
       "add_data": [
-        "deerhide_default.png;.",
-        "resources;resources"
+        "deerhide_default.png:.",
+        "resources:resources"
       ]
     },
     "code_signing": {

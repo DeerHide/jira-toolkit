@@ -14,7 +14,7 @@ import sys
 import json
 from datetime import datetime
 
-def get_git_commit_hash():
+def get_git_commit_hash() -> str:
     """Get the short commit hash from Git."""
     try:
         # Get the short commit hash (first 7 characters)
@@ -33,7 +33,7 @@ def get_git_commit_hash():
         print(f"Warning: Could not execute Git command: {e}")
         return "unknown"
 
-def get_git_branch():
+def get_git_branch() -> str:
     """Get the Git branch from Git."""
     try:
         result = subprocess.run(['git', 'branch', '--show-current'], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -42,8 +42,7 @@ def get_git_branch():
         print(f"Warning: Could not execute Git command: {e}")
         return "unknown"
 
-
-def get_version_info():
+def get_version_info() -> tuple[str, str, int, int, int, int]:
     """Read version info from counter file and increment build number."""
     BUILD_COUNTER_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "build", "version", "build-counter.json")
 
@@ -78,7 +77,7 @@ def get_version_info():
         print(f"Warning: Could not manage version info: {e}")
         return "1.0.0", "1.0.0.1", 1, 0, 0, 1
 
-def main():
+def generate_windows_version_info() -> None:
     version_string, full_version, major, minor, patch, build_number = get_version_info()
     special_build = get_git_commit_hash()
 
@@ -141,6 +140,72 @@ VSVersionInfo(
     except Exception as e:
         print(f"Error generating version file: {e}")
         sys.exit(1)
+
+def generate_macos_version_info() -> None:
+    version_string, full_version, major, minor, patch, build_number = get_version_info()
+    special_build = get_git_commit_hash()
+    git_branch = get_git_branch()
+
+    VERSION_FILE_PATH =  os.path.join(os.path.dirname(__file__), "..", "build", "version", "Info.plist")
+    build_date = datetime.today().strftime("%Y-%m-%d")
+
+    # Minimal Info.plist for a console app, enriched with build metadata
+    plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Jira Importer</string>
+    <key>CFBundleDisplayName</key>
+    <string>Jira Importer</string>
+    <key>CFBundleIconFile</key>
+    <string>deerhide_default.icns</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.deerhide.jira-importer</string>
+    <key>CFBundleVersion</key>
+    <string>{build_number}</string>
+    <key>CFBundleShortVersionString</key>
+    <string>{version_string}</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright (c) 2025 Julien (@tom4897), Alain (@nakool). Licensed under the MIT License.</string>
+
+    <!-- Build metadata -->
+    <key>DHProductVersion</key>
+    <string>{full_version}</string>
+    <key>DHGitRevision</key>
+    <string>{special_build}</string>
+    <key>DHGitBranch</key>
+    <string>{git_branch}</string>
+    <key>DHBuildDate</key>
+    <string>{build_date}</string>
+</dict>
+</plist>
+"""
+
+    try:
+        out_dir = os.path.dirname(VERSION_FILE_PATH)
+        os.makedirs(out_dir, exist_ok=True)
+        with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
+            f.write(plist_content)
+        print(f"VSVersionInfo file generated successfully at {VERSION_FILE_PATH}")
+        print(f"Version: {version_string}")
+        print(f"Build number: {build_number}")
+        print(f"Full version: {full_version}")
+        print(f"Rev: {special_build}")
+        print(f"Branch: {git_branch}")
+    except Exception as e:
+        print(f"Error generating macOS Info.plist: {e}")
+        sys.exit(1)
+
+def main() -> None:
+    generate_windows_version_info()
+    generate_macos_version_info()
 
 if __name__ == "__main__":
     main()

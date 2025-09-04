@@ -14,6 +14,19 @@ import sys
 import json
 from datetime import datetime
 
+# TODO: refactor into a class in the build_utils package
+
+# TODO: Move to utils
+def _get_project_root() -> str:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    while current_dir != os.path.dirname(current_dir):
+        if os.path.exists(os.path.join(current_dir, '.git')):
+            return current_dir
+        current_dir = os.path.dirname(current_dir)
+
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# TODO: Use these strings in the build_utils package
 def get_version_strings() -> dict[str, str]:
     """Get the version string from the project."""
     ret: dict[str, str] = dict()
@@ -27,18 +40,7 @@ def get_version_strings() -> dict[str, str]:
     ret["product_name"] = "Jira Importer"
     ret["legal_trademarks"] = "Jira is a registered trademark of Atlassian Pty Ltd."
     ret["bundle_identifier"] = "com.deerhide.jira-importer"
-    print(ret)
     return ret
-
-
-def _get_project_root() -> str:
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    while current_dir != os.path.dirname(current_dir):
-        if os.path.exists(os.path.join(current_dir, '.git')):
-            return current_dir
-        current_dir = os.path.dirname(current_dir)
-
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def get_git_commit_hash() -> str:
     """Get the short commit hash from Git."""
@@ -89,7 +91,6 @@ def get_version_numbers() -> tuple[str, str, int, int, int, int]:
         else:
             major, minor, patch, build_number = 0, 1, 0, 0
 
-        # Save the updated version info
         version_data = {
             'major': major,
             'minor': minor,
@@ -163,14 +164,9 @@ VSVersionInfo(
     try:
         with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(version_info_content)
-        print(f"VSVersionInfo file generated successfully at {VERSION_FILE_PATH}")
-        print(f"Version: {version_num_short}")
-        print(f"Build number: {build_number}")
-        print(f"Full version: {version_num_full}")
-        print(f"Rev: {special_build}")
-        print(f"Branch: {git_branch}")
+        print(f"Windows VSVersionInfo file generated successfully at {VERSION_FILE_PATH}")
     except Exception as e:
-        print(f"Error generating version file: {e}")
+        print(f"Error generating Windows VSVersionInfo file: {e}")
         sys.exit(1)
 
 def generate_macos_version_info() -> None:
@@ -182,7 +178,7 @@ def generate_macos_version_info() -> None:
     VERSION_FILE_PATH =  os.path.join(os.path.dirname(__file__), "..", "build", "version", "Info.plist")
     build_date = datetime.today().strftime("%Y-%m-%d")
 
-    # Minimal Info.plist for a console app, enriched with build metadata
+    # TODO: Minimal Info.plist for a console app, enriched with build metadata
     plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -226,12 +222,7 @@ def generate_macos_version_info() -> None:
         os.makedirs(out_dir, exist_ok=True)
         with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(plist_content)
-        print(f"VSVersionInfo file generated successfully at {VERSION_FILE_PATH}")
-        print(f"Version: {version_num_short}")
-        print(f"Build number: {build_number}")
-        print(f"Full version: {version_num_full}")
-        print(f"Rev: {special_build}")
-        print(f"Branch: {git_branch}")
+        print(f"macOS Info.plist file generated successfully at {VERSION_FILE_PATH}")
     except Exception as e:
         print(f"Error generating macOS Info.plist: {e}")
         sys.exit(1)
@@ -241,16 +232,6 @@ def generate_app_version_info() -> None:
     version_info = get_version_strings()
     special_build = get_git_commit_hash()
     git_branch = get_git_branch()
-
-    print(f"Version info -> {version_info}")
-    print(f"Version num short -> {version_num_short}")
-    print(f"Version num full -> {version_num_full}")
-    print(f"Major -> {major}")
-    print(f"Minor -> {minor}")
-    print(f"Patch -> {patch}")
-    print(f"Build number -> {build_number}")
-    print(f"Special build -> {special_build}")
-    print(f"Git branch -> {git_branch}")
 
     build_date = datetime.today().strftime("%Y-%m-%d")
 
@@ -268,9 +249,9 @@ __build_date__ = "{build_date}"
     try:
         with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(version_info_content)
-        print(f"Version file generated successfully at {VERSION_FILE_PATH}")
+        print(f"Python version file generated successfully at {VERSION_FILE_PATH}")
     except Exception as e:
-        print(f"Error generating version file: {e}")
+        print(f"Error generating Python version file: {e}")
         sys.exit(1)
 
 def main() -> None:

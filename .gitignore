@@ -107,6 +107,9 @@ MANIFEST
 # Poetry
 .venv/
 .poetry/
+.python-version
+poetry.lock
+poetry.lock.out
 
 # Build
 *.manifest

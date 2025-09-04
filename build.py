@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 Build script for the Jira Importer application.
 
@@ -18,20 +17,27 @@ import json
 import time
 import logging
 from datetime import datetime
+from scripts.pyinstaller_hooks import BuildContext, BuildUtils
 
 
 BASE_LOG_DIR = "build/logs"
 LOG_LEVEL = logging.DEBUG
 
-def _detect_tty() -> bool:
-    """Detect if stderr supports TTY (colors)."""
-    return hasattr(sys.stderr, 'isatty') and sys.stderr.isatty()
-
 class LoggerManager:
     def __init__(self, base_dir: str = BASE_LOG_DIR) -> None:
         self.base_dir = base_dir
         self.logger = None
+        self._resolved_level = None
+        self._is_tty = None
         self.setup()
+
+    def _detect_tty(self) -> bool:
+        """Detect if stderr supports TTY (colors)."""
+        return hasattr(sys.stderr, 'isatty') and sys.stderr.isatty()
+
+    def _resolve_level(self) -> int:
+        """Resolve the log level from configuration or environment."""
+        return LOG_LEVEL
 
     @property
     def level(self) -> int:
@@ -44,7 +50,7 @@ class LoggerManager:
     def is_tty(self) -> bool:
         """Check if terminal supports colors."""
         if self._is_tty is None:
-            self._is_tty = _detect_tty()
+            self._is_tty = self._detect_tty()
         return self._is_tty
 
     def setup(self) -> logging.Logger:
@@ -214,95 +220,6 @@ def safe_directory_exists(directory_path, config, description="directory") -> bo
         _logger.debug(f"❌ Error checking {description}: {e}")
         return False
 
-# Load configuration
-def load_config(config_path=None) -> dict:
-    """Load build configuration with platform and profile support."""
-    if config_path is None:
-        # Default to windows-shipping config
-        config_path = "windows-shipping"
-
-    # Parse config name (e.g., "windows-dev", "macos-shipping")
-    parts = config_path.split('-')
-    platform = parts[0]
-    profile = parts[1] if len(parts) > 1 else "shipping"
-
-    config_dir = "build/configs"
-
-    try:
-        # Load base config
-        base_config_path = os.path.join(config_dir, "base.json")
-        with open(base_config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-
-        # Load platform config
-        platforms_config_path = os.path.join(config_dir, "platforms.json")
-        with open(platforms_config_path, 'r', encoding='utf-8') as f:
-            platforms = json.load(f)
-            if platform not in platforms:
-                raise ValueError(f"Unknown platform: {platform}")
-            config = deep_merge(config, platforms[platform])
-
-        # Load profile config
-        profiles_config_path = os.path.join(config_dir, "profiles.json")
-        with open(profiles_config_path, 'r', encoding='utf-8') as f:
-            profiles = json.load(f)
-            if profile not in profiles:
-                raise ValueError(f"Unknown profile: {profile}")
-            config = deep_merge(config, profiles[profile])
-
-        # Add platform and profile info
-        config["platform"] = platform
-        config["profile"] = profile
-
-        return config
-
-    except FileNotFoundError as e:
-        print(f"❌ Configuration file not found: {e}")
-        print(f"Available configurations in {config_dir}:")
-        if os.path.exists(config_dir):
-            for file in os.listdir(config_dir):
-                if file.endswith('.json'):
-                    print(f"  - {file[:-5]}")  # Remove .json extension
-        else:
-            print(f"  Directory {config_dir} does not exist")
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid JSON in configuration file: {e}")
-        sys.exit(1)
-    except ValueError as e:
-        print(f"❌ Configuration error: {e}")
-        print(f"Supported platforms: windows, macos, linux")
-        print(f"Supported profiles: dev, shipping")
-        print(f"Example: windows-dev, macos-shipping")
-        sys.exit(1)
-
-def deep_merge(base: dict, override: dict) -> dict:
-    """Deep merge two dictionaries."""
-    result = base.copy()
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = deep_merge(result[key], value)
-        else:
-            result[key] = value
-    return result
-
-# Global CONFIG variable (will be set in main function)
-CONFIG = None
-
-def detect_platform() -> str:
-    """Detect the current OS platform as one of: windows, macos, linux, other."""
-    try:
-        platform_key = sys.platform
-        if platform_key.startswith("win"):
-            return "Windows"
-        if platform_key == "darwin":
-            return "MacOs"
-        if platform_key.startswith("linux"):
-            return "Linux"
-        return platform_key
-    except Exception:
-        return "other"
-
 def check_dependencies(config) -> None:
     """Check if required dependencies are available."""
     if not config["build_options"]["check_dependencies"]:
@@ -316,61 +233,6 @@ def check_dependencies(config) -> None:
         except ImportError:
             _logger.warning(f"❌ {dependency} not found. Installing...")
             subprocess.check_call([sys.executable, "-m", "pip", "install", dependency.lower()])
-
-def sign_executable(executable_path, config) -> bool:
-    """Sign the executable with the certificate if available."""
-    if not config["code_signing"]["enabled"]:
-        _logger.info("⏭️  Code signing disabled in config")
-        return False
-
-    certificate_path = config["code_signing"]["certificate"]
-    signtool_path = config["code_signing"]["signtool"]
-    timestamp_server = config["code_signing"]["timestamp_server"]
-    digest_algorithm = config["code_signing"]["digest_algorithm"]
-
-    if not safe_file_exists(certificate_path, config, "certificate"):
-        _logger.warning("Skipping code signing...")
-        return False
-
-    if not safe_file_exists(signtool_path, config, "signtool"):
-        _logger.warning("Skipping code signing...")
-        return False
-
-    if not safe_file_exists(executable_path, config, "executable"):
-        return False
-
-    try:
-        # Use signtool to sign the executable
-        sign_cmd = [
-            signtool_path,
-            "sign",
-            "/f", certificate_path,
-            "/fd", digest_algorithm,
-            "/t", timestamp_server,
-            "/v",  # Verbose output
-            executable_path
-        ]
-
-        _logger.info(f"🔐 Signing executable: {executable_path}")
-        _logger.debug(f"Using certificate: {certificate_path}")
-
-        result = subprocess.run(sign_cmd, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            _logger.info("✅ Executable signed successfully!")
-            return True
-        else:
-            _logger.warning(f"❌ Code signing failed with error code: {result.returncode}")
-            _logger.debug(f"Error output: {result.stderr}")
-            return False
-
-    except FileNotFoundError:
-        _logger.warning(f"❌ {signtool_path} not found. Make sure Windows SDK is installed.")
-        _logger.warning("You can install it via Visual Studio Installer or download from Microsoft.")
-        return False
-    except Exception as e:
-        _logger.error(f"❌ Error during code signing: {e}")
-        return False
 
 def clean_directories(config, config_name) -> bool:
     """Clean dist directory and prepare temp directory."""
@@ -395,31 +257,6 @@ def clean_directories(config, config_name) -> bool:
             return False
 
     return True
-
-def build_version_file(config) -> None:
-    """Build the version file."""
-    if config["build_options"]["build_version_file"]:
-        # Import and run the version generation script directly
-        import sys
-        import os
-
-        # Add the version directory to the path so we can import the script
-        version_dir = os.path.abspath("build/version")
-        sys.path.insert(0, version_dir)
-
-        try:
-            import generate_version  # type: ignore # noqa: F401
-            # The script should run its main logic when imported
-            generate_version.main()
-            _logger.info("✅ Version file generated successfully")
-        except ImportError as e:
-            _logger.error(f"❌ Failed to import generate_version.py: {e}")
-            sys.exit(1)
-        finally:
-            # Clean up the path
-            sys.path.pop(0)
-    else:
-        _logger.info("⏭️  Version file generation disabled in config")
 
 def copy_build_files(config) -> bool:
     """Copy necessary files to temp directory."""
@@ -612,11 +449,8 @@ def cleanup_temp_files(config) -> bool:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-c", "--config",
-                       help="Build configuration name (default: windows-shipping)\n"
-                            "Format: PLATFORM-PROFILE (e.g., windows-dev, macos-shipping)\n"
-                            "Platforms: windows, macos, linux\n"
-                            "Profiles: dev, shipping",
-                       default="windows-shipping")
+                       help="Build configuration name (default: dev)",
+                       default="dev")
     parser.add_argument("-p", "--build-poetry",
                        help="Build the solution using Poetry",
                        default=False, action="store_true")
@@ -624,42 +458,43 @@ def main() -> None:
 
     if args.build_poetry:
         _logger.info("🔨 Building solution using Poetry...")
+        os.environ["BUILD_PROFILE"] = args.config
         subprocess.check_call(["poetry", "build", "--format", "pyinstaller"])
         sys.exit(0)
 
     # Load configuration based on argument
-    CONFIG = load_config(args.config)
+    #CONFIG = load_config(args.config)
+    build_context = BuildContext(None, args.config)
+    build_utils = BuildUtils(build_context)
 
-    # Detect and display platform
-    current_platform = detect_platform()
-    _logger.info(f"🖥️  Detected platform: {current_platform}")
+    CONFIG = build_context.cfg
+    CONFIG_FILES = build_context.files_cfg
+    CONFIG_PYI = build_context.pyinstaller_cfg
+    CONFIG_BUILD_OPTIONS = build_context.cfg["build_options"]
 
+    _logger.info(f"🖥️  Detected platform: {build_context.platform_tag}")
     _logger.info("🚀 Starting Jira Importer build process...")
     print("=" * 20)
     _logger.info(f"📋 Using configuration: {args.config}")
-    _logger.info(f"🖥️  Platform: {CONFIG['platform']}")
-    _logger.info(f"📦 Profile: {CONFIG['profile']}")
     print("=" * 20)
 
-    # Check dependencies
     _logger.info("📋 Checking dependencies...")
     check_dependencies(CONFIG)
 
-    # Install requirements
-    if CONFIG["build_options"]["install_requirements"]:
+    if CONFIG_BUILD_OPTIONS["install_requirements"]:
         _logger.info("📦 Installing requirements...")
         try:
-            requirements_file = CONFIG["files"]["requirements"]
+            requirements_file = CONFIG_FILES["requirements"]
             subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_file])
             _logger.info("✅ Requirements installed successfully")
         except subprocess.CalledProcessError as e:
             _logger.error(f"❌ Failed to install requirements: {e}")
-            sys.exit(1)
+        except Exception as e:
+            _logger.error(f"❌ Failed to install requirements: {e}")
     else:
         _logger.info("⏭️  Requirements installation disabled in config")
 
-    # Clean and prepare directories
-    if CONFIG["build_options"]["clean_dist"]:
+    if CONFIG_BUILD_OPTIONS["clean_dist"]:
         _logger.info("🧹 Preparing build environment...")
         if not clean_directories(CONFIG, args.config):
             _logger.warning("❌ Failed to prepare build environment")
@@ -667,40 +502,33 @@ def main() -> None:
     else:
         _logger.info("⏭️  Directory cleaning disabled in config")
 
-    # Build version file
     _logger.info("🔨 Building version file...")
-    build_version_file(CONFIG)
+    try:
+        build_utils.create_version_file()
+    except Exception as e:
+        _logger.error(f"❌ Failed to build version file: {e}")
+        sys.exit(1)
 
-    # Copy build files
     _logger.info("📁 Copying build files...")
     if not copy_build_files(CONFIG):
         _logger.warning("❌ Failed to copy build files")
         sys.exit(1)
 
-    # Build executable
     _logger.info("🔨 Building executable...")
     build_executable(CONFIG, args.config) # Pass config_name as an argument
 
-
-    # Code signing (optional)
     dist_dir = CONFIG["directories"]["dist"]
     config_dist_dir = os.path.join(dist_dir, args.config)  # Use config-specific dist directory
 
-    # Determine executable extension based on platform
-    if CONFIG["platform"] == "windows":
-        executable_ext = ".exe"
-    elif CONFIG["platform"] == "macos":
-        executable_ext = ""
-    else:  # linux
-        executable_ext = ""
-
-    executable_path = os.path.join(config_dist_dir, f"{CONFIG['pyinstaller']['name']}{executable_ext}")
+    executable_ext = ".exe" if build_context.platform_tag == "windows" else ""
+    executable_path = os.path.join(config_dist_dir, f"{CONFIG_PYI['name']}{executable_ext}")
 
     if safe_file_exists(executable_path, CONFIG, "executable"):
         print("\n" + "="*50)
         _logger.info("🔐 CODE SIGNING")
         print("="*50)
-        sign_executable(executable_path, CONFIG)
+        build_utils = BuildUtils(build_context)
+        build_utils.sign_executable(executable_path)
     else:
         _logger.warning(f"⚠️  Warning: Expected executable not found at {executable_path}")
         _logger.debug("Checking for executable in dist directory...")
@@ -711,12 +539,10 @@ def main() -> None:
                     if file.endswith('.exe'):
                         _logger.debug(f"Found executable: {os.path.join(root, file)}")
 
-    # Copy documentation
     _logger.info("📚 Copying documentation...")
     if not copy_documentation(CONFIG, args.config):  # Pass config_name
         _logger.warning("⚠️  Warning: Failed to copy documentation")
 
-    # Clean up temporary files based on config setting
     if CONFIG["build_options"]["clean_temp"]:
         if not cleanup_temp_files(CONFIG):
             _logger.warning("⚠️  Warning: Failed to clean up temporary files")

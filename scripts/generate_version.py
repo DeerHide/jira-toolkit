@@ -14,9 +14,6 @@ import sys
 import json
 from datetime import datetime
 
-VERSION_FILE_NAME = "VSVersionInfo"
-BUILD_COUNTER_FILE = "build-counter.json"
-
 def get_git_commit_hash():
     """Get the short commit hash from Git."""
     try:
@@ -48,11 +45,13 @@ def get_git_branch():
 
 def get_version_info():
     """Read version info from counter file and increment build number."""
-    counter_file = os.path.join(os.path.dirname(__file__), BUILD_COUNTER_FILE)
+    BUILD_COUNTER_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "build", "version", "build-counter.json")
+
+    counter_file = BUILD_COUNTER_FILE_PATH
 
     try:
-        if os.path.exists(counter_file):
-            with open(counter_file, 'r', encoding='utf-8') as f:
+        if os.path.exists(BUILD_COUNTER_FILE_PATH):
+            with open(BUILD_COUNTER_FILE_PATH, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 major = data.get('major', 1)
                 minor = data.get('minor', 0)
@@ -68,7 +67,7 @@ def get_version_info():
             'patch': patch,
             'build_number': build_number
         }
-        with open(counter_file, 'w', encoding='utf-8') as f:
+        with open(BUILD_COUNTER_FILE_PATH, 'w', encoding='utf-8') as f:
             json.dump(version_data, f, indent=2)
 
         version_string = f"{major}.{minor}.{patch}"
@@ -128,11 +127,12 @@ VSVersionInfo(
 )
 """
 
-    version_file = os.path.join(os.path.dirname(__file__), VERSION_FILE_NAME)
+    VERSION_FILE_PATH =  os.path.join(os.path.dirname(__file__), "..", "build", "version", "VSVersionInfo")
+
     try:
-        with open(version_file, "w", encoding="utf-8") as f:
+        with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(version_info_content)
-        print(f"{VERSION_FILE_NAME} file generated successfully at {version_file}")
+        print(f"VSVersionInfo file generated successfully at {VERSION_FILE_PATH}")
         print(f"Version: {version_string}")
         print(f"Build number: {build_number}")
         print(f"Full version: {full_version}")

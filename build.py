@@ -53,7 +53,7 @@ def clean_directories(config, config_name) -> bool:
     temp_dir = config["directories"]["temp"]
 
     # Clean config-specific dist subdirectory if specified
-    config_dist_dir = os.path.join(dist_dir, config_name)
+    config_dist_dir = Path(dist_dir) / config_name
     if not _safe_ops.create_directory(config_dist_dir, "config dist directory", clean_if_exists=True):
         _logger.warning(f"❌ Failed to prepare config dist directory: {config_dist_dir}")
         return False
@@ -88,8 +88,8 @@ def copy_build_files(config) -> bool:
 
     # Copy icon file if it exists
     if icon_file:
-        icon_filename = os.path.basename(icon_file)
-        icon_dest = os.path.join(temp_dir, icon_filename)
+        icon_filename = Path(icon_file).name
+        icon_dest = Path(temp_dir) / icon_filename
         if not _safe_ops.copy_file(icon_file, icon_dest, "icon file"):
             return False
     else:
@@ -97,21 +97,21 @@ def copy_build_files(config) -> bool:
 
     # Copy version file if it exists
     if version_file:
-        version_filename = os.path.basename(version_file)
-        version_dest = os.path.join(temp_dir, version_filename)
+        version_filename = Path(version_file).name
+        version_dest = Path(temp_dir) / version_filename
         if not _safe_ops.copy_file(version_file, version_dest, "version file"):
             return False
     else:
         _logger.info("⏭️  No version file specified for this platform")
 
     # Handle src directory - remove if exists, then copy
-    temp_src_dir = os.path.join(temp_dir, "src")
+    temp_src_dir = Path(temp_dir) / "src"
     if not _safe_ops.copy_directory(src_dir, temp_src_dir, "source directory"):
         return False
 
     # Handle resources directory - copy if it exists
-    if os.path.exists(resources_dir):
-        temp_resources_dir = os.path.join(temp_dir, "resources")
+    if Path(resources_dir).exists():
+        temp_resources_dir = Path(temp_dir) / "resources"
         if not _safe_ops.copy_directory(resources_dir, temp_resources_dir, "resources directory"):
             return False
     else:
@@ -124,15 +124,15 @@ def build_executable(config, config_name) -> bool:
     """Build the executable using PyInstaller."""
     src_dir = config["directories"]["source"]
     # Look for the entry point script first
-    main_script = os.path.join(src_dir, "jira_importer_main.py")
-    if not os.path.isfile(main_script):
+    main_script = Path(src_dir) / "jira_importer_main.py"
+    if not main_script.is_file():
         # Fallback to the package's __main__.py
-        main_script = os.path.join(src_dir, "jira_importer", "__main__.py")
-        if not os.path.isfile(main_script):
+        main_script = Path(src_dir) / "jira_importer" / "__main__.py"
+        if not main_script.is_file():
             # Fallback to other common entry points in the package directory
             for candidate in ["__main__.py", "main.py", "app.py"]:
-                candidate_path = os.path.join(src_dir, "jira_importer", candidate)
-                if os.path.isfile(candidate_path):
+                candidate_path = Path(src_dir) / "jira_importer" / candidate
+                if candidate_path.is_file():
                     main_script = candidate_path
                     break
             else:
@@ -141,15 +141,15 @@ def build_executable(config, config_name) -> bool:
     _logger.info(f"🔨 Building executable from: {main_script}")
 
     # Get absolute paths for better reliability
-    temp_dir = os.path.abspath(config["directories"]["temp"])
-    base_dist_dir = os.path.abspath(config["directories"]["dist"])
-    dist_dir = os.path.join(base_dist_dir, config_name)  # Use config-specific subdirectory
-    work_dir = os.path.join(temp_dir, "pyinstaller_work")
+    temp_dir = Path(config["directories"]["temp"]).resolve()
+    base_dist_dir = Path(config["directories"]["dist"]).resolve()
+    dist_dir = base_dist_dir / config_name  # Use config-specific subdirectory
+    work_dir = temp_dir / "pyinstaller_work"
     spec_dir = temp_dir
 
     # Change to temp directory for PyInstaller
-    original_cwd = os.getcwd()
-    os.chdir(temp_dir)
+    original_cwd = Path.cwd()
+    os.chdir(str(temp_dir))
 
     try:
         pyinstaller_cmd = [
@@ -173,12 +173,12 @@ def build_executable(config, config_name) -> bool:
 
         # Add icon if specified
         if config["files"].get("icon"):
-            icon_filename = os.path.basename(config["files"]["icon"])
+            icon_filename = Path(config["files"]["icon"]).name
             pyinstaller_cmd.extend(["--icon", icon_filename])
 
         # Add version file if specified
         if config["files"].get("version"):
-            version_filename = os.path.basename(config["files"]["version"])
+            version_filename = Path(config["files"]["version"]).name
             pyinstaller_cmd.extend(["--version-file", version_filename])
 
         # Add hidden imports
@@ -211,7 +211,7 @@ def build_executable(config, config_name) -> bool:
         sys.exit(1)
     finally:
         # Always restore original working directory
-        os.chdir(original_cwd)
+        os.chdir(str(original_cwd))
 
 def copy_documentation(config, config_name) -> bool:
     """Copy documentation files to dist directory."""
@@ -224,14 +224,14 @@ def copy_documentation(config, config_name) -> bool:
     readme_file = config["files"]["readme"]
 
     # Use config-specific dist directory
-    config_dist_dir = os.path.join(dist_dir, config_name)
+    config_dist_dir = Path(dist_dir) / config_name
 
     if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
         _logger.warning(f"⚠️  Warning: Could not find dist directory at {config_dist_dir}")
         return False
 
-    license_dest = os.path.join(config_dist_dir, f"{config['pyinstaller']['name']}_LICENSE.md")
-    readme_dest = os.path.join(config_dist_dir, f"{config['pyinstaller']['name']}_README.md")
+    license_dest = config_dist_dir / f"{config['pyinstaller']['name']}_LICENSE.md"
+    readme_dest = config_dist_dir / f"{config['pyinstaller']['name']}_README.md"
 
     success = True
     if not _safe_ops.copy_file(license_file, license_dest, "license file"):
@@ -329,10 +329,10 @@ def main() -> None:
     build_executable(CONFIG, args.config) # Pass config_name as an argument
 
     dist_dir = CONFIG["directories"]["dist"]
-    config_dist_dir = os.path.join(dist_dir, args.config)  # Use config-specific dist directory
+    config_dist_dir = Path(dist_dir) / args.config  # Use config-specific dist directory
 
     executable_ext = ".exe" if build_context.platform_tag == "windows" else ""
-    executable_path = os.path.join(config_dist_dir, f"{CONFIG_PYI['name']}{executable_ext}")
+    executable_path = config_dist_dir / f"{CONFIG_PYI['name']}{executable_ext}"
 
     if _safe_ops.file_exists(executable_path, "executable"):
         print("\n" + "="*50)
@@ -345,10 +345,10 @@ def main() -> None:
         _logger.debug("Checking for executable in dist directory...")
         # List contents of dist directory to help debug
         if _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
-            for root, dirs, files in os.walk(config_dist_dir):
+            for root, dirs, files in os.walk(str(config_dist_dir)):
                 for file in files:
                     if file.endswith('.exe'):
-                        _logger.debug(f"Found executable: {os.path.join(root, file)}")
+                        _logger.debug(f"Found executable: {Path(root) / file}")
 
     _logger.info("📚 Copying documentation...")
     if not copy_documentation(CONFIG, args.config):  # Pass config_name

@@ -8,7 +8,6 @@ License: MIT
 Date: 2025
 """
 
-import os
 import subprocess
 import sys
 import logging
@@ -44,15 +43,15 @@ class BuildUtils:
         timestamp_server = self.sign_config["timestamp_server"]
         digest_algorithm = self.sign_config["digest_algorithm"]
 
-        if not os.path.exists(certificate_path):
+        if not Path(certificate_path).exists():
             self._logger.warning("Certificate not found, skipping code signing...")
             return False
 
-        if not os.path.exists(signtool_path):
+        if not Path(signtool_path).exists():
             self._logger.warning("Signtool not found, skipping code signing...")
             return False
 
-        if not os.path.exists(executable_path):
+        if not Path(executable_path).exists():
             self._logger.error("Executable not found for signing")
             return False
 
@@ -92,7 +91,7 @@ class BuildUtils:
     def create_version_file(self) -> None:
         """Create version file using the same pattern as post_build."""
         try:
-            scripts_dir = os.path.abspath("scripts")
+            scripts_dir = str(Path("scripts").resolve())
             if scripts_dir not in sys.path:
                 sys.path.insert(0, scripts_dir)
 

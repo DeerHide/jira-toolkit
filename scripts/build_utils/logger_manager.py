@@ -8,10 +8,10 @@ License: MIT
 Date: 2025
 """
 
-import os
 import sys
 import logging
 from datetime import datetime
+from pathlib import Path
 
 BASE_LOG_DIR = "build/logs"
 LOG_LEVEL = logging.DEBUG
@@ -51,8 +51,9 @@ class LoggerManager:
         now = datetime.now()
         date_str = now.strftime("%Y%m%d")
 
-        os.makedirs(self.base_dir, exist_ok=True)
-        log_file = os.path.join(self.base_dir, f"{date_str}_build_jira_importer.log")
+        base_dir_path = Path(self.base_dir)
+        base_dir_path.mkdir(parents=True, exist_ok=True)
+        log_file = base_dir_path / f"{date_str}_build_jira_importer.log"
 
         root_logger = logging.getLogger()
         root_logger.setLevel(LOG_LEVEL)
@@ -60,7 +61,7 @@ class LoggerManager:
         if root_logger.handlers:
             root_logger.handlers.clear()
 
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler = logging.FileHandler(str(log_file), encoding='utf-8')
         file_handler.setLevel(LOG_LEVEL)
         file_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(funcName)s:%(lineno)d %(message)s")
         file_handler.setFormatter(file_formatter)

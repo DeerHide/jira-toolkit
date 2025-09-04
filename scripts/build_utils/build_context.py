@@ -54,14 +54,15 @@ class BuildContext:
         return value  # type: ignore[return-value]
 
     def include_file(self, path: str) -> str:
-        if os.path.exists(path):
+        if Path(path).exists():
             return path
         raise FileNotFoundError(f"Missing file: {path}")
 
     def _load_config(self) -> None:
-        base_path      = Path(os.getenv("BUILD_CFG_BASE",      self.cfg_dir / "base.json"))
-        profiles_path  = Path(os.getenv("BUILD_CFG_PROFILES",  self.cfg_dir / "profiles.json"))
-        platforms_path = Path(os.getenv("BUILD_CFG_PLATFORMS", self.cfg_dir / "platforms.json"))
+        import os
+        base_path      = Path(os.getenv("BUILD_CFG_BASE",      str(self.cfg_dir / "base.json")))
+        profiles_path  = Path(os.getenv("BUILD_CFG_PROFILES",  str(self.cfg_dir / "profiles.json")))
+        platforms_path = Path(os.getenv("BUILD_CFG_PLATFORMS", str(self.cfg_dir / "platforms.json")))
 
         base      = self._read_json(base_path)
         profiles  = self._read_json(profiles_path)
@@ -140,6 +141,7 @@ class BuildContext:
             raise FileNotFoundError(f"Missing config: {path}")
         with path.open("r", encoding="utf-8") as f:
             content = f.read()
+            import os
             content = os.path.expandvars(content)
             return json.loads(content)
 

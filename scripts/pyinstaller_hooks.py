@@ -76,7 +76,7 @@ def post_build(interface) -> None:
     target_name = os.getenv("BUILD_SCRIPT", "jira-importer")
 
     try:
-        scripts_dir = os.path.abspath("scripts")
+        scripts_dir = str(Path("scripts").resolve())
         if scripts_dir not in sys.path:
             sys.path.insert(0, scripts_dir)
 

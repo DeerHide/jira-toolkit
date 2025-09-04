@@ -16,6 +16,69 @@ jira_importer_logs/
 *.log
 sandbox/
 
+# Build artifacts
+build/win_amd64/
+build/win_amd64/**/*
+build/win_amd64/**/jira-importer/
+build/win_amd64/**/jira_importer/
+build/win_amd64/**/*.spec
+build/win_amd64/**/*.toc
+build/win_amd64/**/*.pyz
+build/win_amd64/**/localpycs/
+build/win_amd64/**/PKG-*/
+build/win_amd64/**/EXE-*/
+build/win_amd64/**/PYZ-*/
+build/win_amd64/**/COLLECT-*/
+build/win_amd64/**/Analysis-*/
+build/win_amd64/**/base_library.zip
+build/win_amd64/**/warn-*.txt
+build/win_amd64/**/xref-*.html
+
+# Build temp directories
+build/temp/
+build/temp/**/*
+build/temp/**/poetry/
+build/temp/**/pyinstaller/
+
+# Poetry build artifacts
+dist/poetry-build/
+dist/pyinstaller/
+dist/dev/
+dist/shipping/
+dist/windows-dev/
+dist/windows-shipping/
+dist/*.zip
+dist/*.exe
+dist/*.pkg
+
+# PyInstaller artifacts
+*.spec
+*.manifest
+*.toc
+*.pyz
+localpycs/
+PKG-*/
+EXE-*/
+PYZ-*/
+COLLECT-*/
+Analysis-*/
+base_library.zip
+warn-*.txt
+xref-*.html
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+~$*
+
+# Generated files
+*.generated
+*.auto
+*.build
+
 *.psd
 ~$*.xlsx
 *todo*
@@ -40,6 +103,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Poetry
+.venv/
+.poetry/
 
 # Build
 *.manifest
@@ -80,6 +147,13 @@ venv.bak/
 *.swp
 *.swo
 *~
+
+# Development artifacts
+*.csv
+!resources/templates/ImportTemplate.xlsx
+*.xlsx~
+*.xls~
+*.xlsm~
 
 # OS
 .DS_Store

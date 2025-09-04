@@ -16,8 +16,8 @@
     },
     "code_signing": {
       "enabled": true,
-      "certificate": "../../Certificates/deerhide_win_shipping.cert",
-      "signtool": "../../../../Apps/Windows Kits/10/App Certification Kit/signtool.exe",
+      "certificate": "D:\\workdir\\DeerHide\\Certificates\\deerhide_win_shipping.cert",
+      "signtool": "D:\\Apps\\Windows Kits\\10\\App Certification Kit\\signtool.exe",
       "timestamp_server": "http://timestamp.digicert.com",
       "digest_algorithm": "SHA256"
     }

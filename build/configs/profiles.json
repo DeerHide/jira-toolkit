@@ -18,6 +18,20 @@
   },
   "shipping": {
     "pyinstaller": {
+      "onefile": false
+    },
+    "build_options": {
+      "clean_temp": true,
+      "check_dependencies": true,
+      "install_requirements": true,
+      "copy_documentation": true
+    },
+    "code_signing": {
+      "enabled": true
+    }
+  },
+  "gh_action": {
+    "pyinstaller": {
       "onefile": true
     },
     "build_options": {

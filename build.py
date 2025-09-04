@@ -617,7 +617,15 @@ def main() -> None:
                             "Platforms: windows, macos, linux\n"
                             "Profiles: dev, shipping",
                        default="windows-shipping")
+    parser.add_argument("-p", "--build-poetry",
+                       help="Build the solution using Poetry",
+                       default=False, action="store_true")
     args = parser.parse_args()
+
+    if args.build_poetry:
+        _logger.info("🔨 Building solution using Poetry...")
+        subprocess.check_call(["poetry", "build", "--format", "pyinstaller"])
+        sys.exit(0)
 
     # Load configuration based on argument
     CONFIG = load_config(args.config)

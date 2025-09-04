@@ -27,19 +27,19 @@ cfg_req = 1
 debug_mode = False
 
 # Import classes
-from .console import ConsoleIO
-from .excel_io import ExcelWorkbookManager
+from jira_importer.console import ConsoleIO
+from jira_importer.excel_io import ExcelWorkbookManager
 
-from .app import App
-from .config import Configuration
-from .artifacts import ArtifactManager
-from .fileops import FileManager
+from jira_importer.app import App
+from jira_importer.config import Configuration
+from jira_importer.artifacts import ArtifactManager
+from jira_importer.fileops import FileManager
 
-from .log import is_debug_mode, setup_logger, add_file_logging
-from .utils import resource_path, find_config_path, open_browser
-from .import_pipeline.processor import ImportProcessor
-from .import_pipeline.reporting import ProblemReporter, ReportOptions
-from .import_pipeline.sinks.csv_sink import write_csv
+from jira_importer.log import is_debug_mode, setup_logger, add_file_logging
+from jira_importer.utils import resource_path, find_config_path, open_browser
+from jira_importer.import_pipeline.processor import ImportProcessor
+from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
+from jira_importer.import_pipeline.sinks.csv_sink import write_csv
 
 # Suppress specific warnings from openpyxl
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
@@ -111,7 +111,7 @@ def main():
     logger = logging.getLogger(__name__)
 
     # Add file logging if enabled in config
-    from .log import add_file_logging
+    from jira_importer.log import add_file_logging
     add_file_logging(config)
 
     if logging.getLogger().level == logging.DEBUG:

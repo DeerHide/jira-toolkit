@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "name": "jira_importer",
+    "name": "jira-importer",
     "version": "1.0.0",
     "description": "Jira Importer Application"
   },

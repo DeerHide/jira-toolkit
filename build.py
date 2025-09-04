@@ -507,12 +507,10 @@ def main() -> None:
         build_utils.create_version_file()
     except Exception as e:
         _logger.error(f"❌ Failed to build version file: {e}")
-        sys.exit(1)
 
     _logger.info("📁 Copying build files...")
     if not copy_build_files(CONFIG):
         _logger.warning("❌ Failed to copy build files")
-        sys.exit(1)
 
     _logger.info("🔨 Building executable...")
     build_executable(CONFIG, args.config) # Pass config_name as an argument

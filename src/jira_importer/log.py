@@ -148,10 +148,6 @@ class LoggingConfig:
                 except (AttributeError, TypeError):
                     pass  # Invalid level, fall through
 
-        # Check debug file
-        if is_debug_mode():
-            return DEFAULT_DEBUG_LEVEL
-
         # Default level
         return DEFAULT_LOG_LEVEL
 
@@ -175,12 +171,6 @@ class LoggingConfig:
             errors.append(f"Invalid max_log_files: {settings['max_log_files']} (must be >= 0)")
 
         return errors
-
-
-def is_debug_mode() -> bool:
-    """Check if debug mode is enabled via .debug file."""
-    debug_file_path = resource_path('.debug')
-    return os.path.isfile(debug_file_path)
 
 
 def _set_levels(level: int) -> None:
@@ -254,9 +244,6 @@ def _resolve_log_level(level_override: Optional[int] = None) -> int:
     """
     if level_override is not None:
         return level_override
-
-    if is_debug_mode():
-        return DEFAULT_DEBUG_LEVEL
 
     return DEFAULT_LOG_LEVEL
 

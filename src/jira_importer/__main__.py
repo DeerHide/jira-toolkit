@@ -35,7 +35,7 @@ from jira_importer.config import Configuration
 from jira_importer.artifacts import ArtifactManager
 from jira_importer.fileops import FileManager
 
-from jira_importer.log import is_debug_mode, setup_logger, add_file_logging
+from jira_importer.log import setup_logger, add_file_logging
 from jira_importer.utils import resource_path, find_config_path, open_browser
 from jira_importer.import_pipeline.processor import ImportProcessor
 from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
@@ -132,7 +132,6 @@ def main():
 
     logger.debug("Jira Importer initialized.")
     logger.debug(f"Configuration loaded: {config.path}")
-    logger.debug(f"Debug mode: {is_debug_mode()}")
     logger.debug(f"Input file: {args.input_file}")
     logger.debug(fmt.kv("Input file", fmt.path(App._args.input_file)))
     logger.debug(fmt.kv("Configuration", fmt.path(App._args.config)))

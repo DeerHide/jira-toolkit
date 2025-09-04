@@ -1,0 +1,26 @@
+{
+    "app": {
+      "sheet_name": "dataset",
+      "logging": {
+        "write_to_file": TrUe,
+        "log_level": "INFORMATION",
+        "max_log_size_mb": a,
+        "max_log_files": b
+      }
+    },
+    "jira": {
+      "validation": {
+        "priorities": [
+            "higest",
+            "hight",
+            "medium",
+            "low",
+            "lowest"
+        ],
+        "issue_types": [
+          "task",
+          "bug"
+        ]
+      }
+    }
+  }

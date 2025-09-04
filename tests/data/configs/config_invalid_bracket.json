@@ -1,0 +1,17 @@
+{
+    "jira": {
+      "validation": {
+        "priorities":
+            "higest",
+            "hight",
+            "medium",
+            "low",
+            "lowest"
+        ],
+        "issue_types": [
+          "task",
+          "bug"
+
+      }
+    }
+  }

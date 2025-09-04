@@ -14,6 +14,23 @@ import sys
 import json
 from datetime import datetime
 
+def get_version_strings() -> dict[str, str]:
+    """Get the version string from the project."""
+    ret: dict[str, str] = dict()
+    ret["copyright"] = "Copyright (c) 2025 Julien (@tom4897), Alain (@nakool). Licensed under the MIT License."
+    ret["author"] = "Julien (@tom4897), Alain (@nakool)"
+    ret["comments"] = "Jira Importer is a tool that imports Jira issues into a CSV file."
+    ret["company_name"] = "Deerhide.run"
+    ret["file_description"] = "Jira Importer"
+    ret["internal_name"] = "jira_importer"
+    ret["original_filename"] = "jira_importer.exe"
+    ret["product_name"] = "Jira Importer"
+    ret["legal_trademarks"] = "Jira is a registered trademark of Atlassian Pty Ltd."
+    ret["bundle_identifier"] = "com.deerhide.jira-importer"
+    print(ret)
+    return ret
+
+
 def get_git_commit_hash() -> str:
     """Get the short commit hash from Git."""
     try:
@@ -42,7 +59,7 @@ def get_git_branch() -> str:
         print(f"Warning: Could not execute Git command: {e}")
         return "unknown"
 
-def get_version_info() -> tuple[str, str, int, int, int, int]:
+def get_version_numbers() -> tuple[str, str, int, int, int, int]:
     """Read version info from counter file and increment build number."""
     BUILD_COUNTER_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "build", "version", "build-counter.json")
 
@@ -69,21 +86,23 @@ def get_version_info() -> tuple[str, str, int, int, int, int]:
         with open(BUILD_COUNTER_FILE_PATH, 'w', encoding='utf-8') as f:
             json.dump(version_data, f, indent=2)
 
-        version_string = f"{major}.{minor}.{patch}"
-        full_version = f"{major}.{minor}.{patch}.{build_number}"
+        version_num_short = f"{major}.{minor}.{patch}"
+        version_num_full = f"{major}.{minor}.{patch}.{build_number}"
 
-        return version_string, full_version, major, minor, patch, build_number
+        return version_num_short, version_num_full, major, minor, patch, build_number
     except Exception as e:
         print(f"Warning: Could not manage version info: {e}")
         return "1.0.0", "1.0.0.1", 1, 0, 0, 1
 
 def generate_windows_version_info() -> None:
-    version_string, full_version, major, minor, patch, build_number = get_version_info()
+    version_num_short, version_num_full, major, minor, patch, build_number = get_version_numbers()
     special_build = get_git_commit_hash()
 
     prod_version = f"{major}.{minor}.{patch}.{build_number}"
     file_version = f"{major}.{minor}.{patch}.{build_number}"
     git_branch = get_git_branch()
+
+    version_info = get_version_strings()
 
     version_info_content = f"""\
 VSVersionInfo(
@@ -103,18 +122,18 @@ VSVersionInfo(
       StringTable(
         '040904B0',
         [
-        StringStruct('CompanyName', 'Deerhide.run'),
-        StringStruct('FileDescription', 'Jira Importer'),
+        StringStruct('CompanyName', '{version_info["company_name"]}'),
+        StringStruct('FileDescription', '{version_info["file_description"]}'),
         StringStruct('FileVersion', '{file_version}'),
-        StringStruct('InternalName', 'jira_importer'),
-        StringStruct('LegalCopyright', 'Copyright (c) 2025 Julien (@tom4897), Alain (@nakool). Licensed under the MIT License.'),
-        StringStruct('OriginalFilename', 'jira_importer.exe @branch {git_branch} @rev {special_build}'),
-        StringStruct('ProductName', 'Jira Importer'),
+        StringStruct('InternalName', '{version_info["internal_name"]}'),
+        StringStruct('LegalCopyright', '{version_info["copyright"]}'),
+        StringStruct('OriginalFilename', '{version_info["original_filename"]} @branch {git_branch} @rev {special_build}'),
+        StringStruct('ProductName', '{version_info["product_name"]}'),
         StringStruct('ProductVersion', '{prod_version}'),
-        StringStruct('Author', 'Julien (@tom4897), Alain (@nakool)'),
+        StringStruct('Author', '{version_info["author"]}'),
         StringStruct('BuildDate', '{datetime.today().strftime("%Y-%m-%d")}'),
-        StringStruct('Comments', 'Jira Importer is a tool that imports Jira issues into a CSV file.'),
-        StringStruct('LegalTrademarks', 'Jira is a registered trademark of Atlassian Pty Ltd.'),
+        StringStruct('Comments', '{version_info["comments"]}'),
+        StringStruct('LegalTrademarks', '{version_info["legal_trademarks"]}'),
         StringStruct('PrivateBuild', ''),
         StringStruct('SpecialBuild', '')
         ]
@@ -132,9 +151,9 @@ VSVersionInfo(
         with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(version_info_content)
         print(f"VSVersionInfo file generated successfully at {VERSION_FILE_PATH}")
-        print(f"Version: {version_string}")
+        print(f"Version: {version_num_short}")
         print(f"Build number: {build_number}")
-        print(f"Full version: {full_version}")
+        print(f"Full version: {version_num_full}")
         print(f"Rev: {special_build}")
         print(f"Branch: {git_branch}")
     except Exception as e:
@@ -142,7 +161,8 @@ VSVersionInfo(
         sys.exit(1)
 
 def generate_macos_version_info() -> None:
-    version_string, full_version, major, minor, patch, build_number = get_version_info()
+    version_num_short, version_num_full, major, minor, patch, build_number = get_version_numbers()
+    version_info = get_version_strings()
     special_build = get_git_commit_hash()
     git_branch = get_git_branch()
 
@@ -155,17 +175,17 @@ def generate_macos_version_info() -> None:
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Jira Importer</string>
+    <string>{version_info["product_name"]}</string>
     <key>CFBundleDisplayName</key>
-    <string>Jira Importer</string>
+    <string>{version_info["product_name"]}</string>
     <key>CFBundleIconFile</key>
     <string>deerhide_default.icns</string>
     <key>CFBundleIdentifier</key>
-    <string>com.deerhide.jira-importer</string>
+    <string>{version_info["bundle_identifier"]}</string>
     <key>CFBundleVersion</key>
     <string>{build_number}</string>
     <key>CFBundleShortVersionString</key>
-    <string>{version_string}</string>
+    <string>{version_num_short}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleDevelopmentRegion</key>
@@ -173,11 +193,11 @@ def generate_macos_version_info() -> None:
     <key>LSMinimumSystemVersion</key>
     <string>10.13</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright (c) 2025 Julien (@tom4897), Alain (@nakool). Licensed under the MIT License.</string>
+    <string>{version_info["copyright"]}</string>
 
     <!-- Build metadata -->
     <key>DHProductVersion</key>
-    <string>{full_version}</string>
+    <string>{version_num_full}</string>
     <key>DHGitRevision</key>
     <string>{special_build}</string>
     <key>DHGitBranch</key>
@@ -194,9 +214,9 @@ def generate_macos_version_info() -> None:
         with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(plist_content)
         print(f"VSVersionInfo file generated successfully at {VERSION_FILE_PATH}")
-        print(f"Version: {version_string}")
+        print(f"Version: {version_num_short}")
         print(f"Build number: {build_number}")
-        print(f"Full version: {full_version}")
+        print(f"Full version: {version_num_full}")
         print(f"Rev: {special_build}")
         print(f"Branch: {git_branch}")
     except Exception as e:

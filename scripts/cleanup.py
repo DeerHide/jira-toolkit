@@ -104,10 +104,9 @@ def main() -> int:
     if verbose:
         print(f"Cleaning root: {root}")
 
-
-
-    for cache_dir in iter_dirs_by_name(root, cache_dir_list):
-        remove_path(cache_dir, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
+    for cache_dir_name in cache_dir_list:
+        for cache_dir in iter_dirs_by_name(root, cache_dir_name):
+            remove_path(cache_dir, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
 
     for file_path in iter_files_by_suffixes(root, cache_file_suffixes):
         remove_path(file_path, dry_run=dry_run, vverbose=vverbose, verbose=verbose)

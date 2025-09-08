@@ -70,7 +70,7 @@ def _default_out_path(in_path: Path) -> Path:
     return f"{in_path.stem}_jira_ready.csv"
 
 # TODO: Move main logic to the app
-def main():
+def main() -> int:
     """Main function for the Jira Importer application."""
     # TODO: Move to cli
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -94,6 +94,7 @@ def main():
         app = App(artifact_manager)
         app.print_version()
         app.event_close(exit_code=0, cleanup=False)
+        return 0
 
 
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise

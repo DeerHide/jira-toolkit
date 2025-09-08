@@ -195,7 +195,7 @@ class ConsoleUI:
     def __init__(self, _console: Optional[Console] = None, style: ConsoleStyle = STYLE, formatter: Optional[Fmt] = None) -> None:
         self.c = _console or console
         self.style = style
-        self.fmt = formatter or fmt
+        self.fmt = formatter or Fmt(self.c)
 
     def say(self, *parts: str, sep: str = " ") -> None:
         self.c.print(sep.join(parts))

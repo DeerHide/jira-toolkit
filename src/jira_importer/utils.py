@@ -23,9 +23,28 @@ ui = ConsoleIO.getUI()
 fmt = ui.fmt
 
 def resource_path(relative_path: str) -> str:
+    """Resolve a resource path robustly across frozen and non-frozen runs.
+
+    - In PyInstaller (frozen), load from the temporary extraction dir (sys._MEIPASS).
+    - Otherwise, prefer the current working directory, but fall back safely if CWD is invalid.
+    """
+    # PyInstaller onefile/onedir extraction directory
     if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, relative_path)  # type: ignore
-    return os.path.join(os.path.abspath("."), relative_path)
+        try:
+            return os.path.join(sys._MEIPASS, relative_path)  # type: ignore[attr-defined]
+        except Exception:
+            # As a last resort, use the executable directory
+            base_dir = os.path.dirname(sys.executable)
+            return os.path.join(base_dir, relative_path)
+
+    # Non-frozen: try current working directory first
+    try:
+        cwd = os.getcwd()
+        return os.path.join(cwd, relative_path)
+    except Exception:
+        # If CWD is invalid (e.g., deleted), fall back to the module directory
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_dir, relative_path)
 # Usage: config_path = resource_path('config_importer.json')
 
 def get_logs_directory() -> str:

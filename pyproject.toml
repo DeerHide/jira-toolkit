@@ -1,17 +1,13 @@
-[build-system]
-requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "jira-toolkit"
-version = "1.0.0"
+version = "0.1.0"
 description = "A utility for batch-importing tasks from Excel into Jira"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "Julien", email = "tom4897@example.com"}
+    {name = "Julien", email = "hello@tom4897.info"}
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "pandas>=2.0.0",
     "openpyxl>=3.1.0",
@@ -21,7 +17,6 @@ dependencies = [
     "structlog>=23.0.0",
     "colorlog>=6.7.0",
     "PyYAML>=6.0",
-    "logging>=0.4.9.6",
 ]
 
 [project.optional-dependencies]
@@ -35,11 +30,61 @@ dev = [
     "mypy>=1.0.0",
 ]
 
-[project.scripts]
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.pyinstaller]
+optional = true
+
+[tool.poetry.group.pyinstaller.dependencies]
+pyinstaller = { version = "^6.15", python = ">=3.12,<3.15" }
+poetry-pyinstaller-plugin = "^1.0.0"
+
+[tool.poetry.scripts]
 jira-importer = "jira_importer.__main__:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.poetry-pyinstaller-plugin]
+use-poetry-install = true
+pre-build = "scripts.pyinstaller_hooks:pre_build"
+post-build = "scripts.pyinstaller_hooks:post_build"
+
+[tool.poetry]
+name = "jira_importer"
+version = "0.1.0"
+description = "Jira Importer Application"
+packages = [{ include = "jira_importer", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+
+[tool.poetry-pyinstaller-plugin.scripts.jira-importer]
+source = "src/jira_importer/__main__.py"
+type = "onefile"
+console = true
+icon = "build/icons/deerhide_default.ico"
+hiddenimport = [
+  "jira_importer.console",
+  "jira_importer.excel_io",
+  "jira_importer.app",
+  "jira_importer.config",
+  "jira_importer.artifacts",
+  "jira_importer.fileops",
+  "jira_importer.log",
+  "jira_importer.utils"
+]
+
+
+[tool.poetry-pyinstaller-plugin.include]
+"resources/**" = "resources"
+
+[tool.poetry-pyinstaller-plugin.package]
+"LICENSE"   = "."
+"README.md" = "."
+
+# Removed duplicate - using poetry scripts instead
+
+# Removed - using poetry packages configuration instead
 
 [tool.black]
 line-length = 150

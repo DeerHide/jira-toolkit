@@ -24,6 +24,10 @@ import shutil
 from pathlib import Path
 from typing import Iterable
 
+cache_dir_list: tuple[str, ...] = ("__pycache__",)
+cache_file_suffixes: tuple[str, ...] = (".pyc", ".pyo")
+log_file_suffixes: tuple[str, ...] = (".log",)
+
 def iter_dirs_by_name(root: Path, name: str) -> Iterable[Path]:
     for path in root.rglob(name):
         if path.is_dir() and path.name == name:
@@ -62,6 +66,8 @@ def empty_directory_contents(dir_path: Path, dry_run: bool, vverbose: bool, verb
     if not dir_path.exists() or not dir_path.is_dir():
         return
     for child in dir_path.iterdir():
+        if vverbose:
+            print(f"Emptying directory contents: {child}")
         remove_path(child, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
 
 
@@ -98,25 +104,19 @@ def main() -> int:
     if verbose:
         print(f"Cleaning root: {root}")
 
-    for cache_dir in iter_dirs_by_name(root, "__pycache__"):
-        remove_path(cache_dir, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
+    for cache_dir_name in cache_dir_list:
+        for cache_dir in iter_dirs_by_name(root, cache_dir_name):
+            remove_path(cache_dir, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
 
-    for file_path in iter_files_by_suffixes(root, (".pyc", ".pyo")):
+    for file_path in iter_files_by_suffixes(root, cache_file_suffixes):
         remove_path(file_path, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
 
-    for log_file in iter_files_by_suffixes(root, (".log",)):
+    for log_file in iter_files_by_suffixes(root, log_file_suffixes):
         remove_path(log_file, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
-
-    logs_dir = root / "src" / "jira_importer" / "jira_importer_logs"
-    if logs_dir.exists() and logs_dir.is_dir():
-        if verbose:
-            print(f"Clearing logs directory contents: {logs_dir}")
-        empty_directory_contents(logs_dir, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
 
     if verbose:
         print("Cleanup complete.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

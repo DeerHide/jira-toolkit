@@ -66,7 +66,8 @@ def empty_directory_contents(dir_path: Path, dry_run: bool, vverbose: bool, verb
     if not dir_path.exists() or not dir_path.is_dir():
         return
     for child in dir_path.iterdir():
-        print(f"Emptying directory contents: {child}")
+        if vverbose:
+            print(f"Emptying directory contents: {child}")
         remove_path(child, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
 
 

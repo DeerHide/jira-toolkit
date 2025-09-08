@@ -95,7 +95,6 @@ def main():
         app.print_version()
         app.event_close(exit_code=0, cleanup=False)
 
-    logger.info(f"Version: {app.version_info}")
 
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
     if getattr(args, "auto_yes", False):
@@ -135,6 +134,9 @@ def main():
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
     app = App(artifact_manager)
+
+    logger.info(f"Version: {app.version_info}")
+
 
     logger.info(f"Input: {args.input_file}")
     ui.say(f"Excel file: {fmt.path(args.input_file)}")

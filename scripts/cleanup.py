@@ -24,7 +24,7 @@ import shutil
 from pathlib import Path
 from typing import Iterable
 
-cache_dir_list: tuple[str, ...] = ("__pycache__")
+cache_dir_list: tuple[str, ...] = ("__pycache__",)
 cache_file_suffixes: tuple[str, ...] = (".pyc", ".pyo")
 log_file_suffixes: tuple[str, ...] = (".log",)
 

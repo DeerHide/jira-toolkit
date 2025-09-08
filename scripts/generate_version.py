@@ -76,13 +76,12 @@ def get_git_branch() -> str:
 
 def get_version_numbers() -> tuple[str, str, int, int, int, int]:
     """Read version info from counter file and increment build number."""
-    BUILD_COUNTER_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "build", "version", "build-counter.json")
 
-    counter_file = BUILD_COUNTER_FILE_PATH
+    counter_file = os.path.join(os.path.dirname(__file__), "..", "build", "version", "build-counter.json")
 
     try:
-        if os.path.exists(BUILD_COUNTER_FILE_PATH):
-            with open(BUILD_COUNTER_FILE_PATH, 'r', encoding='utf-8') as f:
+        if os.path.exists(counter_file):
+            with open(counter_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 major = data.get('major', 1)
                 minor = data.get('minor', 0)
@@ -97,7 +96,7 @@ def get_version_numbers() -> tuple[str, str, int, int, int, int]:
             'patch': patch,
             'build_number': build_number
         }
-        with open(BUILD_COUNTER_FILE_PATH, 'w', encoding='utf-8') as f:
+        with open(counter_file, 'w', encoding='utf-8') as f:
             json.dump(version_data, f, indent=2)
 
         version_num_short = f"{major}.{minor}.{patch}"

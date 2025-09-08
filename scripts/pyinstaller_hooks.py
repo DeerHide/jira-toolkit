@@ -61,7 +61,7 @@ def pre_build(interface) -> None:
         target["icon"] = cfg_files["icon"]
     if "version" in cfg_files:
         target["include"].append(build_context.include_file(cfg_files['version']))
-        pp["include"].append(build_context.include_file(cfg_files['version']), ".")
+        pp["include"].append((build_context.include_file(cfg_files['version']), "."))
     if "add_data" in cfg_pyi:
         target["include"].extend(cfg_pyi["add_data"])
 

@@ -1,8 +1,15 @@
 {
     "recommendations": [
-        "ms-python.python",
+        "ms-python.black-formatter",
+        "VisualStudioExptTeam.vscodeintellicode",
+        "VisualStudioExptTeam.intellicode-api-usage-examples",
+        "ms-python.vscode-pylance",
         "ms-python.pylint",
-        "ms-vscode.vscode-json",
-        "ms-vscode.powershell"
+        "ms-python.python",
+        "ms-python.debugpy",
+        "redhat.vscode-yaml",
+        "ms-python.mypy-type-checker",
+        "charliermarsh.ruff",
+        "ms-python.isort"
     ]
 }

@@ -148,7 +148,6 @@ venv.bak/
 .mypy_cache/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo

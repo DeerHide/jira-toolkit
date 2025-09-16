@@ -88,12 +88,12 @@ hiddenimport = [
 # Removed - using poetry packages configuration instead
 
 [tool.black]
-line-length = 150
+line-length = 120
 target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
-line_length = 150
+line_length = 120
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -101,11 +101,11 @@ addopts = ["--cov=jira_importer", "--cov-report=term-missing"]
 
 [tool.ruff]
 # Same as Black.
-line-length = 150
+line-length = 120
 indent-width = 4
 
 [tool.ruff.lint]
-select = ["F","E","W","I","UP","PL","N"]
+select = ["D","F","E","W","I","UP","PL","N","RUF"]
 ignore = [
   # Import position and long lines; will be fixed later
   "E402", "E501",

@@ -9,6 +9,36 @@
     "python.defaultInterpreterPath": "./.venv/Scripts/python.exe",
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": true,
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.testing.pytestPath": "pytest",
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.useLibraryCodeForTypes": true,
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "strict",
+    "python.envFile": "${workspaceFolder}/.venv",
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit",
+        "source.unusedImports": "never"
+    },
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "always",
+            "source.organizeImports": "always",
+            "source.convertImportFormat": "always"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "editor.rulers": [
+        120
+    ],
 
     // JSON settings
     "json.format.enable": true,
@@ -34,7 +64,6 @@
         "**/.pytest_cache": true,
         "**/.pytype": true,
         "**/build/temp": true,
-        "**/dist": true,
         "**/.venv": true
     },
 
@@ -45,7 +74,6 @@
         "**/.pytest_cache": true,
         "**/.pytype": true,
         "**/build/temp": true,
-        "**/dist": true,
         "**/.venv": true
     }
 }

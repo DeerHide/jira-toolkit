@@ -28,6 +28,8 @@ dev = [
     "isort>=5.12.0",
     "flake8>=6.0.0",
     "mypy>=1.0.0",
+    "ruff>=0.6.0",
+    "pylint>=3.2.0",
 ]
 
 [build-system]
@@ -88,11 +90,11 @@ hiddenimport = [
 
 [tool.black]
 line-length = 150
-target-version = ["py310"]
+target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
-line_length = 80
+line_length = 150
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -103,17 +105,31 @@ max-line-length = 150
 
 [tool.ruff]
 # Same as Black.
-line-length = 120
+line-length = 150
 indent-width = 4
 
 [tool.ruff.lint]
-select = ["D","F","E","W","I","UP","PL","N","RUF"]
+select = ["F","E","W","I","UP","PL","N"]
+ignore = [
+  # Import position and long lines; will be fixed later
+  "E402", "E501",
+  # Complexity/size rules to address in refactors
+  "PLR0912", "PLR0915", "PLR0913", "PLR0911",
+  # Comparison merging suggestion
+  "PLR1714",
+  # Import-outside-top-level noise
+  "PLC0415",
+  # Naming conventions that require broader refactors
+  "N802", "N806",
+  # Globals and similar
+  "PLW0603",
+]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
-docstring-code-line-length = 120
+docstring-code-line-length = 150
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

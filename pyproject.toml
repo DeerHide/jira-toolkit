@@ -123,6 +123,8 @@ ignore = [
   "N802", "N806",
   # Globals and similar
   "PLW0603",
+  # Allow TODO/FIXME notes without failing (Ruff's FIX002)
+  "FIX002",
 ]
 
 [tool.ruff.format]

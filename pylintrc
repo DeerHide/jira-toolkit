@@ -7,7 +7,8 @@ jobs=4
 disable=
     C0114,
     C0115,
-    C0116
+    C0116,
+    W0511
 
 [FORMAT]
 max-line-length=150

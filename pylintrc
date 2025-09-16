@@ -8,7 +8,8 @@ disable=
     C0114,
     C0115,
     C0116,
-    W0511
+    W0511,
+    W0718
 
 [FORMAT]
 max-line-length=150

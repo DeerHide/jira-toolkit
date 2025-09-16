@@ -26,7 +26,6 @@ dev = [
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
-    "flake8>=6.0.0",
     "mypy>=1.0.0",
     "ruff>=0.6.0",
     "pylint>=3.2.0",
@@ -99,9 +98,6 @@ line_length = 150
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--cov=jira_importer", "--cov-report=term-missing"]
-
-[flake8]
-max-line-length = 150
 
 [tool.ruff]
 # Same as Black.

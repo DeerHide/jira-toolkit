@@ -23,15 +23,17 @@ We've split the docs into focused files so you can find what you need:
 ### Setup Steps
 
 1. **Grab the code**
+
    ```bash
    git clone git@github.com:DeerHide/jira-toolkit.git
    cd jira-toolkit
    ```
 
 2. **Set up your environment**
+
    ```bash
    # Create virtual environment
-   python3 -m venv .venv
+   python -m venv .venv
 
    # Activate it
    # On Windows:
@@ -42,19 +44,23 @@ We've split the docs into focused files so you can find what you need:
    ```
 
 3. **Install stuff**
+
    ```bash
    pip install -r requirements.lock
+   python -m pip install -e .[dev]
    ```
 
 4. **Check it works**
+
    ```bash
-   python3 -m jira_importer -h
+   python -m jira_importer -h
    ```
 
 ## 📁 Project Layout
 
 ### Repository Structure
-```
+
+```text
 jira-toolkit/                    # Repository root
 ├── src/                         # Source code
 ├── build/                       # Build assets and working dirs
@@ -70,7 +76,8 @@ jira-toolkit/                    # Repository root
 ```
 
 ### Application Structure
-```
+
+```text
 src/jira_importer/               # Main application package
 ├── __main__.py                  # Entry point
 ├── app.py                       # Application logic
@@ -111,35 +118,41 @@ Want the nitty-gritty details? Check out **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 ### Running the App
 
 1. **Basic usage**
+
    ```bash
-   python3 -m jira_importer path/to/your/file.xlsx
+   python -m jira_importer path/to/your/file.xlsx
    ```
 
 2. **With debug mode**
+
    ```bash
-   python3 -m jira_importer path/to/your/file.xlsx -d
+   python -m jira_importer path/to/your/file.xlsx -d
    ```
 
 3. **With auto-fix enabled**
+
    ```bash
-   python3 -m jira_importer path/to/your/file.xlsx --auto-fix
+   python -m jira_importer path/to/your/file.xlsx --auto-fix
    ```
 
 ### Building
 
 1. **Development build**
+
    ```bash
-   python3 build.py -c dev
+   python build.py -c dev
    ```
 
 2. **Production build**
+
    ```bash
-   python3 build.py -c shipping
+   python build.py -c shipping
    ```
 
 ## 🔧 Key Components
 
 ### Import Pipeline (`import_pipeline/`)
+
 The main processing logic - handles validation, fixes, and data transformation:
 
 - **`processor.py`** - Main orchestrator that handles the entire flow
@@ -152,6 +165,7 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`reporting.py`** - Rich problem reporting with emojis and tables
 
 ### Key Features
+
 - **Direct XLSX processing** (no intermediate CSV conversion)
 - **Rich console UI** with tables and formatting
 - **Excel metadata writing** and processing reports
@@ -160,7 +174,9 @@ The main processing logic - handles validation, fixes, and data transformation:
 ## 🐛 Debugging
 
 ### Debug Mode
+
 Turn on debug mode with:
+
 - `-d` or `--debug` command line flag
 - Gives you detailed logging and extra output
 
@@ -176,16 +192,19 @@ Turn on debug mode with:
 We use **LF (Line Feed)** line endings for all text files. This keeps things consistent across Windows, macOS, and Linux.
 
 ### Why This Matters
+
 - **Cross-platform compatibility** between different OSes
 - **Git consistency** - no more line ending conflicts
 - **Build reliability** - avoids issues during executable creation
 
 ### We Handle It Automatically
+
 - **`.gitattributes`** file sets the rules
 - **Pre-commit hooks** fix line endings before commits
 - **Mixed-line-ending hook** ensures everything uses LF
 
 ### File Type Rules
+
 - **LF endings (Unix style):** Python files, Markdown, JSON, YAML, config files, shell scripts
 - **CRLF endings (Windows style):** Batch files (.bat, .cmd), PowerShell scripts (.ps1)
 - **Binary files:** Images, executables, libraries, and other binary assets

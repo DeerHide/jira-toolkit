@@ -27,23 +27,26 @@ cfg_req = 1
 debug_mode = False
 
 # Import classes
-from .console import ConsoleUI, fmt, ui
-from .excel_io import ExcelWorkbookManager
+from jira_importer.console import ConsoleIO
+from jira_importer.excel_io import ExcelWorkbookManager
 
-from .app import App
-from .config import Configuration
-from .artifacts import ArtifactManager
-from .fileops import FileManager
+from jira_importer.app import App
+from jira_importer.config import Configuration
+from jira_importer.artifacts import ArtifactManager
+from jira_importer.fileops import FileManager
 
-from .log import is_debug_mode, setup_logger, add_file_logging
-from .utils import resource_path, find_config_path, open_browser
-from .import_pipeline.processor import ImportProcessor
-from .import_pipeline.reporting import ProblemReporter, ReportOptions
-from .import_pipeline.sinks.csv_sink import write_csv
+from jira_importer.log import setup_logger, add_file_logging
+from jira_importer.utils import resource_path, find_config_path, open_browser
+from jira_importer.import_pipeline.processor import ImportProcessor
+from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
+from jira_importer.import_pipeline.sinks.csv_sink import write_csv
 
 # Suppress specific warnings from openpyxl
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+
+ui = ConsoleIO.getUI()
+fmt = ui.fmt
 
 # TODO: Add a loading config for the excel file in the excel_io.py file
 # TODO: Move to utils
@@ -67,18 +70,40 @@ def _default_out_path(in_path: Path) -> Path:
     return f"{in_path.stem}_jira_ready.csv"
 
 # TODO: Move main logic to the app
-def main():
+def main() -> int:
     """Main function for the Jira Importer application."""
-    args = App.parse_args()
     # TODO: Move to cli
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
-    ui.say("Authors:", fmt.default("Julien (@tom4897)"), ", ", fmt.default("Alain (@Nakool)"))
-    ui.say(fmt.kv("License", "MIT"))
-    ui.say(fmt.kv("Version", "1.0.0"))
+    ui.say(fmt.bold("Authors:"), fmt.default("Julien (@tom4897)"), fmt.default("Alain (@Nakool)"))
+    ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
 
     # --- Initialization ---
     ui.lf()
     ui.progress_light("Initializing Jira Importer")
+    args = App.parse_args()
+
+    # Handle version flag early, before any configuration loading
+    if args.version:
+        # Create a minimal config for version display
+        class MinimalConfig:
+            def get_value(self, key, default=None, expected_type=None):
+                return default
+
+        minimal_config = MinimalConfig()
+        artifact_manager = ArtifactManager(minimal_config)
+        app = App(artifact_manager)
+        app.print_version()
+        app.event_close(exit_code=0, cleanup=False)
+        return 0
+
+
+    # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
+    if getattr(args, "auto_yes", False):
+        autoreply = True
+    elif getattr(args, "auto_no", False):
+        autoreply = False
+    else:
+        autoreply = None
 
     # Handle mutually exclusive configuration arguments
     if args.config_default:
@@ -101,7 +126,7 @@ def main():
     logger = logging.getLogger(__name__)
 
     # Add file logging if enabled in config
-    from .log import add_file_logging
+    from jira_importer.log import add_file_logging
     add_file_logging(config)
 
     if logging.getLogger().level == logging.DEBUG:
@@ -111,9 +136,8 @@ def main():
     file_manager = FileManager(artifact_manager, config)
     app = App(artifact_manager)
 
-    if args.version:
-        ui.say("Jira Importer v1.0.0")
-        app.event_close(exit_code=0, cleanup=False)
+    logger.info(f"Version: {app.version_info}")
+
 
     logger.info(f"Input: {args.input_file}")
     ui.say(f"Excel file: {fmt.path(args.input_file)}")
@@ -122,7 +146,6 @@ def main():
 
     logger.debug("Jira Importer initialized.")
     logger.debug(f"Configuration loaded: {config.path}")
-    logger.debug(f"Debug mode: {is_debug_mode()}")
     logger.debug(f"Input file: {args.input_file}")
     logger.debug(fmt.kv("Input file", fmt.path(App._args.input_file)))
     logger.debug(fmt.kv("Configuration", fmt.path(App._args.config)))
@@ -187,7 +210,8 @@ def main():
             ui.hint(f"You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag.")
 
         if result.report.errors > 0:
-            if not ui.prompt_yes_no("Do you want to continue?", default=False):
+
+            if not ui.prompt_yes_no("Do you want to continue?", default=False, auto_reply=autoreply):
                 app.event_abort(exit_code=1)
             else:
                 ui.success("Continuing...")

@@ -195,7 +195,7 @@ class ConsoleUI:
     def __init__(self, _console: Optional[Console] = None, style: ConsoleStyle = STYLE, formatter: Optional[Fmt] = None) -> None:
         self.c = _console or console
         self.style = style
-        self.formatter = formatter or fmt
+        self.fmt = formatter or Fmt(self.c)
 
     def say(self, *parts: str, sep: str = " ") -> None:
         self.c.print(sep.join(parts))
@@ -270,7 +270,7 @@ class ConsoleUI:
         Example:
         ─────────────────────  ◆  PROJECT SETUP  ◆  ─────────────────────
         """
-        chip = f" {icon} {fmt.t_h1(text.upper())} {icon} "
+        chip = f" {icon} {self.fmt.t_h1(text.upper())} {icon} "
         # console.rule centers and stretches to width
         self.c.rule(chip, style="rule.h1")
 
@@ -281,7 +281,7 @@ class ConsoleUI:
         • Configuration
         ─────────────────────────────────────────
         """
-        self.c.print(f"{icon} {fmt.t_h2(text)}")
+        self.c.print(f"{icon} {self.fmt.t_h2(text)}")
         self.c.rule(style="rule.h2")
 
     def title_h3(self, text: str, *, icon: str = "→") -> None:
@@ -291,16 +291,16 @@ class ConsoleUI:
         → Credentials
         ─────────────
         """
-        self.c.print(f"{icon} {fmt.t_h3(text)}")
+        self.c.print(f"{icon} {self.fmt.t_h3(text)}")
         self.c.rule(style="rule.h3")
 
     def title_banner(self, text: str, *, sub: str | None = None, icon: str = "🚀") -> None:
         """
         Emphatic banner (panel) for start/finish milestones.
         """
-        body = f"{icon} {fmt.t_h2(text)}"
+        body = f"{icon} {self.fmt.t_h2(text)}"
         if sub:
-            body += f"\n{fmt.t_note(sub)}"
+            body += f"\n{self.fmt.t_note(sub)}"
         panel = Panel(
             Align.center(body),
             border_style="accent",
@@ -316,9 +316,9 @@ class ConsoleUI:
             return
         crumbed = []
         for i, p in enumerate(parts):
-            crumbed.append(fmt.crumb(p))
+            crumbed.append(self.fmt.crumb(p))
             if i < len(parts) - 1:
-                crumbed.append(f" {fmt.crumb_sep(sep)} ")
+                crumbed.append(f" {self.fmt.crumb_sep(sep)} ")
         self.c.print("".join(crumbed))
 
     # Tables
@@ -363,6 +363,7 @@ class ConsoleUI:
         *,
         default: bool | None = None,
         max_attempts: int = 3,
+        auto_reply: bool = None,
     ) -> bool:
         """
         Yes/No confirmation prompt (returns True/False).
@@ -373,12 +374,20 @@ class ConsoleUI:
         - On EOF/KeyboardInterrupt: returns default if provided, else False.
         - After `max_attempts` invalid tries: returns default if provided, else False.
         """
+
+        if auto_reply is not None:
+            if auto_reply:
+                self.say(self.fmt.success("Auto-yes flag is set. Continuing..."))
+            else:
+                self.say(self.fmt.error("Auto-no flag is set. Aborting..."))
+            return auto_reply
+
         # Non-interactive fallback
         if not sys.stdin.isatty():
             if default is not None:
-                self.say(fmt.note("Non-interactive mode: using default."))
+                self.say(self.fmt.note("Non-interactive mode: using default."))
                 return default
-            self.say(fmt.note("Non-interactive mode: no input available."))
+            self.say(self.fmt.note("Non-interactive mode: no input available."))
             return False
 
         def _normalize(resp: str) -> bool | None:
@@ -394,11 +403,11 @@ class ConsoleUI:
         # Build styled prompt text
         default_hint = ""
         if default is True:
-            default_hint = f" {fmt.default('[Y/n]')}"
+            default_hint = f" {self.fmt.default('[Y/n]')}"
         elif default is False:
-            default_hint = f" {fmt.default('[y/N]')}"
+            default_hint = f" {self.fmt.default('[y/N]')}"
 
-        prompt_line = f"{fmt.prompt(question)}{default_hint}: "
+        prompt_line = f"{self.fmt.prompt(question)}{default_hint}: "
 
         attempts = 0
         while True:
@@ -440,11 +449,11 @@ class ConsoleUI:
 
         while True:
             # Build prompt components
-            hint_part = f" {fmt.hint(hint)}" if hint else ""
-            def_part = f" {fmt.default(f'(default: {default})')}" if default else ""
-            req_mark = f" {fmt.required('*')}" if required else ""
+            hint_part = f" {self.fmt.hint(hint)}" if hint else ""
+            def_part = f" {self.fmt.default(f'(default: {default})')}" if default else ""
+            req_mark = f" {self.fmt.required('*')}" if required else ""
 
-            prompt_text = f"{fmt.prompt(question)}{req_mark}{hint_part}{def_part}: "
+            prompt_text = f"{self.fmt.prompt(question)}{req_mark}{hint_part}{def_part}: "
 
             try:
                 response = self.c.input(prompt_text).strip()
@@ -455,7 +464,7 @@ class ConsoleUI:
                 if default is not None:
                     return default
                 if required:
-                    self.say(fmt.warning("This value is required."))
+                    self.say(self.fmt.warning("This value is required."))
                     continue
                 return ""
 
@@ -492,21 +501,21 @@ class ConsoleUI:
         if not sys.stdin.isatty():
             if default_idx is not None and 1 <= default_idx <= n:
                 return default_idx - 1
-            self.say(fmt.note("Non-interactive mode: no input available."))
+            self.say(self.fmt.note("Non-interactive mode: no input available."))
             return -1
 
         # Render the list once
-        self.say(fmt.prompt(question))
+        self.say(self.fmt.prompt(question))
         for i, label in enumerate(options, start=1):
             hint_txt = ""
             if hints and (i - 1) < len(hints) and hints[i - 1]:
-                hint_txt = f"  {fmt.hint(hints[i - 1])}"
-            self.say(f"  {fmt.hotkey(str(i))}) {fmt.choice(label)}{hint_txt}")
+                hint_txt = f"  {self.fmt.hint(hints[i - 1])}"
+            self.say(f"  {self.fmt.hotkey(str(i))}) {self.fmt.choice(label)}{hint_txt}")
 
         # Build the input line
-        range_hint = fmt.hint(f"1..{n}")
-        default_hint = f" {fmt.default(f'(default: {default_idx})')}" if default_idx else ""
-        prompt_line = f"{fmt.prompt('Select')} {range_hint}{default_hint}: "
+        range_hint = self.fmt.hint(f"1..{n}")
+        default_hint = f" {self.fmt.default(f'(default: {default_idx})')}" if default_idx else ""
+        prompt_line = f"{self.fmt.prompt('Select')} {range_hint}{default_hint}: "
 
         attempts = 0
         while True:
@@ -533,12 +542,43 @@ class ConsoleUI:
             if attempts >= max_attempts:
                 return default_idx - 1 if default_idx else -1
 
-            self.warning(f"Pick one of {fmt.hotkey(f'1..{n}')} or {fmt.hotkey('q')} to cancel.")
+            self.warning(f"Pick one of {self.fmt.hotkey(f'1..{n}')} or {self.fmt.hotkey('q')} to cancel.")
 
     def confirm_destructive(self, action: str, *, default: bool = False) -> bool:
-        self.say(fmt.danger("This action cannot be undone."))
+        self.say(self.fmt.danger("This action cannot be undone."))
         return self.prompt_yes_no(f"{action}? ", default=default)
 
+class ConsoleIO:
+    """Factory class for console instances with singleton-like behavior."""
 
-fmt = Fmt(console)
-ui = ConsoleUI(formatter=fmt)
+    _console_instance: Optional[Console] = None
+    _ui_instance: Optional[ConsoleUI] = None
+
+    @classmethod
+    def getConsole(cls) -> Console:
+        """Get the console instance, creating it if needed."""
+        if cls._console_instance is None:
+            cls._console_instance = Console(theme=THEME, highlight=True, soft_wrap=False)
+        return cls._console_instance
+
+    @classmethod
+    def getUI(cls) -> ConsoleUI:
+        """Get the UI instance, creating it if needed."""
+        if cls._ui_instance is None:
+            cls._ui_instance = ConsoleUI(
+                _console=cls.getConsole(),
+                style=STYLE,
+                formatter=Fmt(cls.getConsole())
+            )
+        return cls._ui_instance
+
+    @classmethod
+    def getComponents(cls) -> tuple[ConsoleUI, Fmt]:
+        ui = cls.getUI()
+        return ui, ui.fmt
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset all instances (useful for testing)."""
+        cls._console_instance = None
+        cls._ui_instance = None

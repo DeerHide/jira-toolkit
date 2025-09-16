@@ -1,0 +1,119 @@
+[project]
+name = "jira-toolkit"
+version = "0.1.0"
+description = "A utility for batch-importing tasks from Excel into Jira"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Julien", email = "hello@tom4897.info"}
+]
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "rich>=13.0.0",
+    "rich-argparse>=1.7.0",
+    "tqdm>=4.65.0",
+    "structlog>=23.0.0",
+    "colorlog>=6.7.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.0.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.pyinstaller]
+optional = true
+
+[tool.poetry.group.pyinstaller.dependencies]
+pyinstaller = { version = "^6.15", python = ">=3.12,<3.15" }
+poetry-pyinstaller-plugin = "^1.0.0"
+
+[tool.poetry.scripts]
+jira-importer = "jira_importer.__main__:main"
+
+[tool.poetry-pyinstaller-plugin]
+use-poetry-install = true
+pre-build = "scripts.pyinstaller_hooks:pre_build"
+post-build = "scripts.pyinstaller_hooks:post_build"
+
+[tool.poetry]
+name = "jira_importer"
+version = "0.1.0"
+description = "Jira Importer Application"
+packages = [{ include = "jira_importer", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+
+[tool.poetry-pyinstaller-plugin.scripts.jira-importer]
+source = "src/jira_importer/__main__.py"
+type = "onefile"
+console = true
+icon = "build/icons/deerhide_default.ico"
+hiddenimport = [
+  "jira_importer.console",
+  "jira_importer.excel_io",
+  "jira_importer.app",
+  "jira_importer.config",
+  "jira_importer.artifacts",
+  "jira_importer.fileops",
+  "jira_importer.log",
+  "jira_importer.utils"
+]
+
+
+[tool.poetry-pyinstaller-plugin.include]
+"resources/**" = "resources"
+
+[tool.poetry-pyinstaller-plugin.package]
+"LICENSE"   = "."
+"README.md" = "."
+
+# Removed duplicate - using poetry scripts instead
+
+# Removed - using poetry packages configuration instead
+
+[tool.black]
+line-length = 150
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 80
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--cov=jira_importer", "--cov-report=term-missing"]
+
+[flake8]
+max-line-length = 150
+
+[tool.ruff]
+# Same as Black.
+line-length = 120
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["D","F","E","W","I","UP","PL","N","RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 120
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

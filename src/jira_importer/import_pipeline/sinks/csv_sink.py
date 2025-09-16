@@ -17,7 +17,10 @@ from typing import Any
 
 from ..models import ProcessorResult
 from ..config_view import ConfigView
+from .sink_utils import times60_estimates_inplace
+from ...console import ConsoleIO
 
+ui = ConsoleIO.getUI()
 
 def write_csv(
     result: ProcessorResult,
@@ -36,7 +39,7 @@ def write_csv(
         make it config-driven here (NOT in rules/fixes):
 
             if cfg.get("jira.cloud.estimate.multiply_by_60", False):
-                _times60_estimates_inplace(result)
+                times60_estimates_inplace(result)
 
     """
     out_path = Path(out_path)
@@ -46,41 +49,22 @@ def write_csv(
 
     # Optional: apply Jira Cloud quirk here, not in rules/fixes.
     if cfg and cfg.get("jira.cloud.estimate.multiply_by_60", False):
-        _times60_estimates_inplace(result)
+        times60_estimates_inplace(result)
 
     with out_path.open("w", encoding=encoding, newline=newline) as fh:
         w = csv.writer(fh)
         w.writerow(result.header)
-        for row in result.rows:
-            w.writerow(row)
+
+        # Add progress tracking if UI is available
+        if ui and hasattr(ui, 'progress'):
+            with ui.progress() as progress:
+                task = progress.add_task("Writing CSV", total=len(result.rows))
+                for row in result.rows:
+                    w.writerow(row)
+                    progress.advance(task)
+        else:
+            # Fallback without progress tracking
+            for row in result.rows:
+                w.writerow(row)
 
     return out_path
-
-# TODO: Create sink helpers and move this there
-def _times60_estimates_inplace(result: ProcessorResult) -> None:
-    """
-    Multiply estimate/original estimate columns by 60 in-place for compatibility
-    with Jira Cloud CSV import behavior. Config-driven; called from write_csv().
-    """
-    idx = result.indices
-    if not idx:
-        return
-
-    cols = []
-    if idx.estimate is not None:
-        cols.append(idx.estimate)
-    if idx.origest is not None:
-        cols.append(idx.origest)
-
-    if not cols:
-        return
-
-    for r in result.rows:
-        for c in cols:
-            try:
-                if r[c] is None or str(r[c]).strip() == "":
-                    continue
-                r[c] = str(int(float(str(r[c]))) * 60)
-            except Exception:
-                # Leave as-is if non-numeric
-                pass

@@ -43,6 +43,37 @@ Use the provided `ImportTemplate.xlsx` as a starting point for your data. The to
 - Validate and format data for Jira import
 - Generate a properly formatted CSV file ready for Jira
 
+### Row Skipping
+
+The tool supports skipping rows during processing using multiple criteria:
+- **RowType column**: Set `RowType = "SKIP"` for rows you want to exclude
+- **Issue Type filtering**: Automatically skip rows with Issue Types like "comment", "note", "skip"
+- Skipped rows bypass validation and won't appear in the final output
+- Configure this feature in your config file with `"skip_rowtype": true` and `"skip_issuetypes": ["comment", "note", "skip"]`
+
+Example:
+```csv
+Summary,Priority,Issue Type,RowType
+Fix login bug,High,Bug,PROCESS
+Skip this row,Low,Story,SKIP
+Comment row,Low,comment,PROCESS
+Update docs,Medium,Task,PROCESS
+```
+
+**Configuration:**
+```json
+{
+  "app": {
+    "validation": {
+      "skip_rowtype": true,
+      "skip_issuetypes": ["comment", "note", "skip"]
+    }
+  }
+}
+```
+
+See [ROW_SKIPPING.md](docs/ROW_SKIPPING.md) for detailed documentation.
+
 ## Output
 
 The tool generates a formatted CSV file in the same directory as your input file, ready for import into Jira.

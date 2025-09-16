@@ -190,6 +190,19 @@ class IssueIdPresenceRule(IRowRule):
                 )
             )
 
+        if ctx.invalid_issue_id(issue_id):
+            return ValidationResult(
+                problems=(
+                    Problem(
+                        code="issueid.invalid",
+                        message=f"IssueId '{issue_id}' is invalid and will be assigned automatically.",
+                        severity=ProblemSeverity.FIX,
+                        row_index=ctx.row_index,
+                        col_key="issue id",
+                    ),
+                )
+            )
+
         # duplicate detection
         if ctx.seen_issue_id(issue_id):
             return ValidationResult(
@@ -197,18 +210,6 @@ class IssueIdPresenceRule(IRowRule):
                     Problem(
                         code="issueid.duplicate",
                         message=f"IssueId '{issue_id}' is duplicated.",
-                        severity=ProblemSeverity.ERROR,
-                        row_index=ctx.row_index,
-                        col_key="issue id",
-                    ),
-                )
-            )
-        if ctx.invalid_issue_id(issue_id):
-            return ValidationResult(
-                problems=(
-                    Problem(
-                        code="issueid.invalid",
-                        message=f"IssueId '{issue_id}' is invalid.",
                         severity=ProblemSeverity.ERROR,
                         row_index=ctx.row_index,
                         col_key="issue id",

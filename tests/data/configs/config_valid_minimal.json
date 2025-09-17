@@ -1,11 +1,7 @@
 {
   "app": {
     "logging": {
-      "write_to_file": true,
-      "console_output": true,
-      "log_level": "INFO",
-      "max_log_size_mb": 10,
-      "max_log_files": 5
+      "write_to_file": true
     }
   },
     "jira": {

@@ -20,11 +20,11 @@ class ConfigurationError(Exception):
     """Raised when the configuration file is invalid or cannot be read."""
 
 
-class Configuration:
-    """Configuration class."""
+class JsonConfiguration:
+    """JSON-based configuration class."""
 
     def __init__(self, path: str = DEFAULT_CONFIG_FILENAME, cfg_req: int = CFG_REQ_DEFAULT) -> None:
-        """Initialize the Configuration class."""
+        """Initialize the JsonConfiguration class."""
         logger.debug(f"Loading configuration from {path}")
         if not Path(path).is_file():
             logger.error(f"The provided path '{path}' is not a valid file path.")

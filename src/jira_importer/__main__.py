@@ -19,7 +19,7 @@ from jira_importer import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 # Import classes
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
-from jira_importer.config import Configuration
+from jira_importer.config_factory import ConfigurationFactory
 from jira_importer.console import ConsoleIO
 from jira_importer.excel_io import ExcelWorkbookManager
 from jira_importer.fileops import FileManager
@@ -42,8 +42,6 @@ ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
 
 
-# TODO: Add a loading config for the excel file in the excel_io.py file
-# TODO: Move to utils
 def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:  # pylint: disable=unused-argument
     """Return (config_like, excel_manager_or_None).
 
@@ -113,7 +111,7 @@ def main() -> int:
         config_path = find_config_path(args.config, args.input_file)
         logging.debug(f"!config_default & !config_input: {config_path}")
 
-    config = Configuration(config_path, cfg_req=CFG_REQ_DEFAULT)
+    config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
 
     # Initialize logging with CLI override and config support
     setup_logger(logging.DEBUG if args.debug else None, config)

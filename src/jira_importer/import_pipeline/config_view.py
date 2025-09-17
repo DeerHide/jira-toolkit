@@ -4,9 +4,6 @@ author:
     Julien (@tom4897)
 """
 
-# TODO: Create a config view for the excel file
-# TODO: Check potential duplicates and conflicts between all the config sources (importer, excel, import pipeline)
-
 from __future__ import annotations
 
 from collections.abc import Mapping

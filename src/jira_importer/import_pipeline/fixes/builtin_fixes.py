@@ -1,42 +1,36 @@
-"""
-script name: builtin_fixes.py
-description: This script contains the built-in fixes for the Jira Importer.
-author: Julien (@tom4897)
-license: MIT
-date: 2025
+"""description: This script contains the built-in fixes for the Jira Importer.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Sequence
-
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
-from ..models import (
-    IFixer,
-    FixOutcome,
-    Problem,
-    ProblemSeverity,
-    ValidationContext,
-    ColumnIndices,
-)
+from ..models import ColumnIndices, FixOutcome, IFixer, Problem, ValidationContext
 
 # helpers functions
 
-def _cell_str(row: Sequence[Any], idx: Optional[int]) -> str:
+
+def _cell_str(row: Sequence[Any], idx: int | None) -> str:
     if idx is None or idx < 0 or idx >= len(row):
         return ""
     v = row[idx]
     return "" if v is None else str(v).strip()
 
-def _int_try(s: str) -> Optional[int]:
+
+def _int_try(s: str) -> int | None:
     try:
         return int(s)
     except Exception:
         return None
 
-def _canonical_priority(value: str, *, allowed: list[str]) -> Optional[str]:
+
+def _canonical_priority(value: str, *, allowed: list[str]) -> str | None:
     """Return canonical priority label if value matches (case-insensitive), else None."""
     v = value.strip()
     if not v:
@@ -52,15 +46,19 @@ def _canonical_priority(value: str, *, allowed: list[str]) -> Optional[str]:
     # case-insensitive match
     return lower_map.get(v.lower())
 
+
 def _cfg_get(ctx: ValidationContext, key: str, default: Any) -> Any:
     g = getattr(ctx.config, "get", None)
     return g(key, default) if callable(g) else default
 
+
 # fixes definitions
+
 
 @dataclass(slots=True)
 class ProjectKeyFixer(IFixer):
-    """
+    """Fixes the project key.
+
     Fixes:
       - project_key.missing  -> set to configured key (if available)
       - project_key.mismatch -> override with configured key
@@ -68,7 +66,9 @@ class ProjectKeyFixer(IFixer):
       - Column may be absent (optional) → no-op
       - Config key: 'jira.project.key' should contain the canonical project key
     """
+
     def apply(self, problem: Problem, row: Sequence[Any], indices: ColumnIndices, ctx: ValidationContext) -> FixOutcome:
+        """Apply the fix to the problem."""
         if indices.project_key is None:
             return FixOutcome(applied=False)
 
@@ -88,8 +88,7 @@ class ProjectKeyFixer(IFixer):
 
 @dataclass(slots=True)
 class PriorityNormalizeFixer(IFixer):
-    """
-    Normalizes priority to a canonical label list.
+    """Normalizes priority to a canonical label list.
 
     Config (optional):
       - validation.allowed_priorities: list[str]
@@ -97,7 +96,9 @@ class PriorityNormalizeFixer(IFixer):
       - validation.priority.number_map: bool
         if true, '1'->first allowed, '2'->second, etc. (default: true)
     """
+
     def apply(self, problem: Problem, row: Sequence[Any], indices: ColumnIndices, ctx: ValidationContext) -> FixOutcome:
+        """Apply the fix to the problem."""
         if indices.priority is None:
             return FixOutcome(applied=False)
         if problem.col_key not in {None, "priority"}:
@@ -125,10 +126,10 @@ class PriorityNormalizeFixer(IFixer):
 
         return FixOutcome(applied=True, patch={indices.priority: canon}, notes=f"Priority normalized to '{canon}'.")
 
+
 @dataclass(slots=True)
 class EstimateNormalizeFixer(IFixer):
-    """
-    Parses human-friendly estimates and normalizes them to the target unit.
+    """Parses human-friendly estimates and normalizes them to the target unit.
 
     Input examples accepted (case-insensitive):
       '1w 2d 3h 30m', '2h', '45m', '3600', '90' (int per config)
@@ -138,7 +139,9 @@ class EstimateNormalizeFixer(IFixer):
       - time.h_per_day: int (default 8)
       - time.wd_per_week: int (default 5)
     """
+
     def apply(self, problem: Problem, row: Sequence[Any], indices: ColumnIndices, ctx: ValidationContext) -> FixOutcome:
+        """Apply the fix to the problem."""
         # Only handle estimate-format problems
         if problem.code != "estimate.invalid_format":
             return FixOutcome(applied=False)
@@ -181,8 +184,8 @@ class EstimateNormalizeFixer(IFixer):
         )
 
 
-
 _EST_TOKEN_RE = re.compile(r"(?P<num>\d+)\s*(?P<unit>[wdhms])", re.IGNORECASE)
+
 
 def _parse_estimate_to_seconds(
     value: str,
@@ -190,9 +193,9 @@ def _parse_estimate_to_seconds(
     accept_int_as: str = "seconds",
     hours_per_day: int = 8,
     workdays_per_week: int = 5,
-) -> Optional[int]:
-    """
-    Parse estimates into SECONDS.
+) -> int | None:
+    """Parse estimates into SECONDS.
+
     Supports:
       - tokenized: '1w 2d 3h 30m', '2h', '45m', '30s'
       - chained:   '1w2d3h30m', '2h30m'
@@ -229,13 +232,12 @@ def _parse_estimate_to_seconds(
             total_minutes += qty / 60.0
         pos = m.end()
 
-    return int(round(total_minutes * 60))
+    return round(total_minutes * 60)
 
 
 @dataclass(slots=True)
 class AssignIssueIdFixer(IFixer):
-    """
-    Assigns a unique temporary IssueId when missing or invalid.
+    """Assigns a unique temporary IssueId when missing or invalid.
 
     Strategy:
       - Use configurable prefix (default None - no prefix)
@@ -245,7 +247,9 @@ class AssignIssueIdFixer(IFixer):
       - issueid.prefix: str | None (default None - no prefix)
       - issueid.width: int (default 3)
     """
+
     def apply(self, problem: Problem, row: Sequence[Any], indices: ColumnIndices, ctx: ValidationContext) -> FixOutcome:
+        """Apply the fix to the problem."""
         if problem.code not in ["issueid.missing", "issueid.invalid"]:
             return FixOutcome(applied=False)
         if indices.issue_id is None:
@@ -259,24 +263,28 @@ class AssignIssueIdFixer(IFixer):
             candidate = f"{prefix or ''}{attempt:0{width}d}"
             # seen_issue_id() records if not seen and returns False
             if not ctx.seen_issue_id(candidate):
-                return FixOutcome(applied=True, patch={indices.issue_id: candidate}, notes=f"IssueId assigned '{candidate}'.")
+                return FixOutcome(
+                    applied=True, patch={indices.issue_id: candidate}, notes=f"IssueId assigned '{candidate}'."
+                )
 
         # Fallback: give up gracefully (extremely unlikely)
         return FixOutcome(applied=False)
 
+
 # factory function
 
-def get_builtin_fixers() -> Dict[str, IFixer]:
-    """
-    Returns a mapping of problem.code -> IFixer instance for built-ins.
+
+def get_builtin_fixers() -> dict[str, IFixer]:
+    """Returns a mapping of problem.code -> IFixer instance for built-ins.
+
     A registry can consume this and register them accordingly.
     """
     return {
         "project_key.missing": ProjectKeyFixer(),
         "project_key.mismatch": ProjectKeyFixer(),
-        "priority.invalid":     PriorityNormalizeFixer(),
-        "priority.missing":     PriorityNormalizeFixer(),
+        "priority.invalid": PriorityNormalizeFixer(),
+        "priority.missing": PriorityNormalizeFixer(),
         "estimate.invalid_format": EstimateNormalizeFixer(),
-        "issueid.missing":      AssignIssueIdFixer(),
-        "issueid.invalid":      AssignIssueIdFixer(),
+        "issueid.missing": AssignIssueIdFixer(),
+        "issueid.invalid": AssignIssueIdFixer(),
     }

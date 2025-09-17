@@ -1,30 +1,32 @@
-"""
-Script Name: csv_source.py
-Description: This script contains the CSV source reader returning HeaderSchema and rows.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+"""Description: This script contains the CSV source reader returning HeaderSchema and rows.
+
+Author:
+    ulien (@tom4897)
 """
 
 from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Any, List, Tuple
-
-from ..models import HeaderSchema
+from typing import Any
 
 from ...console import ConsoleIO
+from ..models import HeaderSchema
 
 ui = ConsoleIO.getUI()
 
+
 class CsvSource:
+    """CSV source reader returning HeaderSchema and rows."""
+
     def __init__(self, path: str | Path, *, encoding: str = "utf-8", newline: str = "") -> None:
+        """Initialize the CsvSource."""
         self.path = Path(path)
         self.encoding = encoding
         self.newline = newline
 
     def read(self) -> tuple[HeaderSchema, list[list[Any]]]:
+        """Read the CSV file and return the HeaderSchema and rows."""
         if not self.path.exists():
             raise FileNotFoundError(self.path)
 
@@ -38,7 +40,7 @@ class CsvSource:
             total_rows = len(all_rows)
 
             # Add progress tracking if UI is available
-            if ui and hasattr(ui, 'progress'):
+            if ui and hasattr(ui, "progress"):
                 with ui.progress() as progress:
                     task = progress.add_task("Reading CSV data", total=total_rows)
 

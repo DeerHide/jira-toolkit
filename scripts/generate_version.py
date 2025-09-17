@@ -1,30 +1,30 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""Creates a new VSVersionInfo file for use with PyInstaller builds.
 
-"""
-Creates a new VSVersionInfo file for use with PyInstaller builds.
-
-Author: Julien (@tom4897)
-Date: June 2025
+Author:
+    Julien (@tom4897)
 """
 
+import json
 import os
 import subprocess
 import sys
-import json
 from datetime import datetime
 
 # TODO: refactor into a class in the build_utils package
 
+
 # TODO: Move to utils
 def _get_project_root() -> str:
+    """Get the project root directory."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     while current_dir != os.path.dirname(current_dir):
-        if os.path.exists(os.path.join(current_dir, '.git')):
+        if os.path.exists(os.path.join(current_dir, ".git")):
             return current_dir
         current_dir = os.path.dirname(current_dir)
 
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 # TODO: Use these strings in the build_utils package
 def get_version_strings() -> dict[str, str]:
@@ -42,15 +42,17 @@ def get_version_strings() -> dict[str, str]:
     ret["bundle_identifier"] = "com.deerhide.jira-importer"
     return ret
 
+
 def get_git_commit_hash() -> str:
     """Get the short commit hash from Git."""
     try:
         # Get the short commit hash (first 7 characters)
         result = subprocess.run(
-            ['git', 'rev-parse', '--short', 'HEAD'],
+            ["git", "rev-parse", "--short", "HEAD"],
+            check=False,
             capture_output=True,
             text=True,
-            cwd=_get_project_root()
+            cwd=_get_project_root(),
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -61,10 +63,13 @@ def get_git_commit_hash() -> str:
         print(f"Warning: Could not execute Git command: {e}")
         return "unknown"
 
+
 def get_git_branch() -> str:
     """Get the Git branch from Git."""
     try:
-        result = subprocess.run(['git', 'branch', '--show-current'], capture_output=True, text=True, cwd=_get_project_root())
+        result = subprocess.run(
+            ["git", "branch", "--show-current"], check=False, capture_output=True, text=True, cwd=_get_project_root()
+        )
         if result.returncode == 0:
             return result.stdout.strip()
         else:
@@ -74,29 +79,24 @@ def get_git_branch() -> str:
         print(f"Warning: Could not execute Git command: {e}")
         return "unknown"
 
+
 def get_version_numbers() -> tuple[str, str, int, int, int, int]:
     """Read version info from counter file and increment build number."""
-
     counter_file = os.path.join(os.path.dirname(__file__), "..", "build", "version", "build-counter.json")
 
     try:
         if os.path.exists(counter_file):
-            with open(counter_file, 'r', encoding='utf-8') as f:
+            with open(counter_file, encoding="utf-8") as f:
                 data = json.load(f)
-                major = data.get('major', 1)
-                minor = data.get('minor', 0)
-                patch = data.get('patch', 0)
-                build_number = data.get('build_number', 0) + 1
+                major = data.get("major", 1)
+                minor = data.get("minor", 0)
+                patch = data.get("patch", 0)
+                build_number = data.get("build_number", 0) + 1
         else:
             major, minor, patch, build_number = 0, 1, 0, 0
 
-        version_data = {
-            'major': major,
-            'minor': minor,
-            'patch': patch,
-            'build_number': build_number
-        }
-        with open(counter_file, 'w', encoding='utf-8') as f:
+        version_data = {"major": major, "minor": minor, "patch": patch, "build_number": build_number}
+        with open(counter_file, "w", encoding="utf-8") as f:
             json.dump(version_data, f, indent=2)
 
         version_num_short = f"{major}.{minor}.{patch}"
@@ -107,8 +107,10 @@ def get_version_numbers() -> tuple[str, str, int, int, int, int]:
         print(f"Warning: Could not manage version info: {e}")
         return "1.0.0", "1.0.0.1", 1, 0, 0, 1
 
+
 def generate_windows_version_info() -> None:
-    version_num_short, version_num_full, major, minor, patch, build_number = get_version_numbers()
+    """Generate the Windows VSVersionInfo file."""
+    _, _, major, minor, patch, build_number = get_version_numbers()
     special_build = get_git_commit_hash()
 
     prod_version = f"{major}.{minor}.{patch}.{build_number}"
@@ -158,7 +160,7 @@ VSVersionInfo(
 )
 """
 
-    VERSION_FILE_PATH =  os.path.join(os.path.dirname(__file__), "..", "build", "version", "VSVersionInfo")
+    VERSION_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "build", "version", "VSVersionInfo")  # pylint: disable=invalid-name
 
     try:
         with open(VERSION_FILE_PATH, "w", encoding="utf-8") as f:
@@ -168,13 +170,15 @@ VSVersionInfo(
         print(f"Error generating Windows VSVersionInfo file: {e}")
         sys.exit(1)
 
+
 def generate_macos_version_info() -> None:
-    version_num_short, version_num_full, major, minor, patch, build_number = get_version_numbers()
+    """Generate the macOS Info.plist file."""
+    version_num_short, version_num_full, _, _, _, build_number = get_version_numbers()
     version_info = get_version_strings()
     special_build = get_git_commit_hash()
     git_branch = get_git_branch()
 
-    VERSION_FILE_PATH =  os.path.join(os.path.dirname(__file__), "..", "build", "version", "Info.plist")
+    VERSION_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "build", "version", "Info.plist")  # pylint: disable=invalid-name
     build_date = datetime.today().strftime("%Y-%m-%d")
 
     # TODO: Minimal Info.plist for a console app, enriched with build metadata
@@ -226,15 +230,16 @@ def generate_macos_version_info() -> None:
         print(f"Error generating macOS Info.plist: {e}")
         sys.exit(1)
 
+
 def generate_app_version_info() -> None:
-    version_num_short, version_num_full, major, minor, patch, build_number = get_version_numbers()
-    version_info = get_version_strings()
+    """Generate the Python version file."""
+    _, _, major, minor, patch, build_number = get_version_numbers()
     special_build = get_git_commit_hash()
     git_branch = get_git_branch()
 
     build_date = datetime.today().strftime("%Y-%m-%d")
 
-    VERSION_FILE_PATH =  os.path.join(os.path.dirname(__file__), "..", "src", "jira_importer", "version.py")
+    VERSION_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "jira_importer", "version.py")  # pylint: disable=invalid-name
 
     version_info_content = f"""\
 # DO NOT EDIT THIS FILE, IT IS AUTO-GENERATED BY THE BUILD SCRIPT
@@ -253,10 +258,13 @@ __build_date__ = "{build_date}"
         print(f"Error generating Python version file: {e}")
         sys.exit(1)
 
+
 def main() -> None:
+    """Main function."""
     generate_windows_version_info()
     generate_macos_version_info()
     generate_app_version_info()
+
 
 if __name__ == "__main__":
     main()

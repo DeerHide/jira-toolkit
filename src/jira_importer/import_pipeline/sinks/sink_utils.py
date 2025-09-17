@@ -1,16 +1,15 @@
-"""
-script name: sink_utils.py
-description: This script contains the utility functions.
-author: Julien (@tom4897)
-license: MIT
-date: 2025
+"""description: This script contains the utility functions.
+
+author:
+    Julien (@tom4897)
 """
 
 from ..models import ProcessorResult
 
+
 def times60_estimates_inplace(result: ProcessorResult) -> None:
-    """
-    Multiply estimate/original estimate columns by 60 in-place for compatibility
+    """Multiply estimate/original estimate columns by 60 in-place for compatibility.
+
     with Jira Cloud CSV import behavior. Config-driven; called from write_csv().
     """
     idx = result.indices

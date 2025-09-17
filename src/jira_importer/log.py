@@ -1,27 +1,26 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""Description: This script contains the logging configuration for the Jira Importer.
 
+Author:
+    Julien (@tom4897)
 """
-Script Name: log.py
-Description: This script contains the logging configuration for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
-"""
+
 # TODO: Use structlog for logging
 import logging
 import os
 import sys
 import time
-from typing import Optional, Any
+from typing import Any
+
 import colorlog
+
 try:
     import colorama  # type: ignore
+
     colorama.init()  # Initialize colors on Windows terminals
 except Exception:
     pass
 
-from .utils import resource_path, get_logs_directory
+from .utils import get_logs_directory
 
 # Logging format constants
 CONSOLE_FORMAT_TTY = "%(log_color)s%(levelname)s%(reset)s %(asctime)s %(name)s: %(message)s"
@@ -35,11 +34,11 @@ FILE_DATE = "%Y-%m-%d %H:%M:%S"
 
 # Color scheme for TTY output
 LOG_COLORS = {
-    'DEBUG': 'cyan',
-    'INFO': 'green',
-    'WARNING': 'yellow',
-    'ERROR': 'red',
-    'CRITICAL': 'red,bg_white',
+    "DEBUG": "cyan",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "red",
+    "CRITICAL": "red,bg_white",
 }
 
 # Default values
@@ -57,16 +56,14 @@ _CONFIGURED = False
 
 
 class LoggingConfig:
-    """
-    Centralized logging configuration management.
+    """Centralized logging configuration management.
 
     This class handles all aspects of logging configuration including
     level resolution, TTY detection, and file logging settings.
     """
 
-    def __init__(self, level_override: Optional[int] = None, config: Optional[Any] = None):
-        """
-        Initialize logging configuration.
+    def __init__(self, level_override: int | None = None, config: Any | None = None):
+        """Initialize logging configuration.
 
         Args:
             level_override: Optional CLI override level
@@ -74,10 +71,10 @@ class LoggingConfig:
         """
         self.level_override = level_override
         self.config = config
-        self._resolved_level = None
-        self._is_tty = None
-        self._file_logging_enabled = None
-        self._file_settings = None
+        self._resolved_level: int | None = None
+        self._is_tty: bool | None = None
+        self._file_logging_enabled: bool | None = None
+        self._file_settings: dict[str, Any] | None = None
 
     @property
     def level(self) -> int:
@@ -97,17 +94,16 @@ class LoggingConfig:
     def file_logging_enabled(self) -> bool:
         """Check if file logging is enabled in config."""
         if self._file_logging_enabled is None:
-            self._file_logging_enabled = (
-                self.config and
-                self.config.get_value('app.logging.write_to_file', default=False)
+            self._file_logging_enabled = self.config and self.config.get_value(
+                "app.logging.write_to_file", default=False
             )
-        return self._file_logging_enabled
+        return bool(self._file_logging_enabled)
 
     @property
     def console_output_enabled(self) -> bool:
         """Check if console output is enabled in config."""
         if self.config:
-            return self.config.get_value('app.logging.console_output', default=DEFAULT_CONSOLE_OUTPUT)
+            return self.config.get_value("app.logging.console_output", default=DEFAULT_CONSOLE_OUTPUT)
         return DEFAULT_CONSOLE_OUTPUT
 
     @property
@@ -118,15 +114,18 @@ class LoggingConfig:
                 self._file_settings = {}
             else:
                 self._file_settings = {
-                    'max_size_mb': self.config.get_value('app.logging.max_log_size_mb', default=DEFAULT_MAX_LOG_SIZE_MB),
-                    'max_log_files': self.config.get_value('app.logging.max_log_files', default=DEFAULT_MAX_LOG_FILES),
-                    'log_level': self.config.get_value('app.logging.log_level', default=None)
+                    "max_size_mb": self.config.get_value("app.logging.max_log_size_mb", default=DEFAULT_MAX_LOG_SIZE_MB)
+                    if self.config
+                    else DEFAULT_MAX_LOG_SIZE_MB,
+                    "max_log_files": self.config.get_value("app.logging.max_log_files", default=DEFAULT_MAX_LOG_FILES)
+                    if self.config
+                    else DEFAULT_MAX_LOG_FILES,
+                    "log_level": self.config.get_value("app.logging.log_level", default=None) if self.config else None,
                 }
         return self._file_settings
 
     def _resolve_level(self) -> int:
-        """
-        Resolve the desired log level with proper priority.
+        """Resolve the desired log level with proper priority.
 
         Priority: CLI override > config level > .debug file > INFO
 
@@ -139,7 +138,7 @@ class LoggingConfig:
 
         # Check config level if available
         if self.config:
-            config_level = self.config.get_value('app.logging.log_level', default=None)
+            config_level = self.config.get_value("app.logging.log_level", default=None)
             if config_level:
                 try:
                     resolved = getattr(logging, config_level.upper(), None)
@@ -152,8 +151,7 @@ class LoggingConfig:
         return DEFAULT_LOG_LEVEL
 
     def validate_file_settings(self) -> list:
-        """
-        Validate file logging settings and return any issues.
+        """Validate file logging settings and return any issues.
 
         Returns:
             List of validation error messages (empty if valid)
@@ -164,10 +162,10 @@ class LoggingConfig:
         errors = []
         settings = self.file_settings
 
-        if settings.get('max_size_mb', 0) <= 0:
+        if settings.get("max_size_mb", 0) <= 0:
             errors.append(f"Invalid max_log_size_mb: {settings['max_size_mb']} (must be > 0)")
 
-        if settings.get('max_log_files', 0) < 0:
+        if settings.get("max_log_files", 0) < 0:
             errors.append(f"Invalid max_log_files: {settings['max_log_files']} (must be >= 0)")
 
         return errors
@@ -183,12 +181,13 @@ def _set_levels(level: int) -> None:
             handler.setLevel(level)
         except Exception as e:
             # Log the error but don't fail - some handlers might not support level changes
-            logging.getLogger(__name__).warning(f"Failed to set level {level} for handler {type(handler).__name__}: {e}")
+            logging.getLogger(__name__).warning(
+                f"Failed to set level {level} for handler {type(handler).__name__}: {e}"
+            )
 
 
 def _create_console_handler(level: int, is_tty: bool) -> logging.Handler:
-    """
-    Create and configure console handler based on TTY availability.
+    """Create and configure console handler based on TTY availability.
 
     Args:
         level: Log level for the handler
@@ -201,20 +200,15 @@ def _create_console_handler(level: int, is_tty: bool) -> logging.Handler:
         RuntimeError: If handler creation fails
     """
     try:
+        formatter: logging.Formatter
         if is_tty:
             handler = colorlog.StreamHandler()
             formatter = colorlog.ColoredFormatter(
-                CONSOLE_FORMAT_TTY,
-                datefmt=CONSOLE_DATE_TTY,
-                reset=True,
-                log_colors=LOG_COLORS
+                CONSOLE_FORMAT_TTY, datefmt=CONSOLE_DATE_TTY, reset=True, log_colors=LOG_COLORS
             )
         else:
             handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                CONSOLE_FORMAT_PLAIN,
-                datefmt=CONSOLE_DATE_PLAIN
-            )
+            formatter = logging.Formatter(CONSOLE_FORMAT_PLAIN, datefmt=CONSOLE_DATE_PLAIN)
 
         handler.setFormatter(formatter)
         handler.setLevel(level)
@@ -227,12 +221,11 @@ def _create_console_handler(level: int, is_tty: bool) -> logging.Handler:
 
 def _detect_tty() -> bool:
     """Detect if stderr supports TTY (colors)."""
-    return hasattr(sys.stderr, 'isatty') and sys.stderr.isatty()
+    return hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
 
-def _resolve_log_level(level_override: Optional[int] = None) -> int:
-    """
-    Resolve the desired log level with proper priority.
+def _resolve_log_level(level_override: int | None = None) -> int:
+    """Resolve the desired log level with proper priority.
 
     Priority: CLI override > .debug file > INFO
 
@@ -254,8 +247,7 @@ def set_log_level(level: int) -> None:
 
 
 def _is_duplicate_handler(handler: logging.Handler, existing_handlers: list) -> bool:
-    """
-    Check if a handler is a duplicate of existing handlers.
+    """Check if a handler is a duplicate of existing handlers.
 
     Args:
         handler: Handler to check
@@ -264,10 +256,13 @@ def _is_duplicate_handler(handler: logging.Handler, existing_handlers: list) -> 
     Returns:
         True if duplicate, False otherwise
     """
-    handler_signature = (type(handler), getattr(getattr(handler, 'formatter', None), "_fmt", None))
+    handler_signature = (type(handler), getattr(getattr(handler, "formatter", None), "_fmt", None))
 
     for existing_handler in existing_handlers:
-        existing_signature = (type(existing_handler), getattr(getattr(existing_handler, 'formatter', None), "_fmt", None))
+        existing_signature = (
+            type(existing_handler),
+            getattr(getattr(existing_handler, "formatter", None), "_fmt", None),
+        )
         if handler_signature == existing_signature:
             return True
 
@@ -275,8 +270,7 @@ def _is_duplicate_handler(handler: logging.Handler, existing_handlers: list) -> 
 
 
 def _setup_console_logging(level: int) -> None:
-    """
-    Setup console logging with proper handler management.
+    """Setup console logging with proper handler management.
 
     Args:
         level: Log level for console output
@@ -301,10 +295,7 @@ def _setup_console_logging(level: int) -> None:
 
         try:
             fallback_handler = logging.StreamHandler()
-            fallback_formatter = logging.Formatter(
-                CONSOLE_FORMAT_PLAIN,
-                datefmt=CONSOLE_DATE_PLAIN
-            )
+            fallback_formatter = logging.Formatter(CONSOLE_FORMAT_PLAIN, datefmt=CONSOLE_DATE_PLAIN)
             fallback_handler.setFormatter(fallback_formatter)
             fallback_handler.setLevel(level)
 
@@ -316,9 +307,8 @@ def _setup_console_logging(level: int) -> None:
             # At this point, we have no console output, but we shouldn't crash the app
 
 
-def setup_logger(level_override: Optional[int] = None, config: Optional[Any] = None) -> None:
-    """
-    Setup the root logger with console output.
+def setup_logger(level_override: int | None = None, config: Any | None = None) -> None:
+    """Setup the root logger with console output.
 
     Args:
         level_override: Optional log level override (e.g., logging.DEBUG from CLI)
@@ -328,7 +318,7 @@ def setup_logger(level_override: Optional[int] = None, config: Optional[Any] = N
         This function can only be called once. Subsequent calls with level_override
         will only adjust the log level, not reconfigure handlers.
     """
-    global _CONFIGURED
+    global _CONFIGURED  # pylint: disable=global-statement
     if _CONFIGURED:
         # Allow raising/lowering level after initial setup
         if level_override is not None:
@@ -357,7 +347,8 @@ def setup_logger(level_override: Optional[int] = None, config: Optional[Any] = N
             root_logger.removeHandler(handler)
 
         # Add a null handler to prevent default stderr output
-        from logging import NullHandler
+        from logging import NullHandler  # pylint: disable=import-outside-toplevel
+
         root_logger.addHandler(NullHandler())
 
         # Set propagate to False for all loggers to prevent inheritance
@@ -370,8 +361,7 @@ def setup_logger(level_override: Optional[int] = None, config: Optional[Any] = N
 
 
 def _create_file_handler_from_config(logging_config: LoggingConfig, level: int) -> logging.Handler:
-    """
-    Create and configure file handler using LoggingConfig.
+    """Create and configure file handler using LoggingConfig.
 
     Args:
         logging_config: LoggingConfig instance with file settings
@@ -393,8 +383,8 @@ def _create_file_handler_from_config(logging_config: LoggingConfig, level: int) 
 
         # Get rotation settings from config
         settings = logging_config.file_settings
-        max_size_mb = settings.get('max_size_mb', DEFAULT_MAX_LOG_SIZE_MB)
-        max_log_files = settings.get('max_log_files', DEFAULT_MAX_LOG_FILES)
+        max_size_mb = settings.get("max_size_mb", DEFAULT_MAX_LOG_SIZE_MB)
+        max_log_files = settings.get("max_log_files", DEFAULT_MAX_LOG_FILES)
 
         # Validate rotation settings
         if max_size_mb <= 0:
@@ -405,25 +395,18 @@ def _create_file_handler_from_config(logging_config: LoggingConfig, level: int) 
         max_bytes = max_size_mb * 1024 * 1024
 
         # Create rotating file handler
-        from logging.handlers import RotatingFileHandler
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=max_bytes,
-            backupCount=max_log_files,
-            encoding='utf-8'
-        )
+        from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
+
+        file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=max_log_files, encoding="utf-8")
 
         # Use same formatter as console (but without colors)
-        file_formatter = logging.Formatter(
-            FILE_FORMAT,
-            datefmt=FILE_DATE
-        )
+        file_formatter = logging.Formatter(FILE_FORMAT, datefmt=FILE_DATE)
         file_handler.setFormatter(file_formatter)
         file_handler.setLevel(level)
 
         return file_handler
 
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError):
         # Re-raise these specific errors as-is
         raise
     except Exception as e:
@@ -433,8 +416,7 @@ def _create_file_handler_from_config(logging_config: LoggingConfig, level: int) 
 
 
 def _create_file_handler(config: Any, level: int) -> logging.Handler:
-    """
-    Create and configure file handler for logging.
+    """Create and configure file handler for logging.
 
     Args:
         config: Configuration object with logging settings
@@ -455,8 +437,8 @@ def _create_file_handler(config: Any, level: int) -> logging.Handler:
         log_file = os.path.join(log_dir, f"jira-toolkit_{timestamp}.log")
 
         # Get rotation settings from config
-        max_size_mb = config.get_value('app.logging.max_log_size_mb', default=DEFAULT_MAX_LOG_SIZE_MB)
-        max_log_files = config.get_value('app.logging.max_log_files', default=DEFAULT_MAX_LOG_FILES)
+        max_size_mb = config.get_value("app.logging.max_log_size_mb", default=DEFAULT_MAX_LOG_SIZE_MB)
+        max_log_files = config.get_value("app.logging.max_log_files", default=DEFAULT_MAX_LOG_FILES)
 
         # Validate rotation settings
         if max_size_mb <= 0:
@@ -467,25 +449,18 @@ def _create_file_handler(config: Any, level: int) -> logging.Handler:
         max_bytes = max_size_mb * 1024 * 1024
 
         # Create rotating file handler
-        from logging.handlers import RotatingFileHandler
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=max_bytes,
-            backupCount=max_log_files,
-            encoding='utf-8'
-        )
+        from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
+
+        file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=max_log_files, encoding="utf-8")
 
         # Use same formatter as console (but without colors)
-        file_formatter = logging.Formatter(
-            FILE_FORMAT,
-            datefmt=FILE_DATE
-        )
+        file_formatter = logging.Formatter(FILE_FORMAT, datefmt=FILE_DATE)
         file_handler.setFormatter(file_formatter)
         file_handler.setLevel(level)
 
         return file_handler
 
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError):
         # Re-raise these specific errors as-is
         raise
     except Exception as e:
@@ -495,8 +470,7 @@ def _create_file_handler(config: Any, level: int) -> logging.Handler:
 
 
 def add_file_logging(config: Any):
-    """
-    Add file handler to existing root logger if enabled in config.
+    """Add file handler to existing root logger if enabled in config.
 
     Args:
         config: Configuration object that may contain logging settings
@@ -521,7 +495,7 @@ def add_file_logging(config: Any):
         root_logger.addHandler(file_handler)
 
         # Log that file logging is enabled
-        log_file = file_handler.baseFilename
+        log_file = getattr(file_handler, "baseFilename", "unknown")
         root_logger.info(f"File logging enabled: {log_file}")
 
     except (OSError, ValueError) as e:

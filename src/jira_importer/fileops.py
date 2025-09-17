@@ -1,33 +1,31 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""Description: This script manages the file operations for the Jira Importer.
 
-"""
-Script Name: fileops.py
-Description: This script manages the file operations for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
-from contextlib import suppress
+from __future__ import annotations
+
+import csv
 import logging
 import os
-import csv
-from typing import Any, Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
+from contextlib import suppress
 from pathlib import Path
-import pandas as pd
+from typing import Any
 
 from .artifacts import ArtifactManager
 from .console import ConsoleIO
 from .excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
-ui = ConsoleIO.getUI()
+ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 
 try:
-    import pandas as pd  # optional
+    import pandas as pd  # type: ignore[import-untyped]
 except Exception:  # pragma: no cover
-    pd = None  # type: ignore
+    pd = None  # type: ignore[assignment] # pylint: disable=invalid-name
+
 
 class FileManager:
     """Manage file operations and integrate with `ArtifactManager`.
@@ -39,13 +37,14 @@ class FileManager:
     - Deleting files with logging
     """
 
-    def __init__(self, artifact_manager: Optional[ArtifactManager] = None, config: Optional[object] = None) -> None:
+    def __init__(self, artifact_manager: ArtifactManager | None = None, config: object | None = None) -> None:
+        """Initialize the FileManager."""
         self.artifact_manager = artifact_manager
         self.config = config
 
-    def write_csv_file(self, output_file: str, csv_file, is_artifact: bool = True) -> bool:
-        """
-        Write a CSV file from an object exposing `header` and `data`.
+    def write_csv_file(self, output_file: str, csv_file: Any, is_artifact: bool = True) -> bool:  # pylint: disable=too-many-locals
+        """Write a CSV file from an object exposing `header` and `data`.
+
         Atomic write via temp file + replace. Returns True on success.
         """
         # --- Validate inputs (duck-typed)
@@ -54,7 +53,8 @@ class FileManager:
 
         if not isinstance(header, Iterable) or data is None:
             msg = "Invalid csv_file object: missing 'header' or 'data' attribute"
-            ui.error(msg); logger.error(msg)
+            ui.error(msg)
+            logger.error(msg)
             return False
 
         path = Path(output_file)
@@ -92,7 +92,7 @@ class FileManager:
             ui.success(f"CSV file written: {path}")
             logger.info("CSV file written: %s", path)
 
-            if getattr(self, "artifact_manager", None) and is_artifact:
+            if self.artifact_manager and is_artifact:
                 self.artifact_manager.add(str(path))
 
             return True
@@ -110,12 +110,11 @@ class FileManager:
         csv_file: str | Path,
         *,
         dataset_sheet_name: str = "dataset",
-        ui: Optional[Any] = None,                             # expects .success(msg) if provided
-        artifact_cb: Optional[Callable[[str], None]] = None,  # e.g., artifact_manager.add
-        manager: Optional["ExcelWorkbookManager"] = None,     # prefer using the generic manager if provided
-    ) -> bool:
-        """
-        Convert an XLSX file to a CSV file. Returns True if successful, False otherwise.
+        ui_instance: Any | None = None,  # expects .success(msg) if provided
+        artifact_cb: Callable[[str], None] | None = None,  # e.g., artifact_manager.add
+        manager: ExcelWorkbookManager | None = None,  # prefer using the generic manager if provided
+    ) -> bool:  # pylint: disable=too-many-locals
+        """Convert an XLSX file to a CSV file. Returns True if successful, False otherwise.
 
         Behavior:
         - Creates parent dir of csv_file if needed.
@@ -130,18 +129,18 @@ class FileManager:
         xlsx_file          Input .xlsx path.
         csv_file           Output .csv path.
         dataset_sheet_name Preferred sheet name (default: 'dataset' or whatever your config says).
-        ui                 Optional object with ui.success(msg).
+        ui_instance        Optional object with ui.success(msg).
         artifact_cb        Optional callback to register the created artifact (path:str) -> None.
         manager            Optional ExcelWorkbookManager to read the workbook (no pandas dependency).
         """
         xlsx_file = Path(xlsx_file)
         csv_file = Path(csv_file)
-        #csv_file.parent.mkdir(parents=True, exist_ok=True)
+        # csv_file.parent.mkdir(parents=True, exist_ok=True)
 
         if manager is not None:
             # -------- Manager path (no pandas) --------
             try:
-                # If caller didn’t call load(), we’ll load/close around the operation.
+                # If caller didn't call load(), we'll load/close around the operation.
                 _loaded_here = False
                 if getattr(manager, "_wb", None) is None:
                     manager.load()
@@ -159,9 +158,9 @@ class FileManager:
                             try:
                                 new_r.append(int(v))
                             except Exception:
-                                new_r.append(v)
+                                new_r.append(v)  # type: ignore[arg-type]
                         else:
-                            new_r.append(v)
+                            new_r.append(v)  # type: ignore[arg-type]
                     coerced_rows.append(new_r)
 
                 # Write CSV (no index)
@@ -174,7 +173,7 @@ class FileManager:
                 if _loaded_here:
                     manager.close()
 
-                self._notify(ui, artifact_cb, csv_file)
+                self._notify(ui_instance, artifact_cb, csv_file)
                 logger.info("Converted XLSX to CSV via ExcelWorkbookManager: %s", csv_file)
                 return os.path.isfile(csv_file)
 
@@ -184,7 +183,9 @@ class FileManager:
 
         # -------- Pandas path (legacy behavior) --------
         if pd is None:
-            logger.error("pandas is not available and no ExcelWorkbookManager was provided; cannot convert %s", xlsx_file)
+            logger.error(
+                "pandas is not available and no ExcelWorkbookManager was provided; cannot convert %s", xlsx_file
+            )
             return False
 
         sheet_to_read: Any = 0  # default to first sheet
@@ -217,12 +218,11 @@ class FileManager:
 
         df.to_csv(str(csv_file), index=False)
 
-        self._notify(ui, artifact_cb, csv_file)
+        self._notify(ui_instance, artifact_cb, csv_file)
         logger.info("Converted XLSX to CSV via pandas: %s", csv_file)
         return os.path.isfile(csv_file)
 
-
-    def _notify(self, ui: Optional[Any], artifact_cb: Optional[Callable[[str], None]], csv_path: Path) -> None:
+    def _notify(self, ui: Any | None, artifact_cb: Callable[[str], None] | None, csv_path: Path) -> None:  # pylint: disable=W0621
         if ui and hasattr(ui, "success"):
             try:
                 ui.success(f"Converted XLSX to CSV: {csv_path}")
@@ -234,7 +234,7 @@ class FileManager:
             except Exception as exc:
                 logger.debug("artifact_cb failed for '%s': %s", csv_path, exc)
 
-    def generate_output_filename(self, input_file: str, file_extension: str = '', suffix: str = "") -> str:
+    def generate_output_filename(self, input_file: str, file_extension: str = "", suffix: str = "") -> str:
         """Generate an output filename by altering extension and appending a suffix.
 
         Avoids trailing dots when no extension is provided.
@@ -242,7 +242,7 @@ class FileManager:
         base_name, ext = os.path.splitext(input_file)
         if file_extension:
             ext = file_extension
-        ext = ext.lstrip('.')
+        ext = ext.lstrip(".")
         output_file = f"{base_name}{suffix}.{ext}" if ext else f"{base_name}{suffix}"
         logger.debug(f"Output file: {output_file}")
         return output_file

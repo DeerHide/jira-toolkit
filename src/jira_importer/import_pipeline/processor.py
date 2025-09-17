@@ -1,20 +1,22 @@
-"""
-Script Name: processor.py
-Description: This script contains the processor for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+"""Description: This script contains the processor for the Jira Importer.
+
+Author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
-from pathlib import Path
-from typing import Iterable, List, Sequence, Optional
 import logging
+from collections.abc import Sequence
+from datetime import UTC
+from pathlib import Path
 
+from ..excel_io import ExcelProcessingMeta, ExcelWorkbookManager  # generic, lives top-level
+from .config_view import ConfigView  # typed access over your config object
+from .fixes.registry import build_fix_registry
 from .models import (
     ColumnIndices,
+    ComplexChildIssue,
     HeaderSchema,
     Problem,
     ProcessingReport,
@@ -22,19 +24,16 @@ from .models import (
     ValidationContext,
     ValidationResult,
 )
-from .validator import JiraImportValidator  # expects validate_row(...)
 from .rules.registry import build_registry
-from .fixes.registry import build_fix_registry
 from .sources.csv_source import CsvSource
 from .sources.xlsx_source import XlsxSource
-from ..excel_io import ExcelWorkbookManager, ExcelProcessingMeta  # generic, lives top-level
-from .config_view import ConfigView  # typed access over your config object
+from .validator import JiraImportValidator  # expects validate_row(...)
 
 logger = logging.getLogger(__name__)
 
+
 class ImportProcessor:
-    """
-    Orchestrates reading → validation/fixes → writing.
+    """Orchestrates reading → validation/fixes → writing.
 
     Notes:
       - Pure validation happens in JiraImportValidator.
@@ -52,22 +51,26 @@ class ImportProcessor:
         excel_rules_source: str | None = None,
         enable_auto_fix: bool = False,
     ) -> None:
+        """Initialize the ImportProcessor class."""
         self.path = Path(path)
         self.config = config
         self.ui = ui
         self.enable_excel_rules = enable_excel_rules
         self.excel_rules_source = excel_rules_source
         self.enable_auto_fix = enable_auto_fix
-        logger.debug(f"ImportProcessor initialized: path={self.path}, config={self.config}, enable_excel_rules={self.enable_excel_rules}, excel_rules_source={self.excel_rules_source}, enable_auto_fix={self.enable_auto_fix}")
+        logger.debug(
+            f"ImportProcessor initialized: path={self.path}, config={self.config}, enable_excel_rules={self.enable_excel_rules}, excel_rules_source={self.excel_rules_source}, enable_auto_fix={self.enable_auto_fix}"
+        )
 
-    def process(self) -> ProcessorResult:
+    def process(self) -> ProcessorResult:  # pylint: disable=too-many-locals
+        """Process the input file."""
         # Source
         header_schema, rows = self._read_source()
 
         # Resolve indices once (based on header + config mappings)
         indices = self._extract_indices(header_schema)
 
-        logger.debug(f"Compose rules/fixes/validator")
+        logger.debug("Compose rules/fixes/validator")
         cfg_view = ConfigView(self.config)
         rule_registry = build_registry(cfg_view, self._excel_loader_ctx())
         rules = rule_registry.get_rules()
@@ -78,19 +81,19 @@ class ImportProcessor:
         skip_enabled = cfg_view.get("validation.skip_rowtype", True)
         skip_issuetypes = cfg_view.get("validation.skip_issuetypes", ["comment", "note", "skip"])
 
-        logger.debug(f"Validate + apply patches row-by-row")
+        logger.debug("Validate + apply patches row-by-row")
         problems: list[Problem] = []
         normalized_rows = []  # Build dynamically, only including non-skipped rows
-        complex_children = []  # fill from your rules if needed
+        complex_children: list[ComplexChildIssue] = []  # fill from your rules if needed
 
         issue_id_seen: dict[str, None] = {}
         skipped_rows = 0
         original_row_count = len(rows)
 
         # Pre-populate issue_id_seen with existing Issue IDs to avoid conflicts during auto-fixing
-        self._pre_populate_issue_ids(rows, indices, issue_id_seen)
+        self._pre_populate_issue_ids(rows, indices, issue_id_seen)  # type: ignore[arg-type]
 
-        logger.debug(f"row_index is 1-based (header = 1), so first data row is 2")
+        logger.debug("row_index is 1-based (header = 1), so first data row is 2")
         for i, row in enumerate(rows, start=2):
             # Skip rows with RowType = "SKIP"
             if self._should_skip_row_rowtype(row, indices, skip_enabled):
@@ -118,7 +121,7 @@ class ImportProcessor:
 
             if result.patch:
                 # Apply patch to the last added row (current row index in normalized_rows)
-                _apply_patch_inplace(normalized_rows, row_idx=len(normalized_rows) - 1, patch=result.patch)
+                _apply_patch_inplace(normalized_rows, row_idx=len(normalized_rows) - 1, patch=dict(result.patch))
 
             if result.problems:
                 problems.extend(result.problems)
@@ -127,7 +130,7 @@ class ImportProcessor:
         if skipped_rows > 0:
             logger.info(f"Skipped {skipped_rows} rows (RowType = SKIP or Issue Type in skip list)")
 
-        logger.debug(f"Build processor result")
+        logger.debug("Build processor result")
         report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
         proc_result = ProcessorResult(
             header=header_schema.normalized,
@@ -143,7 +146,7 @@ class ImportProcessor:
         proc_result.processed_row_count = len(normalized_rows)
         proc_result.skipped_row_count = skipped_rows
 
-        logger.debug(f"Optional: write back to Excel (metadata/report)")
+        logger.debug("Optional: write back to Excel (metadata/report)")
         if self._is_excel(self.path):
             self._write_excel_meta(proc_result)
 
@@ -156,16 +159,15 @@ class ImportProcessor:
             mgr = ExcelWorkbookManager(self.path)
             mgr.load()
             header, rows = XlsxSource(mgr, data_sheet="Dataset").read()
-            self._excel_mgr = mgr  # set for lifetime of this call
+            self._excel_mgr = mgr  # set for lifetime of this call  # pylint: disable=attribute-defined-outside-init
             return header, rows
         else:
             return CsvSource(self.path).read()
 
     def _extract_indices(self, header: HeaderSchema) -> ColumnIndices:
-        """
-        Build ColumnIndices from the normalized header + config mappings.
-        """
+        """Build ColumnIndices from the normalized header + config mappings."""
         name_to_pos = {name.lower(): idx for idx, name in enumerate(header.normalized)}
+
         def pos(key: str) -> int | None:
             return name_to_pos.get(key.lower())
 
@@ -190,9 +192,7 @@ class ImportProcessor:
         )
 
     def _excel_loader_ctx(self):
-        """
-        Return an object the RuleRegistry can use to load Excel-defined rules when enable_excel_rules is True.
-        """
+        """Return an object the RuleRegistry can use to load Excel-defined rules when enable_excel_rules is True."""
         if not self.enable_excel_rules:
             return None
 
@@ -213,15 +213,15 @@ class ImportProcessor:
         if not mgr:
             return
 
-        from datetime import datetime, timezone
+        from datetime import datetime  # pylint: disable=import-outside-toplevel
 
         meta = ExcelProcessingMeta(
-            run_at_iso=datetime.now(timezone.utc).isoformat(),
+            run_at_iso=datetime.now(UTC).isoformat(),
             app_version=str(getattr(self.config, "version", "")) or "unknown",
             source_path=str(mgr.path),
-            rows_in=result.original_row_count,
-            rows_out=result.processed_row_count,
-            skipped_rows=result.skipped_row_count,
+            rows_in=result.original_row_count or 0,
+            rows_out=result.processed_row_count or 0,
+            skipped_rows=result.skipped_row_count or 0,
             errors=result.report.errors,
             warnings=result.report.warnings,
             fixes=result.report.fixes,
@@ -242,13 +242,12 @@ class ImportProcessor:
         return path.suffix.lower() in {".xlsx", ".xlsm"}
 
     def _should_skip_row_rowtype(self, row: Sequence[object], indices: ColumnIndices, skip_enabled: bool) -> bool:
-        """
-        Check if a row should be skipped based on RowType = "SKIP".
+        """Check if a row should be skipped based on RowType = "SKIP".
 
         Args:
             row: The row data to check
             indices: Column indices for accessing row data
-            config_view: Configuration view to check if skipping is enabled
+            skip_enabled: If True, skipping is enabled
 
         Returns:
             True if the row should be skipped, False otherwise
@@ -269,9 +268,10 @@ class ImportProcessor:
 
         return str(rowtype_value).strip().upper() == "SKIP"
 
-    def _should_skip_row_issuetype(self, row: Sequence[object], indices: ColumnIndices, skip_issuetypes: list[str]) -> bool:
-        """
-        Check if a row should be skipped based on Issue Type.
+    def _should_skip_row_issuetype(
+        self, row: Sequence[object], indices: ColumnIndices, skip_issuetypes: list[str]
+    ) -> bool:
+        """Check if a row should be skipped based on Issue Type.
 
         Args:
             row: The row data to check
@@ -297,9 +297,11 @@ class ImportProcessor:
         # Check if the Issue Type is in the skip list (case-insensitive)
         return any(skip_type.strip().upper() == issuetype_str for skip_type in skip_issuetypes)
 
-    def _pre_populate_issue_ids(self, rows: list[Sequence[object]], indices: ColumnIndices, issue_id_seen: dict[str, None]) -> None:
-        """
-        Pre-populates the issue_id_seen dictionary with all existing Issue IDs from the source data.
+    def _pre_populate_issue_ids(
+        self, rows: list[Sequence[object]], indices: ColumnIndices, issue_id_seen: dict[str, None]
+    ) -> None:
+        """Pre-populates the issue_id_seen dictionary with all existing Issue IDs from the source data.
+
         This is necessary to avoid conflicts when auto-fixing AssignIssueIdFixer.
         """
         if indices.issue_id is None:
@@ -310,7 +312,7 @@ class ImportProcessor:
             if issue_id_value:  # _cell_str already handles None, empty strings, etc.
                 issue_id_seen[issue_id_value] = None
 
-    def _cell_str(self, row: Sequence[object], idx: Optional[int]) -> str:
+    def _cell_str(self, row: Sequence[object], idx: int | None) -> str:
         """Helper function to safely extract string values from cells."""
         if idx is None or idx < 0 or idx >= len(row):
             return ""
@@ -320,13 +322,15 @@ class ImportProcessor:
 
 # Helpers
 
+
 def _deep_copy_rows(rows: Sequence[Sequence[object]]) -> list[list[object]]:
     # Rows are shallow (cells are scalars)
     return [list(r) for r in rows]
 
+
 def _apply_patch_inplace(table: list[list[object]], *, row_idx: int, patch: dict[int, str]) -> None:
-    """
-    Apply sparse index→value patch into table[row_idx].
+    """Apply sparse index→value patch into table[row_idx].
+
     All patched values are strings (post-normalization contract).
     """
     row = table[row_idx]

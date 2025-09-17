@@ -1,26 +1,26 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Build context for the Jira Importer build system.
+"""Build context for the Jira Importer build system.
 
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
+import json
 import os
 import sys
-import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class BuildContext:
-    def __init__(self, interface, profile: str = ""):
+    """Build context for the Jira Importer build system."""
+
+    def __init__(self, interface, profile: str = "") -> None:
+        """Initialize the BuildContext class."""
         self.interface = interface
         self.root_path = Path.cwd()
         self.cfg_dir = Path(os.getenv("BUILD_CFG_DIR", self.root_path / "build/configs"))
@@ -39,33 +39,33 @@ class BuildContext:
         self.files_cfg = self.cfg.get("files", {})
         self.pyinstaller_cfg = self.cfg.get("pyinstaller", {})
 
-    def get_cfg(self, key: str, default: Optional[T] = None, expected_type: Optional[Type[T]] = None) -> Optional[T]:
-        if 'metadata' in self.cfg:
+    def get_cfg(self, key: str, default: T | None = None, expected_type: type[T] | None = None) -> T | None:
+        """Get a configuration value."""
+        if "metadata" in self.cfg:
             value: Any = self._get_nested_value(key)
         else:
             value = self.cfg.get(key, default)
         if value is None:
             return default
         if expected_type is not None and not isinstance(value, expected_type):
-            raise TypeError(
-                f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}"
-            )
+            raise TypeError(f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}")
 
         return value  # type: ignore[return-value]
 
     def include_file(self, path: str) -> str:
+        """Include a file."""
         if Path(path).exists():
             return path
         raise FileNotFoundError(f"Missing file: {path}")
 
     def _load_config(self) -> None:
-        import os
-        base_path      = Path(os.getenv("BUILD_CFG_BASE",      str(self.cfg_dir / "base.json")))
-        profiles_path  = Path(os.getenv("BUILD_CFG_PROFILES",  str(self.cfg_dir / "profiles.json")))
+        """Load the configuration."""
+        base_path = Path(os.getenv("BUILD_CFG_BASE", str(self.cfg_dir / "base.json")))
+        profiles_path = Path(os.getenv("BUILD_CFG_PROFILES", str(self.cfg_dir / "profiles.json")))
         platforms_path = Path(os.getenv("BUILD_CFG_PLATFORMS", str(self.cfg_dir / "platforms.json")))
 
-        base      = self._read_json(base_path)
-        profiles  = self._read_json(profiles_path)
+        base = self._read_json(base_path)
+        profiles = self._read_json(profiles_path)
         platforms = self._read_json(platforms_path)
 
         plat_key = self.platform_tag
@@ -84,14 +84,9 @@ class BuildContext:
 
     def _validate_config(self, cfg: dict) -> None:
         """Validate that required configuration keys exist."""
-        required_keys = [
-            "directories",
-            "files",
-            "build_options",
-            "pyinstaller"
-        ]
+        required_keys = ["directories", "files", "build_options", "pyinstaller"]
 
-        missing_keys = []
+        missing_keys: list[str] = []
         for key in required_keys:
             if key not in cfg:
                 missing_keys.append(key)
@@ -112,8 +107,9 @@ class BuildContext:
             if missing_pyi:
                 raise ValueError(f"Missing required PyInstaller configurations: {missing_pyi}")
 
-    def _get_nested_value(self, key) -> Any:
-        keys = key.split('.')
+    def _get_nested_value(self, key: str) -> Any:
+        """Get a nested value."""
+        keys = key.split(".")
         current = self.cfg
         for k in keys:
             if isinstance(current, dict) and k in current:
@@ -137,15 +133,16 @@ class BuildContext:
             return "other"
 
     def _read_json(self, path: Path) -> dict:
+        """Read a JSON file."""
         if not path.is_file():
             raise FileNotFoundError(f"Missing config: {path}")
         with path.open("r", encoding="utf-8") as f:
             content = f.read()
-            import os
+
             content = os.path.expandvars(content)
             return json.loads(content)
 
-    def _deep_merge(self,a: dict, b: Mapping) -> dict:
+    def _deep_merge(self, a: dict, b: Mapping) -> dict:
         """Return a := a U b (b overrides). Shallow lists are overwritten."""
         out = dict(a)
         for k, v in b.items():

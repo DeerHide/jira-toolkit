@@ -1,15 +1,11 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Logger manager for the Jira Importer build system.
+"""Logger manager for the Jira Importer build system.
 
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
-import sys
 import logging
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -18,16 +14,19 @@ LOG_LEVEL = logging.DEBUG
 
 
 class LoggerManager:
+    """Logger manager for the Jira Importer build system."""
+
     def __init__(self, base_dir: str = BASE_LOG_DIR) -> None:
+        """Initialize the LoggerManager class."""
         self.base_dir = base_dir
-        self.logger = None
-        self._resolved_level = None
-        self._is_tty = None
+        self.logger: logging.Logger | None = None
+        self._resolved_level: int | None = None
+        self._is_tty: bool | None = None
         self.setup()
 
     def _detect_tty(self) -> bool:
         """Detect if stderr supports TTY (colors)."""
-        return hasattr(sys.stderr, 'isatty') and sys.stderr.isatty()
+        return hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
     def _resolve_level(self) -> int:
         """Resolve the log level from configuration or environment."""
@@ -48,6 +47,7 @@ class LoggerManager:
         return self._is_tty
 
     def setup(self) -> logging.Logger:
+        """Setup the logger."""
         now = datetime.now()
         date_str = now.strftime("%Y%m%d")
 
@@ -61,7 +61,7 @@ class LoggerManager:
         if root_logger.handlers:
             root_logger.handlers.clear()
 
-        file_handler = logging.FileHandler(str(log_file), encoding='utf-8')
+        file_handler = logging.FileHandler(str(log_file), encoding="utf-8")
         file_handler.setLevel(LOG_LEVEL)
         file_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(funcName)s:%(lineno)d %(message)s")
         file_handler.setFormatter(file_formatter)
@@ -78,6 +78,7 @@ class LoggerManager:
         return self.logger
 
     def get_logger(self) -> logging.Logger:
+        """Get the logger."""
         if self.logger is None:
             return self.setup()
         return self.logger

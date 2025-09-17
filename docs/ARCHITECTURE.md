@@ -4,7 +4,7 @@ This doc gives you the lowdown on how the Jira Importer Toolkit is put together,
 
 ## 📁 Repository Structure
 
-```
+```text
 jira-toolkit/                    # Repository root
 ├── src/                         # Source code
 ├── build/                       # Build assets and working dirs
@@ -23,7 +23,7 @@ jira-toolkit/                    # Repository root
 
 ### Core Application Structure
 
-```
+```text
 src/jira_importer/               # Main application package
 ├── __main__.py                  # Entry point
 ├── app.py                       # Application logic
@@ -303,6 +303,7 @@ graph LR
 ## 🔧 Component Details
 
 ### Import Pipeline (`import_pipeline/`)
+
 The main processing logic - handles validation, fixes, and data transformation:
 
 - **`processor.py`** - Main orchestrator that handles the entire flow
@@ -315,26 +316,31 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`reporting.py`** - Rich problem reporting with emojis and tables
 
 ### Configuration System (`config.py`)
+
 - Manages application configuration from JSON files
 - Supports multiple configuration sources
 - Handles validation and defaults
 
 ### Excel Integration (`excel_io.py`)
+
 - Excel workbook management
 - Direct XLSX processing (no intermediate CSV conversion)
 - Metadata writing and processing reports
 
 ### Console UI (`console.py`)
+
 - Rich console output with tables and formatting
 - Progress bars and user interaction
 - Consistent theming and styling
 
 ### File Operations (`fileops.py`)
+
 - Excel to CSV conversion (legacy path)
 - File path management
 - Output file generation
 
 ### Logging (`log.py`)
+
 - Structured logging with colorama support
 - Debug mode support
 - Configurable log levels
@@ -342,21 +348,25 @@ The main processing logic - handles validation, fixes, and data transformation:
 ## 🚀 Key Design Principles
 
 ### Immutability
+
 - Rules and fixes return patches instead of mutating data in-place
 - Data flows through the pipeline without side effects
 - Safe for concurrent processing and debugging
 
 ### Extensibility
+
 - Clean interfaces for adding new rules and fixers
 - Plugin-like architecture for future enhancements
 - Configuration-driven behavior
 
 ### Separation of Concerns
+
 - Clear boundaries between validation, fixing, and output
 - Each component has a single responsibility
 - Easy to test and maintain individual components
 
 ### Performance
+
 - Efficient processing with sparse patches
 - Minimal memory overhead
 - Scalable for large datasets
@@ -364,12 +374,14 @@ The main processing logic - handles validation, fixes, and data transformation:
 ## 🔮 Future Architecture Considerations
 
 ### Planned Extensions
+
 - Excel-defined validation rules
 - Direct Jira Cloud API integration
 - Batch processing capabilities
 - Import templates for common project types
 
 ### Scalability
+
 - The pipeline is designed for easy extension
 - Maintain backward compatibility where possible
 - Consider performance for large datasets

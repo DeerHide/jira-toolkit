@@ -81,6 +81,9 @@ class ImportProcessor:
         skip_enabled = cfg_view.get("validation.skip_rowtype", True)
         skip_issuetypes = cfg_view.get("validation.skip_issuetypes", ["comment", "note", "skip"])
 
+        write_processing_meta_in_excel = cfg_view.get("app.write_processing_meta", False)
+        write_report_table_in_excel = cfg_view.get("app.write_report_table", False)
+
         logger.debug("Validate + apply patches row-by-row")
         problems: list[Problem] = []
         normalized_rows = []  # Build dynamically, only including non-skipped rows
@@ -148,7 +151,7 @@ class ImportProcessor:
 
         logger.debug("Optional: write back to Excel (metadata/report)")
         if self._is_excel(self.path):
-            self._write_excel_meta(proc_result)
+            self._write_excel_meta(proc_result, write_processing_meta_in_excel, write_report_table_in_excel)
 
         return proc_result
 
@@ -208,32 +211,40 @@ class ImportProcessor:
             return mgr  # ExcelRuleLoader can wrap this manager
         return Path(source)
 
-    def _write_excel_meta(self, result: ProcessorResult) -> None:
+    def _write_excel_meta(
+        self, result: ProcessorResult, write_processing_meta_in_excel: bool, write_report_table_in_excel: bool
+    ) -> None:
+        if (not write_processing_meta_in_excel) and (not write_report_table_in_excel):
+            return
+
         mgr: ExcelWorkbookManager | None = getattr(self, "_excel_mgr", None)
         if not mgr:
             return
 
         from datetime import datetime  # pylint: disable=import-outside-toplevel
 
-        meta = ExcelProcessingMeta(
-            run_at_iso=datetime.now(UTC).isoformat(),
-            app_version=str(getattr(self.config, "version", "")) or "unknown",
-            source_path=str(mgr.path),
-            rows_in=result.original_row_count or 0,
-            rows_out=result.processed_row_count or 0,
-            skipped_rows=result.skipped_row_count or 0,
-            errors=result.report.errors,
-            warnings=result.report.warnings,
-            fixes=result.report.fixes,
-            auto_fix_enabled=self.enable_auto_fix,
-        )
-        mgr.write_processing_meta(meta)
-        agg = [
-            ("error", result.report.errors, "validation.errors"),
-            ("warning", result.report.warnings, "validation.warnings"),
-            ("fix", result.report.fixes, "auto.fixes"),
-        ]
-        mgr.write_report_table(agg)
+        if write_processing_meta_in_excel:
+            meta = ExcelProcessingMeta(
+                run_at_iso=datetime.now(UTC).isoformat(),
+                app_version=str(getattr(self.config, "version", "")) or "unknown",
+                source_path=str(mgr.path),
+                rows_in=result.original_row_count or 0,
+                rows_out=result.processed_row_count or 0,
+                skipped_rows=result.skipped_row_count or 0,
+                errors=result.report.errors,
+                warnings=result.report.warnings,
+                fixes=result.report.fixes,
+                auto_fix_enabled=self.enable_auto_fix,
+            )
+            mgr.write_processing_meta(meta)
+
+        if write_report_table_in_excel:
+            agg = [
+                ("error", result.report.errors, "validation.errors"),
+                ("warning", result.report.warnings, "validation.warnings"),
+                ("fix", result.report.fixes, "auto.fixes"),
+            ]
+            mgr.write_report_table(agg)
         mgr.save()
         mgr.close()
 

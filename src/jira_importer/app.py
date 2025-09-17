@@ -112,6 +112,22 @@ class App:
 
                 return VersionArgs()  # type: ignore[return-value]
 
+        # Check if --config-check is in the arguments
+        if "--config-check" in sys.argv:
+            # Create a minimal parser just for config-check
+            parser = argparse.ArgumentParser(add_help=False)
+            parser.add_argument("--config-check", type=str, metavar="CONFIG_FILE")
+            args, _ = parser.parse_known_args()
+            if args.config_check:
+                # Create a minimal args object with config_check
+                class ConfigCheckArgs:
+                    def __init__(self, config_file: str):
+                        self.config_check = config_file
+                        self.input_file = None
+                        self.version = False
+
+                return ConfigCheckArgs(args.config_check)  # type: ignore[return-value]
+
         parser = argparse.ArgumentParser(
             prog="jira-importer",
             description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",

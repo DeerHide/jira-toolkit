@@ -16,7 +16,7 @@ from typing import Any
 
 from .artifacts import ArtifactManager
 from .console import ConsoleIO
-from .excel_io import ExcelWorkbookManager
+from .excel.excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name

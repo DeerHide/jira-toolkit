@@ -9,8 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .excel_io import ExcelWorkbookManager
-from .excel_table_models import (
+from ..config.config_models import (
     AssigneeConfig,
     AutoFieldValueConfig,
     ComponentConfig,
@@ -21,6 +20,7 @@ from .excel_table_models import (
     PriorityConfig,
     SprintConfig,
 )
+from .excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
 

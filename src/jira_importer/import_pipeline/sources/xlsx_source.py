@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...excel_io import ExcelWorkbookManager
+from ...excel.excel_io import ExcelWorkbookManager
 from ..models import HeaderSchema
 
 

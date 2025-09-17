@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from . import CFG_REQ_DEFAULT
+from .. import CFG_REQ_DEFAULT
 from .excel_config import ExcelConfiguration
 from .json_config import JsonConfiguration
 

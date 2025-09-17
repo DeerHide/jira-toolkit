@@ -19,9 +19,9 @@ from jira_importer import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 # Import classes
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
-from jira_importer.config_factory import ConfigurationFactory
+from jira_importer.config.config_factory import ConfigurationFactory
 from jira_importer.console import ConsoleIO
-from jira_importer.excel_io import ExcelWorkbookManager
+from jira_importer.excel.excel_io import ExcelWorkbookManager
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.processor import ImportProcessor
 from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions

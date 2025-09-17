@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, TypeVar
 
-from . import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
+from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 
 T = TypeVar("T")
 

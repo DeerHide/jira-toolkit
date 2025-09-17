@@ -10,10 +10,10 @@ import logging
 from pathlib import Path
 from typing import Any, TypeVar
 
-from . import CFG_REQ_DEFAULT
-from .excel_io import ExcelWorkbookManager
-from .excel_table_models import ExcelTableConfig
-from .excel_table_reader import ExcelTableReader
+from .. import CFG_REQ_DEFAULT
+from ..excel.excel_io import ExcelWorkbookManager
+from ..excel.excel_table_reader import ExcelTableReader
+from .config_models import ExcelTableConfig
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)

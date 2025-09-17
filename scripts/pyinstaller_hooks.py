@@ -1,39 +1,36 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Build script for the Jira Importer application.
+"""Build script for the Jira Importer application.
 
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
 import os
-import shutil
-import stat
-import subprocess
 import sys
-import json
 from pathlib import Path
-from typing import Any, Mapping, Optional, Type, TypeVar
-from .build_utils.build_context import BuildContext
-from .build_utils.build_utils import BuildUtils
+from typing import Any, TypeVar
 
-T = TypeVar('T')
+from .build_utils.build_context import BuildContext  # type: ignore[import-not-found]
+from .build_utils.build_utils import BuildUtils  # type: ignore[import-not-found]
+
+T = TypeVar("T")
+
 
 def norm_abs(path_str: str) -> str:
+    """Normalize an absolute path."""
     p = Path(path_str).expanduser()
     if not p.is_absolute():
         p = (Path.cwd() / p).resolve()
     return os.fspath(p)
 
+
 def pre_build(interface) -> None:
+    """Pre-build hook for the Jira Importer application."""
     build_context = BuildContext(interface)
     cfg = build_context.cfg
     cfg_files = build_context.files_cfg
-    cfg_pyi    = build_context.pyinstaller_cfg
+    cfg_pyi = build_context.pyinstaller_cfg
 
     data: dict[str, Any] = interface.pyproject_data
     pp = data.setdefault("tool", {}).setdefault("poetry-pyinstaller-plugin", {})
@@ -60,14 +57,16 @@ def pre_build(interface) -> None:
     if "icon" in cfg_files:
         target["icon"] = cfg_files["icon"]
     if "version" in cfg_files:
-        target["include"].append(build_context.include_file(cfg_files['version']))
-        pp["include"].append((build_context.include_file(cfg_files['version']), "."))
+        target["include"].append(build_context.include_file(cfg_files["version"]))
+        pp["include"].append((build_context.include_file(cfg_files["version"]), "."))
     if "add_data" in cfg_pyi:
         target["include"].extend(cfg_pyi["add_data"])
 
+
 def post_build(interface) -> None:
+    """Post-build hook for the Jira Importer application."""
     try:
-        data: dict[str, Any] = interface.pyproject_data
+        data: dict[str, Any] = interface.pyproject_data  # pylint: disable=unused-variable
     except Exception as e:
         interface.write_line(f"  - error: {e}")
         sys.exit(1)
@@ -80,7 +79,8 @@ def post_build(interface) -> None:
         if scripts_dir not in sys.path:
             sys.path.insert(0, scripts_dir)
 
-        import generate_version
+        import generate_version  # pylint: disable=import-outside-toplevel
+
         generate_version.main()
         interface.write_line("Version file generated successfully")
     except Exception as e:
@@ -91,7 +91,7 @@ def post_build(interface) -> None:
 
     dist = Path("dist") / "pyinstaller" / interface.platform
     build_executable = dist / f"{target_name}.exe"
-    print (f"executable -> {build_executable}")
+    print(f"executable -> {build_executable}")
     versioninfo_file = build_context.files_cfg["version"]
     interface.run("pyi-set_version", str(versioninfo_file), str(build_executable))
     interface.write_line(f"Stamped version info via pyi-set_version for {build_executable.name}")

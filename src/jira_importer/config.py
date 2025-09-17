@@ -1,30 +1,30 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""Description: This script loads and validates the configuration file for the Jira Importer.
 
-"""
-Script Name: config.py
-Description: This script loads and validates the configuration file for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
-import logging
-import os
 import json
+import logging
 from pathlib import Path
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
-T = TypeVar('T')
+from . import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
+
+T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
+
 class ConfigurationError(Exception):
     """Raised when the configuration file is invalid or cannot be read."""
-    pass
+
 
 class Configuration:
-    def __init__(self, path='config_importer.json', cfg_req=1):
+    """Configuration class."""
+
+    def __init__(self, path: str = DEFAULT_CONFIG_FILENAME, cfg_req: int = CFG_REQ_DEFAULT) -> None:
+        """Initialize the Configuration class."""
         logger.debug(f"Loading configuration from {path}")
         if not Path(path).is_file():
             logger.error(f"The provided path '{path}' is not a valid file path.")
@@ -34,16 +34,19 @@ class Configuration:
         self.cfg_req = cfg_req
         if self.version_check():
             logger.critical("Wrong file config version or missing version key.")
-            #raise ConfigurationError("Wrong file config version or missing version key.")
+            # raise ConfigurationError("Wrong file config version or missing version key.")
         logger.debug(f"Configuration content: {self._redacted_content()}")
 
-    def version_check(self):
+    def version_check(self) -> bool:
+        """Check the version of the configuration file."""
         # Check for new structure first
-        if 'metadata' in self.content:
-            cfg_version = self.content.get('metadata', {}).get('version')
+        if "metadata" in self.content:
+            cfg_version = self.content.get("metadata", {}).get("version")
         else:
             # Fallback to old structure
-            logger.warning("Using legacy configuration structure. Please migrate to 'metadata.version' and nested keys.")
+            logger.warning(
+                "Using legacy configuration structure. Please migrate to 'metadata.version' and nested keys."
+            )
             cfg_version = self.content.get("app.config.version")
 
         logger.debug(f"Config version: {cfg_version} ({self.cfg_req} needed)")
@@ -59,23 +62,25 @@ class Configuration:
             logger.error("Invalid version format in configuration.")
             return True
 
-    def _load_config(self):
+    def _load_config(self) -> dict:
+        """Load the configuration file."""
         logger.debug(f"Reading configuration file: {self.path}")
         try:
-            with Path(self.path).open('r', encoding='utf-8') as config_file:
+            with Path(self.path).open("r", encoding="utf-8") as config_file:
                 return json.load(config_file)
         except json.JSONDecodeError as e:
             message = f"The JSON file '{self.path}' is not correctly formatted. Error: {e}"
             logger.error(message)
-            raise ConfigurationError(message)
+            raise ConfigurationError(message) from e
         except Exception as e:
             message = f"Error reading configuration file '{self.path}': {e}"
             logger.error(message)
-            raise ConfigurationError(message)
+            raise ConfigurationError(message) from e
 
-    def get_value(self, key: str, default: Optional[T] = None, expected_type: Optional[Type[T]] = None) -> Optional[T]:
+    def get_value(self, key: str, default: T | None = None, expected_type: type[T] | None = None) -> T | None:
+        """Get a value from the configuration file."""
         # Handle new nested structure
-        if 'metadata' in self.content:
+        if "metadata" in self.content:
             value: Any = self._get_nested_value(key)
         else:
             # Fallback to old flat structure
@@ -85,14 +90,13 @@ class Configuration:
             return default
 
         if expected_type is not None and not isinstance(value, expected_type):
-            raise TypeError(
-                f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}"
-            )
+            raise TypeError(f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}")
 
         return value  # type: ignore[return-value]
 
-    def _get_nested_value(self, key):
-        keys = key.split('.')
+    def _get_nested_value(self, key: str) -> Any:
+        """Get a nested value from the configuration file."""
+        keys = key.split(".")
         current = self.content
 
         for k in keys:
@@ -107,9 +111,10 @@ class Configuration:
         """Return a redacted copy of the configuration for safe logging."""
         sensitive_keys = {"api_token", "password", "secret", "token"}
 
-        def redact(obj):
+        def redact(obj: Any) -> Any:
+            """Redact the configuration file."""
             if isinstance(obj, dict):
-                return {k: ('***' if k in sensitive_keys else redact(v)) for k, v in obj.items()}
+                return {k: ("***" if k in sensitive_keys else redact(v)) for k, v in obj.items()}
             if isinstance(obj, list):
                 return [redact(v) for v in obj]
             return obj
@@ -117,8 +122,9 @@ class Configuration:
         return redact(self.content)
 
     def __repr__(self) -> str:
+        """Return a string representation of the configuration."""
         try:
-            version = self.get_value('metadata.version', default='unknown')
+            version = self.get_value("metadata.version", default="unknown")
         except Exception:
-            version = 'unknown'
+            version = "unknown"
         return f"Configuration(path='{self.path}', version={version})"

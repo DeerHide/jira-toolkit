@@ -1,132 +1,136 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""Description: Manage temporary/output artifacts for the Jira Importer.
 
-"""
-Script Name: artifacts.py
-Description: Manage temporary/output artifacts for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
 import logging
 import os
 import shutil
-from pathlib import Path
-from typing import Iterable, Optional, Union, Set, Dict
 import threading
-
+from collections.abc import Callable, Iterable
+from pathlib import Path
+from types import TracebackType
 
 logger = logging.getLogger(__name__)
 
 
 class ArtifactManager:
-	"""Track and optionally delete generated artifacts.
+    """Track and optionally delete generated artifacts.
 
-	- Stores normalized absolute file paths as a set to avoid duplicates
-	- Uses a lock for thread-safety
-	- Can restrict tracking to a base directory (if provided)
-	"""
+    - Stores normalized absolute file paths as a set to avoid duplicates
+    - Uses a lock for thread-safety
+    - Can restrict tracking to a base directory (if provided)
+    """
 
-	def __init__(self, config, base_dir: Optional[Union[str, Path]] = None):
-		self._artifacts: Set[Path] = set()
-		# Coerce to bool so None -> False
-		self.delete_enabled: bool = bool(config.get_value('app.artifacts.delete_enabled'))
-		self._base_dir: Optional[Path] = Path(base_dir).resolve() if base_dir is not None else None
-		self._lock = threading.Lock()
+    def __init__(self, config, base_dir: str | Path | None = None):
+        """Initialize the ArtifactManager."""
+        self._artifacts: set[Path] = set()
+        # Coerce to bool so None -> False
+        self.delete_enabled: bool = bool(config.get_value("app.artifacts.delete_enabled"))
+        self._base_dir: Path | None = Path(base_dir).resolve() if base_dir is not None else None
+        self._lock = threading.Lock()
 
-	def _normalize(self, file_path: Union[str, Path]) -> Path:
-		path = Path(file_path).resolve()
-		return path
+    def _normalize(self, file_path: str | Path) -> Path:
+        path = Path(file_path).resolve()
+        return path
 
-	def add(self, file_path: Union[str, Path]) -> None:
-		"""Add an artifact to the tracking set."""
-		if not file_path:
-			return
-		path = self._normalize(file_path)
-		if self._base_dir and not (path == self._base_dir or self._base_dir in path.parents):
-			logger.warning("Refusing to track artifact outside base_dir: %s", path)
-			return
-		with self._lock:
-			if path not in self._artifacts:
-				self._artifacts.add(path)
-				logger.debug("Artifact added: %s", path)
+    def add(self, file_path: str | Path) -> None:
+        """Add an artifact to the tracking set."""
+        if not file_path:
+            return
+        path = self._normalize(file_path)
+        if self._base_dir and not (path == self._base_dir or self._base_dir in path.parents):
+            logger.warning("Refusing to track artifact outside base_dir: %s", path)
+            return
+        with self._lock:
+            if path not in self._artifacts:
+                self._artifacts.add(path)
+                logger.debug("Artifact added: %s", path)
 
-	def add_many(self, file_paths: Iterable[Union[str, Path]]) -> None:
-		for p in file_paths:
-			self.add(p)
+    def add_many(self, file_paths: Iterable[str | Path]) -> None:
+        """Add multiple artifacts to the tracking set."""
+        for p in file_paths:
+            self.add(p)
 
-	def remove(self, file_path: Union[str, Path]) -> None:
-		path = self._normalize(file_path)
-		with self._lock:
-			self._artifacts.discard(path)
+    def remove(self, file_path: str | Path) -> None:
+        """Remove an artifact from the tracking set."""
+        path = self._normalize(file_path)
+        with self._lock:
+            self._artifacts.discard(path)
 
-	def list(self) -> Iterable[Path]:
-		with self._lock:
-			return list(self._artifacts)
+    def list(self) -> Iterable[Path]:
+        """List all artifacts in the tracking set."""
+        with self._lock:
+            return list(self._artifacts)
 
-	def clear(self) -> None:
-		with self._lock:
-			self._artifacts.clear()
+    def clear(self) -> None:
+        """Clear the tracking set."""
+        with self._lock:
+            self._artifacts.clear()
 
-	def _rmtree_onerror(self, func, path, exc_info):
-		# Best-effort: try to make read-only files writable and retry
-		try:
-			os.chmod(path, 0o700)
-			func(path)
-		except Exception:  # noqa: BLE001 - log and continue
-			logger.error("Failed to remove path during rmtree: %s", path)
+    def _rmtree_onexc(
+        self, func: Callable[[str], None], path: str, exc_info: tuple[type[BaseException], BaseException, TracebackType]
+    ) -> None:
+        """Handle errors during rmtree."""
+        # Best-effort: try to make read-only files writable and retry
+        try:
+            os.chmod(path, 0o700)
+            func(path)
+        except Exception:
+            logger.error("Failed to remove path during rmtree: %s", path)
+            logger.error("Exception info: %s", exc_info)
 
-	def delete_all(self, include_dirs: bool = False, dry_run: bool = False) -> Dict[str, int]:
-		"""Delete all tracked artifacts.
+    def delete_all(self, include_dirs: bool = False, dry_run: bool = False) -> dict[str, int]:
+        """Delete all tracked artifacts.
 
-		Parameters:
-		- include_dirs: also delete directories (non-symlink) via rmtree
-		- dry_run: log actions without deleting
+        Parameters:
+        - include_dirs: also delete directories (non-symlink) via rmtree
+        - dry_run: log actions without deleting
 
-		Returns a summary dict with counts of deleted/skipped/errors.
-		"""
-		if not self.delete_enabled and not dry_run:
-			logger.info("Artifact deletion is disabled in configuration.")
-			return {"deleted": 0, "skipped": len(self._artifacts), "errors": 0}
+        Returns a summary dict with counts of deleted/skipped/errors.
+        """
+        if not self.delete_enabled and not dry_run:
+            logger.info("Artifact deletion is disabled in configuration.")
+            return {"deleted": 0, "skipped": len(self._artifacts), "errors": 0}
 
-		deleted = 0
-		skipped = 0
-		errors = 0
+        deleted = 0
+        skipped = 0
+        errors = 0
 
-		with self._lock:
-			# Work on a snapshot to allow safe modification
-			for path in list(self._artifacts):
-				try:
-					if not path.exists():
-						skipped += 1
-						logger.debug("Artifact does not exist: %s", path)
-					elif dry_run:
-						skipped += 1
-						logger.info("Dry-run: would delete %s", path)
-					else:
-						if path.is_file() or path.is_symlink():
-							# Avoid rmtree on directory symlinks
-							path.unlink()
-						elif include_dirs and path.is_dir() and not path.is_symlink():
-							shutil.rmtree(path, onerror=self._rmtree_onerror)
-						else:
-							skipped += 1
-							logger.debug("Skipping non-file artifact: %s", path)
-							self._artifacts.discard(path)
-							continue
+        with self._lock:
+            # Work on a snapshot to allow safe modification
+            for path in list(self._artifacts):
+                try:
+                    if not path.exists():
+                        skipped += 1
+                        logger.debug("Artifact does not exist: %s", path)
+                    elif dry_run:
+                        skipped += 1
+                        logger.info("Dry-run: would delete %s", path)
+                    else:
+                        if path.is_file() or path.is_symlink():
+                            # Avoid rmtree on directory symlinks
+                            path.unlink()
+                        elif include_dirs and path.is_dir() and not path.is_symlink():
+                            shutil.rmtree(path, onerror=self._rmtree_onexc)  # pylint: disable=deprecated-argument
+                        else:
+                            skipped += 1
+                            logger.debug("Skipping non-file artifact: %s", path)
+                            self._artifacts.discard(path)
+                            continue
 
-						deleted += 1
-						logger.info("Deleted artifact: %s", path)
+                        deleted += 1
+                        logger.info("Deleted artifact: %s", path)
 
-					self._artifacts.discard(path)
-				except FileNotFoundError:
-					skipped += 1
-					logger.debug("Artifact vanished before deletion: %s", path)
-					self._artifacts.discard(path)
-				except Exception as exc:  # noqa: BLE001 - log and continue
-					errors += 1
-					logger.error("Failed to delete artifact '%s': %s", path, exc)
+                    self._artifacts.discard(path)
+                except FileNotFoundError:
+                    skipped += 1
+                    logger.debug("Artifact vanished before deletion: %s", path)
+                    self._artifacts.discard(path)
+                except Exception as exc:
+                    errors += 1
+                    logger.error("Failed to delete artifact '%s': %s", path, exc)
 
-		logger.debug("Artifacts deletion completed: deleted=%d skipped=%d errors=%d", deleted, skipped, errors)
-		return {"deleted": deleted, "skipped": skipped, "errors": errors}
+        logger.debug("Artifacts deletion completed: deleted=%d skipped=%d errors=%d", deleted, skipped, errors)
+        return {"deleted": deleted, "skipped": skipped, "errors": errors}

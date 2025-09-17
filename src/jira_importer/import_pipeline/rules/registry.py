@@ -1,42 +1,41 @@
-"""
-script name: registry.py
-description: This script contains the registry for the Jira Importer.
-author: Julien (@tom4897)
-license: MIT
-date: 2025
+"""description: This script contains the registry for the Jira Importer.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 from ..models import IRowRule
 from .builtin_rules import (
-    SummaryRequiredRule,
+    EstimateFormatRule,
+    IssueIdPresenceRule,
     IssueTypeAllowedRule,
     PriorityAllowedRule,
-    IssueIdPresenceRule,
-    EstimateFormatRule,
     ProjectKeyConsistencyRule,
+    SummaryRequiredRule,
 )
+
 
 @dataclass(slots=True)
 class RuleRegistry:
     """Simple container returning a deterministic list of row rules."""
-    rules: List[IRowRule]
 
-    def get_rules(self) -> List[IRowRule]:
-        # Already ordered; return a shallow copy to avoid external mutation.
+    rules: list[IRowRule]
+
+    def get_rules(self) -> list[IRowRule]:
+        """Already ordered; return a shallow copy to avoid external mutation."""
         return list(self.rules)
 
 
-def build_registry(config_view, excel_ctx: object | None) -> RuleRegistry:
-    """
-    Compose built-in rules and, later, Excel-defined rules.
+def build_registry(config_view, excel_ctx: object | None) -> RuleRegistry:  # pylint: disable=unused-argument
+    """Compose built-in rules and, later, Excel-defined rules.
+
     For now we only return a conservative, stable set of built-ins.
     """
-    rules: List[IRowRule] = []
+    rules: list[IRowRule] = []
 
     # Order matters: normalize/required checks early, cross-field later.
     rules.append(ProjectKeyConsistencyRule())

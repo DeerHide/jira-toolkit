@@ -1,30 +1,22 @@
-"""
-script name: builtin_rules.py
-description: This script contains the built-in rules for the Jira Importer.
-author: Julien (@tom4897)
-license: MIT
-date: 2025
+"""description: This script contains the built-in rules for the Jira Importer.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Optional, Sequence
-
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
-from ..models import (
-    IRowRule,
-    Problem,
-    ProblemSeverity,
-    ValidationContext,
-    ValidationResult,
-    ColumnIndices,
-)
+from ..models import ColumnIndices, IRowRule, Problem, ProblemSeverity, ValidationContext, ValidationResult
 
 # helpers functions
 
-def _cell_str(row: Sequence[Any], idx: Optional[int]) -> str:
+
+def _cell_str(row: Sequence[Any], idx: int | None) -> str:
     if idx is None:
         return ""
     if idx < 0 or idx >= len(row):
@@ -35,20 +27,24 @@ def _cell_str(row: Sequence[Any], idx: Optional[int]) -> str:
     s = str(v).strip()
     return s
 
+
 def _is_empty(s: str) -> bool:
     return s == ""
 
 
 # rules definitions
 
+
 @dataclass(slots=True)
 class SummaryRequiredRule(IRowRule):
-    """
-    Summary must not be empty.
+    """Summary must not be empty.
+
     Severity: error
     Note: Mandatory for the Jira Cloud & Jira Server
     """
+
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         summary = _cell_str(row, indices.summary)
         if _is_empty(summary):
             return ValidationResult(
@@ -67,13 +63,14 @@ class SummaryRequiredRule(IRowRule):
 
 @dataclass(slots=True)
 class IssueTypeAllowedRule(IRowRule):
-    """
-    IssueType must be one of allowed issuetypes (config override supported).
+    """IssueType must be one of allowed issuetypes (config override supported).
+
     Default: {'Story','Task','Bug','Epic','Sub-Task'}
     Severity: error
     Note: Mandatory for the Jira Cloud & Jira Server
     """
-    allowed: Optional[set[str]] = None
+
+    allowed: set[str] | None = None
 
     def _allowed(self, ctx: ValidationContext) -> set[str]:
         # Duck-typed ConfigView: try get(), else defaults.
@@ -88,6 +85,7 @@ class IssueTypeAllowedRule(IRowRule):
         return default
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         issuetype = _cell_str(row, indices.issuetype)
         if _is_empty(issuetype):
             return ValidationResult(
@@ -119,12 +117,13 @@ class IssueTypeAllowedRule(IRowRule):
 
 @dataclass(slots=True)
 class PriorityAllowedRule(IRowRule):
-    """
-    Priority must be one of allowed priorities (config override supported).
+    """Priority must be one of allowed priorities (config override supported).
+
     Default: {'Highest','High','Medium','Low','Lowest'}
     Severity: warning (fixable via fixer to normalize/pad if needed)
     Note: Mandatory for the Jira Cloud & Jira Server
     """
+
     def _allowed(self, ctx: ValidationContext) -> set[str]:
         default = {"Highest", "High", "Medium", "Low", "Lowest"}
         cfg = getattr(ctx.config, "get", None)
@@ -137,6 +136,7 @@ class PriorityAllowedRule(IRowRule):
         return default
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         pri = _cell_str(row, indices.priority)
         if _is_empty(pri):
             # Check if the priority is empty
@@ -169,11 +169,10 @@ class PriorityAllowedRule(IRowRule):
 
 @dataclass(slots=True)
 class IssueIdPresenceRule(IRowRule):
-    """
-    IssueId may be missing; if so, we raise a 'fix' severity so a Fixer can assign one.
-    Also checks duplicates when provided (error).
-    """
+    """IssueId may be missing; if so, we raise a 'fix' severity so a Fixer can assign one. Also checks duplicates when provided (error)."""
+
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         issue_id = _cell_str(row, indices.issue_id)
 
         if _is_empty(issue_id):
@@ -222,8 +221,8 @@ class IssueIdPresenceRule(IRowRule):
 
 @dataclass(slots=True)
 class EstimateFormatRule(IRowRule):
-    """
-    Validate 'estimate' or 'origest' fields format.
+    """Validate 'estimate' or 'origest' fields format.
+
     Accepts patterns like: '1w 2d 3h 30m', '2h', '45m', or plain integers (minutes or seconds per config).
     - If unparsable → error.
     - If parsable → no problem; a Fixer may normalize to seconds/minutes for target sink.
@@ -232,6 +231,7 @@ class EstimateFormatRule(IRowRule):
       - validation.estimate.accept_integers_as: 'seconds' | 'minutes' (default 'seconds')
       - validation.estimate.fields: ['estimate','origest'] (defaults to both when present)
     """
+
     def _integer_unit(self, ctx: ValidationContext) -> str:
         cfg_get = getattr(ctx.config, "get", None)
         if callable(cfg_get):
@@ -239,7 +239,7 @@ class EstimateFormatRule(IRowRule):
             return unit if unit in {"seconds", "minutes"} else "seconds"
         return "seconds"
 
-    def _fields(self, indices: ColumnIndices, ctx: ValidationContext) -> list[tuple[str, Optional[int]]]:
+    def _fields(self, indices: ColumnIndices, ctx: ValidationContext) -> list[tuple[str, int | None]]:
         # Decide which columns to validate
         cfg_get = getattr(ctx.config, "get", None)
         wanted = None
@@ -257,6 +257,7 @@ class EstimateFormatRule(IRowRule):
         return keys
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         problems: list[Problem] = []
         for key, idx in self._fields(indices, ctx):
             raw = _cell_str(row, idx)
@@ -279,11 +280,10 @@ class EstimateFormatRule(IRowRule):
 
 @dataclass(slots=True)
 class ProjectKeyConsistencyRule(IRowRule):
-    """
-    If a Project Key column exists, it should match the configured one (warning/fix).
-    Config key: jira.project.key
-    """
+    """If a Project Key column exists, it should match the configured one (warning/fix). Config key: jira.project.key."""
+
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         if indices.project_key is None:
             return ValidationResult.empty()
 
@@ -328,9 +328,10 @@ class ProjectKeyConsistencyRule(IRowRule):
 
 _EST_TOKEN_RE = re.compile(r"(?P<num>\d+)\s*(?P<unit>[wdhms])", re.IGNORECASE)
 
-def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> bool:
-    """
-    True if 'value' looks like a valid estimate.
+
+def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> bool:  # pylint: disable=unused-argument
+    """True if 'value' looks like a valid estimate.
+
     Accepts:
       - tokenized: '1w 2d 3h 30m', '2h', '45m', '30s'
       - chained:   '1w2d3h30m', '2h30m'

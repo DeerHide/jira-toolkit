@@ -1,56 +1,58 @@
-"""
-Script Name: reporting.py
-Description: This script contains the reporting for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+"""Description: This script contains the reporting for the Jira Importer.
+
+Author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Tuple
 
 from .models import Problem, ProblemSeverity, ProcessorResult
 
 # Emojis consistent with the rest of the tool
 EMO_ERROR = "❌ "
 EMO_WARN = "⚠️ "
-EMO_FIX  = "🔧 "
+EMO_FIX = "🔧 "
 
 
 @dataclass(slots=True)
 class ReportOptions:
     """Tuning knobs for display."""
-    show_details: bool = True             # show per-problem rows
-    max_problem_rows: int = 50            # truncate detail rows
-    show_aggregate_by_code: bool = True   # show counts grouped by problem code
-    max_code_rows: int = 25               # truncate code aggregation rows
+
+    show_details: bool = True  # show per-problem rows
+    max_problem_rows: int = 50  # truncate detail rows
+    show_aggregate_by_code: bool = True  # show counts grouped by problem code
+    max_code_rows: int = 25  # truncate code aggregation rows
 
 
 class ProblemReporter:
-    """
-    Render ProcessorResult to a human-friendly report.
+    """Render ProcessorResult to a human-friendly report.
 
     - Uses Rich tables if 'rich' is installed, else prints plaintext.
     - Always shows an emoji summary header.
     - Optionally shows per-problem detail rows and an aggregate-by-code table.
     """
 
-    def __init__(self, *, options: Optional[ReportOptions] = None) -> None:
+    def __init__(self, *, options: ReportOptions | None = None) -> None:
+        """Initialize the ProblemReporter class."""
         self.opt = options or ReportOptions()
         # Lazy import Rich if present
+        # TODO: Change this to use ui instance of consoleIO
         try:
-            from rich.console import Console  # type: ignore
+            from rich.console import Console  # pylint: disable=import-outside-toplevel
+
             # TODO: Change this to use ui instance of consoleIO
-            from rich.table import Table     # type: ignore
-            self._Console = Console
-            self._Table = Table
+            from rich.table import Table  # pylint: disable=import-outside-toplevel
+
+            self._Console = Console  # pylint: disable=invalid-name
+            self._Table = Table  # pylint: disable=invalid-name
             self._rich_available = True
         except Exception:
-            self._Console = None
-            self._Table = None
+            self._Console = None  # type: ignore
+            self._Table = None  # type: ignore
             self._rich_available = False
 
     # api public
@@ -73,11 +75,11 @@ class ProblemReporter:
     # internals, Rich rendering
 
     def _render_rich(self, result: ProcessorResult) -> None:
-        Console = self._Console  # type: ignore
-        Table = self._Table      # type: ignore
+        Console = self._Console  # pylint: disable=invalid-name
+        Table = self._Table  # pylint: disable=invalid-name
         console = Console()
 
-        #console.rule("[bold]Jira Import Validation Report")
+        # console.rule("[bold]Jira Import Validation Report")
         console.print("[bold]Jira Import Validation Report")
         console.print("")
         console.print(self._summary_rich(result))
@@ -106,11 +108,11 @@ class ProblemReporter:
                     table.add_row("…", "", "", "", f"(truncated at {self.opt.max_problem_rows} rows)")
                     break
                 row = str(p.row_index or "")
-                sev = _sev_label(p.severity)
+                sev_label = _sev_label(p.severity)
                 code = p.code
-                col  = p.col_key or ""
-                msg  = p.message
-                table.add_row(row, sev, code, col, msg)
+                col = p.col_key or ""
+                msg = p.message
+                table.add_row(row, sev_label, code, col, msg)
             console.print(table)
 
         console.rule()
@@ -146,15 +148,16 @@ class ProblemReporter:
                     print(f"... (truncated at {self.opt.max_problem_rows} rows)")
                     break
                 row = f"{p.row_index or '':>5}"
-                sev = f"{_sev_label(p.severity):7}"
+                sev_label = f"{_sev_label(p.severity):7}"
                 code = f"{p.code:30.30}"
-                col  = f"{(p.col_key or ''):12.12}"
-                msg  = p.message
-                print(f"{row}  {sev}  {code}  {col}  {msg}")
+                col = f"{(p.col_key or ''):12.12}"
+                msg = p.message
+                print(f"{row}  {sev_label}  {code}  {col}  {msg}")
         print("====================================")
 
 
 # helpers
+
 
 def _sev_label(sev: ProblemSeverity) -> str:
     if sev == ProblemSeverity.ERROR:
@@ -163,14 +166,15 @@ def _sev_label(sev: ProblemSeverity) -> str:
         return f"{EMO_WARN} warning"
     return f"{EMO_FIX} fix"
 
-def _aggregate_by_code(problems: Sequence[Problem]) -> List[Tuple[str, ProblemSeverity, int]]:
-    """
-    Return a list of (code, severity, count) sorted by count desc then code.
+
+def _aggregate_by_code(problems: Sequence[Problem]) -> list[tuple[str, ProblemSeverity, int]]:
+    """Return a list of (code, severity, count) sorted by count desc then code.
+
     If a code appears with multiple severities, they are treated as distinct buckets.
     """
     counter: Counter[tuple[str, ProblemSeverity]] = Counter()
     for p in problems:
         counter[(p.code, p.severity)] += 1
-    items = [ (code, sev, cnt) for (code, sev), cnt in counter.items() ]
+    items = [(code, sev, cnt) for (code, sev), cnt in counter.items()]
     items.sort(key=lambda x: (-x[2], x[0], x[1].value))
     return items

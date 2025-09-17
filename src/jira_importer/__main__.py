@@ -42,6 +42,46 @@ ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
 
 
+def _determine_config_path(args: Any) -> str:
+    """Determine the configuration file path based on command line arguments.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Path to the configuration file
+    """
+    # Handle mutually exclusive configuration arguments
+    if args.config_default:
+        # Use default config filename in script location
+        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_default=True)
+        logging.debug(f"config_default: {config_path}")
+    elif args.config_input:
+        # Use default config filename in input file location
+        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_input=True)
+        logging.debug(f"config_input: {config_path}")
+    elif args.config_excel:
+        # Use the input Excel file as configuration source
+        config_path = args.input_file
+        logging.debug(f"config_excel: using input file as config: {config_path}")
+    # Smart default: if input is Excel, try using it as config first
+    elif args.input_file and Path(args.input_file).suffix.lower() in {".xlsx", ".xlsm"}:
+        # Try using the input Excel file as config source
+        if Path(args.input_file).exists():
+            config_path = args.input_file
+            logging.debug(f"Smart default: using input Excel file as config: {config_path}")
+        else:
+            # Fall back to traditional config search
+            config_path = find_config_path(args.config, args.input_file)
+            logging.debug(f"Smart default fallback: {config_path}")
+    else:
+        # Use specified config file with default search behavior
+        config_path = find_config_path(args.config, args.input_file)
+        logging.debug(f"!config_default & !config_input & !config_excel: {config_path}")
+
+    return config_path
+
+
 def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:  # pylint: disable=unused-argument
     """Return (config_like, excel_manager_or_None).
 
@@ -97,20 +137,8 @@ def main() -> int:
     else:
         autoreply = None
 
-    # Handle mutually exclusive configuration arguments
-    if args.config_default:
-        # Use default config filename in script location
-        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_default=True)
-        logging.debug(f"config_default: {config_path}")
-    elif args.config_input:
-        # Use default config filename in input file location
-        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_input=True)
-        logging.debug(f"config_input: {config_path}")
-    else:
-        # Use specified config file with default search behavior
-        config_path = find_config_path(args.config, args.input_file)
-        logging.debug(f"!config_default & !config_input: {config_path}")
-
+    # Determine configuration file path
+    config_path = _determine_config_path(args)
     config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
 
     # Initialize logging with CLI override and config support
@@ -144,6 +172,7 @@ def main() -> int:
     logger.debug(fmt.kv("Version", args.version))
     logger.debug(fmt.kv("Config default", args.config_default))
     logger.debug(fmt.kv("Config input", args.config_input))
+    logger.debug(fmt.kv("Config excel", args.config_excel))
     logger.debug(fmt.kv("args", str(args)))
 
     ui.success_light("Jira Importer initialized")

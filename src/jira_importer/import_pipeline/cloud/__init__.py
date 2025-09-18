@@ -6,4 +6,7 @@ Modules:
     metadata: Cached lookups for fields, projects, issuetypes, users.
     mappers: Mapping from normalized rows to Jira issue payloads.
     bulk: Helpers to build payloads for bulk operations.
+    secrets: Secrets resolution utilities for Jira Cloud integration.
+
+Generated
 """

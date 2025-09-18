@@ -2,6 +2,9 @@
 
 This module provides simple cached fetchers for fields, projects, and issue types.
 Detailed pagination and expansion will be implemented in later steps.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations

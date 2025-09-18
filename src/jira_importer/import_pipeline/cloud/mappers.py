@@ -1,6 +1,9 @@
 """Row-to-payload mapping for Jira Cloud (scaffold).
 
 Defines an IssueMapper that will turn normalized rows into Jira issue payloads.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations

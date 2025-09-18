@@ -2,6 +2,9 @@
 
 This module defines abstractions for OAuth 2.0 (3LO) and basic auth.
 Only minimal scaffolding is provided at this step.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations

@@ -1,4 +1,8 @@
-"""Helpers to build bulk operation payloads (scaffold)."""
+"""Helpers to build bulk operation payloads (scaffold).
+
+author:
+    Julien (@tom4897)
+"""
 
 from __future__ import annotations
 

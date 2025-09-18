@@ -1,6 +1,9 @@
 """HTTP client scaffold for Jira Cloud REST API v3.
 
 Provides a minimal interface to make requests; resilience will be added later.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations

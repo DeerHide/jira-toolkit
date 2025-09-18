@@ -28,3 +28,6 @@ RETRY_MAX_ATTEMPTS: Final[int] = 3
 BACKOFF_INITIAL_SECONDS: Final[float] = 1.0
 BACKOFF_MULTIPLIER: Final[float] = 2.0
 BACKOFF_MAX_SECONDS: Final[float] = 16.0
+
+# Bulk operation configuration
+BATCH_SIZE: Final[int] = 50

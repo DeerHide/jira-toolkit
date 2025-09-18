@@ -73,9 +73,9 @@ def display_table_config(config: Any) -> None:
                     elif hasattr(item, "id"):
                         ui.say(f"  • {item.id}")
                         logger.debug(f"  {table_name} item: {item.id}")
-                if len(table_data) > 5:
-                    ui.say(f"  ... and {len(table_data) - 5} more items")
-                    logger.debug(f"  ... and {len(table_data) - 5} more items")
+                if len(table_data) > 10:
+                    ui.say(f"  ... and {len(table_data) - 10} more items")
+                    logger.debug(f"  ... and {len(table_data) - 10} more items")
                 ui.lf()
 
     except Exception as exc:

@@ -68,7 +68,8 @@ def _determine_config_path(args: Any) -> str:
     # Smart default: if input is Excel, try using it as config first
     elif args.input_file and Path(args.input_file).suffix.lower() in {".xlsx", ".xlsm"}:
         # Try using the input Excel file as config source
-        if Path(args.input_file).exists():
+        input_path = Path(args.input_file)
+        if input_path.exists():
             config_path = args.input_file
             logging.debug(f"Smart default: using input Excel file as config: {config_path}")
         else:

@@ -19,9 +19,10 @@ from jira_importer import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 # Import classes
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
-from jira_importer.config import Configuration
+from jira_importer.config.config_display import display_config_content, display_table_config
+from jira_importer.config.config_factory import ConfigurationFactory
 from jira_importer.console import ConsoleIO
-from jira_importer.excel_io import ExcelWorkbookManager
+from jira_importer.excel.excel_io import ExcelWorkbookManager
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.processor import ImportProcessor
 from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
@@ -42,8 +43,115 @@ ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
 
 
-# TODO: Add a loading config for the excel file in the excel_io.py file
-# TODO: Move to utils
+def _determine_config_path(args: Any) -> str:
+    """Determine the configuration file path based on command line arguments.
+
+    Args:
+        args: Parsed command line arguments
+
+    Returns:
+        Path to the configuration file
+    """
+    # Handle mutually exclusive configuration arguments
+    if args.config_default:
+        # Use default config filename in script location
+        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_default=True)
+        logging.debug(f"config_default: {config_path}")
+    elif args.config_input:
+        # Use default config filename in input file location
+        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_input=True)
+        logging.debug(f"config_input: {config_path}")
+    elif args.config_excel:
+        # Use the input Excel file as configuration source
+        config_path = args.input_file
+        logging.debug(f"config_excel: using input file as config: {config_path}")
+    # Smart default: if input is Excel, try using it as config first
+    elif args.input_file and Path(args.input_file).suffix.lower() in {".xlsx", ".xlsm"}:
+        # Try using the input Excel file as config source
+        input_path = Path(args.input_file)
+        if input_path.exists():
+            config_path = args.input_file
+            logging.debug(f"Smart default: using input Excel file as config: {config_path}")
+        else:
+            # Fall back to traditional config search
+            config_path = find_config_path(args.config, args.input_file)
+            logging.debug(f"Smart default fallback: {config_path}")
+    else:
+        # Use specified config file with default search behavior
+        config_path = find_config_path(args.config, args.input_file)
+        logging.debug(f"!config_default & !config_input & !config_excel: {config_path}")
+
+    return config_path
+
+
+def _display_config(config_file: str) -> None:
+    """Display configuration from the specified file in a user-friendly format.
+
+    Args:
+        config_file: Path to the configuration file to display
+    """
+    setup_logger(logging.DEBUG, None)  # Use debug level for config check
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Load configuration first to get logging settings
+        config = ConfigurationFactory.create_config(config_file, cfg_req=CFG_REQ_DEFAULT)
+
+        add_file_logging(config)
+        logger.info(f"Configuration check started for: {config_file}")
+        ui.title_banner("Configuration Check 🔍", icon="")
+        ui.say(f"Loading configuration from: {fmt.path(config_file)}")
+        ui.lf()
+
+        # Display basic info
+        ui.say(fmt.bold("Configuration Type:"), fmt.default(type(config).__name__))
+        ui.say(fmt.bold("Configuration File:"), fmt.path(config_file))
+        logger.info(f"Configuration type: {type(config).__name__}")
+        logger.info(f"Configuration file: {config_file}")
+
+        if hasattr(config, "path"):
+            ui.say(fmt.bold("Resolved Path:"), fmt.path(config.path))
+            logger.info(f"Resolved path: {config.path}")
+
+        ui.lf()
+
+        # Display configuration content
+        ui.say(fmt.bold("Configuration Content:"))
+        ui.lf()
+
+        if hasattr(config, "content") and config.content:
+            logger.info("Displaying configuration content")
+            display_config_content(config.content, indent=0)
+        else:
+            ui.say(fmt.warning("No configuration content found"))
+            logger.warning("No configuration content found")
+
+        # Display table configuration if available (Excel only)
+        if hasattr(config, "load_table_config"):
+            try:
+                # Load table configuration for Excel files
+                table_config = config.load_table_config()
+                if table_config:
+                    logger.info("Displaying table configuration")
+                    ui.lf()
+                    ui.say(fmt.bold("Table Configuration:"))
+                    ui.lf()
+                    display_table_config(config)
+                else:
+                    logger.info("No table configuration available")
+            except Exception as exc:
+                ui.say(fmt.warning(f"Could not load table configuration: {exc}"))
+                logger.warning(f"Could not load table configuration: {exc}")
+
+        ui.lf()
+        ui.success("Configuration check completed successfully!")
+        logger.info("Configuration check completed successfully!")
+
+    except Exception as exc:
+        logger.error(f"Configuration check failed: {exc}")
+        App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}")
+
+
 def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:  # pylint: disable=unused-argument
     """Return (config_like, excel_manager_or_None).
 
@@ -91,6 +199,11 @@ def main() -> int:
         app.event_close(exit_code=0, cleanup=False)
         return 0
 
+    # Handle config-check mode
+    if hasattr(args, "config_check") and args.config_check:
+        _display_config(args.config_check)
+        return 0
+
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
     if getattr(args, "auto_yes", False):
         autoreply = True
@@ -99,21 +212,9 @@ def main() -> int:
     else:
         autoreply = None
 
-    # Handle mutually exclusive configuration arguments
-    if args.config_default:
-        # Use default config filename in script location
-        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_default=True)
-        logging.debug(f"config_default: {config_path}")
-    elif args.config_input:
-        # Use default config filename in input file location
-        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_input=True)
-        logging.debug(f"config_input: {config_path}")
-    else:
-        # Use specified config file with default search behavior
-        config_path = find_config_path(args.config, args.input_file)
-        logging.debug(f"!config_default & !config_input: {config_path}")
-
-    config = Configuration(config_path, cfg_req=CFG_REQ_DEFAULT)
+    # Determine configuration file path
+    config_path = _determine_config_path(args)
+    config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
 
     # Initialize logging with CLI override and config support
     setup_logger(logging.DEBUG if args.debug else None, config)
@@ -146,6 +247,7 @@ def main() -> int:
     logger.debug(fmt.kv("Version", args.version))
     logger.debug(fmt.kv("Config default", args.config_default))
     logger.debug(fmt.kv("Config input", args.config_input))
+    logger.debug(fmt.kv("Config excel", args.config_excel))
     logger.debug(fmt.kv("args", str(args)))
 
     ui.success_light("Jira Importer initialized")

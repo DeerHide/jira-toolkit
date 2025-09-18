@@ -12,8 +12,8 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+from ...config.config_view import ConfigView
 from ...console import ConsoleIO
-from ..config_view import ConfigView
 from ..models import ProcessorResult
 from .sink_utils import times60_estimates_inplace
 

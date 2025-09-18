@@ -11,8 +11,8 @@ from collections.abc import Sequence
 from datetime import UTC
 from pathlib import Path
 
-from ..excel_io import ExcelProcessingMeta, ExcelWorkbookManager  # generic, lives top-level
-from .config_view import ConfigView  # typed access over your config object
+from ..config.config_view import ConfigView  # typed access over your config object
+from ..excel.excel_io import ExcelProcessingMeta, ExcelWorkbookManager  # generic, lives top-level
 from .fixes.registry import build_fix_registry
 from .models import (
     ColumnIndices,
@@ -59,7 +59,9 @@ class ImportProcessor:
         self.excel_rules_source = excel_rules_source
         self.enable_auto_fix = enable_auto_fix
         logger.debug(
-            f"ImportProcessor initialized: path={self.path}, config={self.config}, enable_excel_rules={self.enable_excel_rules}, excel_rules_source={self.excel_rules_source}, enable_auto_fix={self.enable_auto_fix}"
+            f"ImportProcessor initialized: path={self.path}, config={self.config}, "
+            f"enable_excel_rules={self.enable_excel_rules}, excel_rules_source={self.excel_rules_source}, "
+            f"enable_auto_fix={self.enable_auto_fix}"
         )
 
     def process(self) -> ProcessorResult:  # pylint: disable=too-many-locals

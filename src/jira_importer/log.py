@@ -44,6 +44,7 @@ DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_MAX_LOG_SIZE_MB = 10
 DEFAULT_MAX_LOG_FILES = 5
 DEFAULT_CONSOLE_OUTPUT = False
+DEFAULT_WRITE_TO_FILE = True
 
 _CONFIGURED = False
 
@@ -63,7 +64,9 @@ class LoggingConfig:
         self.is_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
         # Check if file logging is enabled
-        self.file_logging_enabled = self.config and self.config.get_value("app.logging.write_to_file", default=True)
+        self.file_logging_enabled = self.config and self.config.get_value(
+            "app.logging.write_to_file", default=DEFAULT_WRITE_TO_FILE
+        )
 
         # Check if console output is enabled
         self.console_output_enabled = (

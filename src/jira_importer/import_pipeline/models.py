@@ -268,6 +268,8 @@ class ValidationContext:
     feature_flags: Mapping[str, Any] = field(default_factory=dict)
     auto_fix_enabled: bool = False
     issue_id_seen: MutableMapping[str, None] = field(default_factory=dict)
+    # Tracks first-time encounter during validation pass (not pre-populated)
+    validation_issue_id_seen: MutableMapping[str, None] = field(default_factory=dict)
 
     def seen_issue_id(self, value: str) -> bool:
         """Returns True if value was seen before; otherwise records it and returns False.
@@ -277,6 +279,16 @@ class ValidationContext:
         if value in self.issue_id_seen:
             return True
         self.issue_id_seen[value] = None
+        return False
+
+    def seen_issue_id_in_validation(self, value: str) -> bool:
+        """Duplicate detection for validation pass only (ignores pre-populated set).
+
+        Returns True if value was already encountered during this validation pass.
+        """
+        if value in self.validation_issue_id_seen:
+            return True
+        self.validation_issue_id_seen[value] = None
         return False
 
     _RE_ISSUE_ID = re.compile(r"^(?:[A-Za-z]+-\d+|\d+)$")

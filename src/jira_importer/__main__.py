@@ -26,9 +26,8 @@ from jira_importer.excel.excel_io import ExcelWorkbookManager
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.processor import ImportProcessor
 from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
+from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud
 from jira_importer.import_pipeline.sinks.csv_sink import write_csv
-
-# from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud  # implemented in later steps
 from jira_importer.log import add_file_logging, setup_logger
 from jira_importer.utils import find_config_path, open_browser
 
@@ -354,10 +353,21 @@ def main() -> int:
 
         if output_target == "cloud":
             ui.info("Output target: Jira Cloud API")
-            ui.warning(
-                "Cloud output selected, but cloud sink is not yet implemented in this step. Falling back to CSV."
-            )
-            output_target = "csv"
+            try:
+                report = write_cloud(result, config, dry_run=False)
+                ui.success(f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}")
+                if report.failed > 0:
+                    ui.warning("Some issues failed to import. See logs for details.")
+            except Exception as exc:
+                logger.exception("Cloud import failed: %s", exc)
+                App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}")
+            # non-zero exit if there were errors (so CI can gate)
+            _result_code = 0 if result.report.errors == 0 else 1
+            # End after cloud path
+            ui.lf()
+            ui.full_panel(fmt.success("Processing complete. You can close this window now."))
+            app.event_close(exit_code=_result_code, cleanup=True)
+            return _result_code
 
         if output_target == "csv":
             write_csv(result, output_filepath, config=temp_config if temp_config is not None else config)

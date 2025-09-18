@@ -42,8 +42,13 @@ class IssueMapper:
         fields: dict[str, Any] = {}
 
         # Required fields
+        project_key: str | None = None
         if indices.project_key is not None and row[indices.project_key]:
-            fields["project"] = {"key": str(row[indices.project_key]).strip()}
+            project_key = str(row[indices.project_key]).strip()
+        if not project_key:
+            project_key = str(self.cfg.get("jira.project.key", "") or "").strip()
+        if project_key:
+            fields["project"] = {"key": project_key}
         if indices.issuetype is not None and row[indices.issuetype]:
             fields["issuetype"] = {"name": str(row[indices.issuetype]).strip()}
         if indices.summary is not None and row[indices.summary]:
@@ -58,9 +63,7 @@ class IssueMapper:
         if indices.priority is not None and row[indices.priority]:
             fields["priority"] = {"name": str(row[indices.priority]).strip()}
 
-        if indices.assignee is not None and row[indices.assignee]:
-            # TODO: resolve to accountId via user search
-            fields["assignee"] = {"emailAddress": str(row[indices.assignee]).strip()}
+        # Assignee: Jira Cloud v3 requires accountId. Skip until user resolution is implemented.
 
         if indices.parent is not None and row[indices.parent]:
             fields["parent"] = {"key": str(row[indices.parent]).strip()}
@@ -69,7 +72,7 @@ class IssueMapper:
         if indices.estimate is not None and row[indices.estimate]:
             try:
                 est_seconds = int(float(str(row[indices.estimate])))
-                fields["timetracking"] = {"originalEstimate": f"{est_seconds}s"}
+                fields["timetracking"] = {"originalEstimateSeconds": est_seconds}
             except (ValueError, TypeError):
                 logger.warning(f"Invalid estimate value: {redact_secret(str(row[indices.estimate]))}")
 

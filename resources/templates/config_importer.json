@@ -11,7 +11,18 @@
     },
     "jira": {
       "connection": {
-        "site_address": "https://xyz.atlassian.net"
+        "site_address": "https://xyz.atlassian.net",
+        "auth": {
+          "mode": "basic",
+          "email": "${ENV:JIRA_EMAIL}",
+          "api_token": "${ENV:JIRA_API_TOKEN}"
+        },
+        "oauth": {
+          "client_id": "${ENV:JIRA_OAUTH_CLIENT_ID}",
+          "client_secret": "${ENV:JIRA_OAUTH_CLIENT_SECRET}",
+          "refresh_token": "${ENV:JIRA_OAUTH_REFRESH_TOKEN}"
+        },
+        "cloud_id": ""
       },
       "project": {
         "key": "JITTP2",

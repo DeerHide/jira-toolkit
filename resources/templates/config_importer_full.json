@@ -66,7 +66,17 @@
   "jira": {
     "connection": {
       "site_address": "https://your-instance.atlassian.net",
-      "api_token": ""
+      "auth": {
+        "mode": "basic",
+        "email": "${ENV:JIRA_EMAIL}",
+        "api_token": "${ENV:JIRA_API_TOKEN}"
+      },
+      "oauth": {
+        "client_id": "${ENV:JIRA_OAUTH_CLIENT_ID}",
+        "client_secret": "${ENV:JIRA_OAUTH_CLIENT_SECRET}",
+        "refresh_token": "${ENV:JIRA_OAUTH_REFRESH_TOKEN}"
+      },
+      "cloud_id": ""
     },
     "project": {
       "key": "PROJECT",
@@ -127,6 +137,13 @@
     },
     "active_fields": [
       "jira.connection.site_address - Your Jira instance URL",
+      "jira.connection.auth.mode - basic | oauth",
+      "jira.connection.auth.email - Atlassian account email (env-ready)",
+      "jira.connection.auth.api_token - Atlassian API token (env-ready)",
+      "jira.connection.oauth.client_id - OAuth 3LO client id (env-ready)",
+      "jira.connection.oauth.client_secret - OAuth 3LO client secret (env-ready)",
+      "jira.connection.oauth.refresh_token - OAuth 3LO refresh token (env-ready)",
+      "jira.connection.cloud_id - Cloud ID for api.atlassian.com (optional)",
       "jira.project.key - Your Jira project key",
       "jira.validation.components - Valid component names for your project",
       "jira.validation.priorities - Valid priority levels",

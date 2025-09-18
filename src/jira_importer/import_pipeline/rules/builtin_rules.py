@@ -175,6 +175,7 @@ class IssueIdPresenceRule(IRowRule):
         """Apply the rule to the row."""
         issue_id = _cell_str(row, indices.issue_id)
 
+        # Missing issue ID
         if _is_empty(issue_id):
             # Signal a fixable condition
             return ValidationResult(
@@ -189,6 +190,7 @@ class IssueIdPresenceRule(IRowRule):
                 )
             )
 
+        # Invalid issue ID
         if ctx.invalid_issue_id(issue_id):
             return ValidationResult(
                 problems=(
@@ -202,8 +204,8 @@ class IssueIdPresenceRule(IRowRule):
                 )
             )
 
-        # duplicate detection
-        if ctx.seen_issue_id(issue_id):
+        # Duplicate detection
+        if ctx.seen_issue_id_in_validation(issue_id):
             return ValidationResult(
                 problems=(
                     Problem(

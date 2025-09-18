@@ -69,6 +69,14 @@ class AutoFieldValueConfig:
     value: str
 
 
+@dataclass(slots=True, frozen=True)
+class TeamConfig:
+    """Configuration for team mapping."""
+
+    name: str
+    id: str
+
+
 @dataclass(slots=True)
 class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
     """Container for all Excel table-based configuration data.

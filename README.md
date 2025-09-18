@@ -19,18 +19,22 @@ Many teams continue to do their planning in Excel, even when their task executio
 Drag and drop your excel file on the exe
 
 ### Basic Usage
+
 ```bash
 jira_importer.exe your-data.xlsx
 ```
 
 ### With Custom Configuration
+
 ```bash
 jira_importer.exe your-data.xlsx -c config.json
 ```
 
 ### Command Line Options
+
 - `your-data.xlsx` - Your Excel file to import
 - `-c, --config` - Custom configuration file (default: `config_importer.json`)
+- `-ce, --config-excel` - Use the input Excel file as configuration source (config sheet)
 - `-cd, --config-default` - Use config from application location
 - `-ci, --config-input` - Use config from input file location (recommended)
 - `-d, --debug` - Enable debug mode
@@ -39,6 +43,7 @@ jira_importer.exe your-data.xlsx -c config.json
 ## Input Format
 
 Use the provided `ImportTemplate.xlsx` as a starting point for your data. The tool will:
+
 - Convert your Excel file to CSV format
 - Validate and format data for Jira import
 - Generate a properly formatted CSV file ready for Jira
@@ -46,12 +51,14 @@ Use the provided `ImportTemplate.xlsx` as a starting point for your data. The to
 ### Row Skipping
 
 The tool supports skipping rows during processing using multiple criteria:
+
 - **RowType column**: Set `RowType = "SKIP"` for rows you want to exclude
 - **Issue Type filtering**: Automatically skip rows with Issue Types like "comment", "note", "skip"
 - Skipped rows bypass validation and won't appear in the final output
 - Configure this feature in your config file with `"skip_rowtype": true` and `"skip_issuetypes": ["comment", "note", "skip"]`
 
 Example:
+
 ```csv
 Summary,Priority,Issue Type,RowType
 Fix login bug,High,Bug,PROCESS
@@ -61,6 +68,7 @@ Update docs,Medium,Task,PROCESS
 ```
 
 **Configuration:**
+
 ```json
 {
   "app": {
@@ -80,49 +88,53 @@ The tool generates a formatted CSV file in the same directory as your input file
 
 ## Configuration
 
-**Quick setup:**
-1. Copy `jira-importer-config.json` to your project
-2. Update your Jira instance details
-3. Customize validation rules as needed
+There are two simple ways to configure the importer. Pick the one that fits you best.
 
-Templates can be found under `resources/templates/`.
+### Option A: Use your Excel file (easiest)
 
-### Logging Configuration
+- Put your settings in the `Config` sheet of your Excel file
+- Use our template as a starting point: `resources/templates/ImportTemplate_with_config.xlsx`
+- Then just run the importer with your Excel file (no extra config file needed)
 
-The toolkit includes comprehensive logging capabilities:
+Tips:
 
-```json
-{
-  "app": {
-    "logging": {
-      "write_to_file": false,
-      "log_level": "INFO",
-      "max_log_size_mb": 10,
-      "max_log_files": 5
-    }
-  }
-}
+- You can also keep helpful lookup tables (assignees, sprints, components, etc.) in the same Excel, on the `Config` sheet. The tool will read them automatically if present.
+- To force using the Excel file as config, add `-ce` when running.
+
+### Option B: Use a JSON file
+
+- Copy `resources/templates/config_importer.json` next to your Excel file
+- Fill in your Jira details (site address, API token, project key/id)
+- Run:
+
+```bash
+jira_importer.exe your-data.xlsx -ci
 ```
 
-**Logging Options:**
-- `write_to_file`: Enable/disable file logging (default: false)
-- `log_level`: Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-- `max_log_size_mb`: Maximum log file size before rotation (default: 10MB)
-- `max_log_files`: Maximum number of log files to keep during rotation (default: 5)
+Notes:
 
-**Log File Location:**
-- Logs are created in the same directory as the executable
-- Folder name: `jira_importer_logs/`
-- Log files are named with timestamps: `jira-toolkit_YYYYMMDD_HHMMSS.log`
+- `-ci` tells the tool to look for `config_importer.json` next to your Excel file
+- You can also specify a path with `-c path/to/config.json`
 
-**Debug Mode:**
-- Use `-d` or `--debug` flag for verbose logging
-- Creates `.debug` file in application directory for persistent debug mode
-- CLI debug flag takes precedence over config settings
+### Choosing the config source (flags)
+
+- `-ce, --config-excel`: Use the Excel file itself (its `Config` sheet)
+- `-ci, --config-input`: Use `config_importer.json` next to your Excel file
+- `-cd, --config-default`: Use the config that ships with the app
+- `-c, --config <file>`: Use a specific JSON file
+
+If you’re not sure: just put settings in the Excel `Config` sheet or drop a `config_importer.json` next to your Excel file and use `-ci`.
+
+### Logging (optional)
+
+- File logging can be enabled/disabled with `write_to_file` (on by default)
+- Logs are saved next to the app in `jira_importer_logs/`
+- For extra details, run with `-d` (debug mode)
 
 ## Future Features
 
 The following features are planned for future releases:
+
 - **Cross-Platform Support** - Mac and Linux builds
 - **Jira Cloud API Integration** - Direct import to Jira Cloud without manual CSV upload
 - **Batch Processing** - Support for multiple Excel files in a single run
@@ -147,6 +159,7 @@ This tool is provided as-is and may not work out of the box for all environments
 ## Authors
 
 **Jira Importer Toolkit** is developed by:
+
 - @tom4897
 - @nakool
 

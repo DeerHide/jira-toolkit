@@ -15,7 +15,7 @@ from typing import Any
 from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from openpyxl.worksheet.worksheet import Worksheet  # type: ignore[import-untyped]
 
-from .console import ConsoleIO
+from ..console import ConsoleIO
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
@@ -187,6 +187,121 @@ class ExcelWorkbookManager:
                 continue
             rules.append({header[i]: r[i] if i < len(r) else None for i in range(len(header))})
         return rules
+
+    def read_table(self, *, sheet: str, table_name: str) -> list[dict[str, Any]]:
+        """Read a structured table from Excel sheet.
+
+        This method supports both Excel's "Format as Table" feature and
+        text-based table names for backward compatibility.
+
+        Args:
+            sheet: Name of the sheet containing the table
+            table_name: Name of the table (e.g., 'CfgAssignees')
+
+        Returns:
+            List of dictionaries representing table rows
+        """
+        ws = self._get_ws(sheet)
+        if ws is None:
+            logger.warning(f"Sheet '{sheet}' not found")
+            return []
+
+        # First, try to find an actual Excel table
+        if table_name in ws.tables:
+            return self._read_excel_table(ws, table_name)
+
+        # Fallback to text-based table search for backward compatibility
+        return self._read_text_based_table(sheet, table_name)
+
+    def _read_excel_table(self, ws, table_name: str) -> list[dict[str, Any]]:
+        """Read data from an actual Excel table object.
+
+        Args:
+            ws: Worksheet object
+            table_name: Name of the Excel table
+
+        Returns:
+            List of dictionaries representing table rows
+        """
+        table = ws.tables[table_name]
+        logger.debug(f"Reading Excel table '{table_name}' with ref '{table.ref}'")
+
+        # Get the range of the table
+        table_range = ws[table.ref]
+
+        # Extract header row (first row)
+        header_row = table_range[0]
+        headers = [cell.value for cell in header_row]
+
+        # Extract data rows (remaining rows)
+        data_rows = table_range[1:]
+        table_data = []
+
+        for row in data_rows:
+            row_values = [cell.value for cell in row]
+            if self._is_empty_row(row_values):
+                continue
+
+            # Create dict from row data using headers
+            row_dict = {}
+            for i, value in enumerate(row_values):
+                if i < len(headers) and headers[i] is not None:
+                    row_dict[headers[i]] = value
+            table_data.append(row_dict)
+
+        logger.debug(f"Read {len(table_data)} rows from Excel table '{table_name}'")
+        return table_data
+
+    def _read_text_based_table(self, sheet: str, table_name: str) -> list[dict[str, Any]]:
+        """Read data from text-based table (backward compatibility).
+
+        Args:
+            sheet: Name of the sheet containing the table
+            table_name: Name of the table to find
+
+        Returns:
+            List of dictionaries representing table rows
+        """
+        header, rows = self.read_dataset(sheet=sheet)
+        if not header:
+            return []
+
+        # Find the table by looking for the table name in the first column
+        table_start = None
+        table_columns: list[Any] | None = None
+
+        for i, row in enumerate(rows):
+            if row and len(row) > 0 and str(row[0]).strip() == table_name:
+                table_start = i
+                # The same row contains both table name and column headers
+                # Extract only the header columns (skip first cell which holds the table name)
+                table_columns = row[1:]
+                break
+
+        if table_start is None:
+            logger.warning(f"Table '{table_name}' not found in sheet '{sheet}'")
+            return []
+
+        if table_columns is None:
+            logger.warning(f"Table header row not found for '{table_name}' in sheet '{sheet}'")
+            return []
+
+        # Read the table data (skip the table name/header row)
+        table_rows = rows[table_start + 1 :]
+        table_data = []
+
+        for row in table_rows:
+            if self._is_empty_row(row):
+                continue
+            # Create dict from row data using table header
+            row_dict = {}
+            # Skip first column (table marker) in data rows and align with columns
+            for i, value in enumerate(row[1:]):
+                if i < len(table_columns) and table_columns[i] is not None:
+                    row_dict[table_columns[i]] = value
+            table_data.append(row_dict)
+
+        return table_data
 
     # Writes
 

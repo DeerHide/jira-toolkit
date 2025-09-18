@@ -112,29 +112,53 @@ class App:
 
                 return VersionArgs()  # type: ignore[return-value]
 
+        # Check if --config-check is in the arguments
+        if "--config-check" in sys.argv:
+            # Create a minimal parser just for config-check
+            parser = argparse.ArgumentParser(add_help=False)
+            parser.add_argument("--config-check", type=str, metavar="CONFIG_FILE")
+            args, _ = parser.parse_known_args()
+            if args.config_check:
+                # Create a minimal args object with config_check
+                class ConfigCheckArgs:
+                    def __init__(self, config_file: str):
+                        self.config_check = config_file
+                        self.input_file = None
+                        self.version = False
+
+                return ConfigCheckArgs(args.config_check)  # type: ignore[return-value]
+
         parser = argparse.ArgumentParser(
             prog="jira-importer",
             description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",
             formatter_class=RichHelpFormatter,
             epilog="""
-            Example:
+            Examples:
             jira-importer dataset.xlsx -c config_importer.json -d -y
+            jira-importer dataset.xlsx -ce -y --auto-fix
             """,
         )
         parser.add_argument("input_file", help="Excel XLSX file", default="import.xlsx")
 
         config_group = parser.add_mutually_exclusive_group()
-        config_group.add_argument(
-            "-c", "--config", help="Configuration file path", default=DEFAULT_CONFIG_FILENAME, type=str
-        )
+
         config_group.add_argument(
             "-ci", "--config-input", help="Get the configuration path from the input file location", action="store_true"
+        )
+        config_group.add_argument(
+            "-ce",
+            "--config-excel",
+            help="Use the input Excel file as configuration source (sheet: Config)",
+            action="store_true",
         )
         config_group.add_argument(
             "-cd",
             "--config-default",
             help="Get the configuration path from the application location",
             action="store_true",
+        )
+        config_group.add_argument(
+            "-c", "--config", help="Configuration file path", default=DEFAULT_CONFIG_FILENAME, type=str
         )
 
         # TODO: Add output group

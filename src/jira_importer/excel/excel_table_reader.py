@@ -39,6 +39,9 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             workbook_manager: ExcelWorkbookManager instance for reading data
         """
         self.workbook_manager = workbook_manager
+        # Cache mapping of row id -> { lower_key: original_key }
+        # to speed up case-insensitive lookups performed repeatedly per row.
+        self._row_lower_key_cache: dict[int, dict[str, str]] = {}
 
     def read_all_tables(self, config_sheet: str = "Config") -> ExcelTableConfig:
         """Read all configuration tables from the Excel file.
@@ -207,9 +210,20 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         if column_name in row:
             return row[column_name]
 
-        # Try case-insensitive match
-        for key, value in row.items():
-            if key and key.lower() == column_name.lower():
-                return value
+        # Case-insensitive match using cached lowercase-key map per row
+        try:
+            lower_map = self._row_lower_key_cache[id(row)]
+        except KeyError:
+            # Build and cache mapping once per row
+            lower_map = {}
+            for key in row.keys():
+                if isinstance(key, str):
+                    lower_map[key.lower()] = key
+            self._row_lower_key_cache[id(row)] = lower_map
+
+        lookup_key = column_name.lower()
+        original_key = lower_map.get(lookup_key)
+        if original_key is not None:
+            return row.get(original_key)
 
         return None

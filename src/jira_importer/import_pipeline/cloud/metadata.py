@@ -9,6 +9,7 @@ author:
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -38,3 +39,22 @@ class MetadataCache:
             resp.raise_for_status()
             self._issuetypes = resp.json()  # type: ignore[assignment]
         return self._issuetypes
+
+    def paged(
+        self, path: str, *, params: dict[str, Any] | None = None, page_size: int = 50
+    ) -> Iterator[dict[str, Any]]:
+        """Generic paginator for paginated endpoints (yields items across pages)."""
+        start_at = 0
+        params = dict(params or {})
+        while True:
+            params.update({"startAt": start_at, "maxResults": page_size})
+            resp = self.client.get(path, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            values = data.get("values") or data.get("issues") or []
+            yield from values
+            is_last = data.get("isLast")
+            total = data.get("total")
+            if is_last or (total is not None and start_at + page_size >= int(total)):
+                break
+            start_at += page_size

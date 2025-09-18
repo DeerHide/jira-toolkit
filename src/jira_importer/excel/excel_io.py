@@ -268,20 +268,21 @@ class ExcelWorkbookManager:
 
         # Find the table by looking for the table name in the first column
         table_start = None
-        table_header_row = None
+        table_columns: list[Any] | None = None
 
         for i, row in enumerate(rows):
             if row and len(row) > 0 and str(row[0]).strip() == table_name:
                 table_start = i
                 # The same row contains both table name and column headers
-                table_header_row = row
+                # Extract only the header columns (skip first cell which holds the table name)
+                table_columns = row[1:]
                 break
 
         if table_start is None:
             logger.warning(f"Table '{table_name}' not found in sheet '{sheet}'")
             return []
 
-        if table_header_row is None:
+        if table_columns is None:
             logger.warning(f"Table header row not found for '{table_name}' in sheet '{sheet}'")
             return []
 
@@ -294,9 +295,10 @@ class ExcelWorkbookManager:
                 continue
             # Create dict from row data using table header
             row_dict = {}
-            for i, value in enumerate(row):
-                if i < len(table_header_row) and table_header_row[i] is not None:
-                    row_dict[table_header_row[i]] = value
+            # Skip first column (table marker) in data rows and align with columns
+            for i, value in enumerate(row[1:]):
+                if i < len(table_columns) and table_columns[i] is not None:
+                    row_dict[table_columns[i]] = value
             table_data.append(row_dict)
 
         return table_data

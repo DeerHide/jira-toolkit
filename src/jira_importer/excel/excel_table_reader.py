@@ -68,7 +68,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         assignees = []
 
         for row in table_data:
-            name = self._get_cell_value(row, "Asssignee.Name")
+            name = self._get_cell_value(row, "Assignee.Name")
             id_value = self._get_cell_value(row, "Assignee.ID")
 
             if name and id_value:

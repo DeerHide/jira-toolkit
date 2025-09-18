@@ -73,6 +73,11 @@ def _keyring_set(service: str, username: str, secret: str) -> None:
         pass
 
 
+def store_secret_in_keyring(service: str, username: str, secret: str) -> None:
+    """Public helper to persist secrets in the OS keychain (best-effort)."""
+    _keyring_set(service, username, secret)
+
+
 @dataclass
 class SecretSpec:
     """Descriptor for a secret to resolve."""
@@ -137,7 +142,9 @@ def resolve_minimal_cloud_config(cfg: ConfigView) -> dict[str, str | bool | None
         jira.cloud.base_url
         jira.cloud.cloud_id
     """
+    # basic or oauth
     mode = cfg.get("jira.cloud.auth.mode", None)
+    # https://your-domain.atlassian.net
     base_url = cfg.get("jira.cloud.base_url", None)
     cloud_id = cfg.get("jira.cloud.cloud_id", None)
     return {

@@ -66,9 +66,13 @@ console = true
 icon = "build/icons/deerhide_default.ico"
 hiddenimport = [
   "jira_importer.console",
-  "jira_importer.excel_io",
+  "jira_importer.excel.excel_io",
+  "jira_importer.excel.excel_table_reader",
   "jira_importer.app",
   "jira_importer.config",
+  "jira_importer.config.excel_config",
+  "jira_importer.config.config_models",
+  "jira_importer.config.config_factory",
   "jira_importer.artifacts",
   "jira_importer.fileops",
   "jira_importer.log",

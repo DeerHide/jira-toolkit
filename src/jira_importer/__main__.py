@@ -227,6 +227,13 @@ def main() -> int:
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")
 
+    if args.output:
+        output_dir_path = Path(args.output)
+    elif args.output_is_input:
+        output_dir_path = Path(args.input_file).parent
+    else:
+        output_dir_path = Path(args.input_file).parent
+
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
     app = App(artifact_manager)
@@ -272,8 +279,9 @@ def main() -> int:
         )
         return 2
 
-    out_path = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
-    logger.debug(f"out_path: {out_path}")
+    output_filename: str = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
+    output_filepath: Path = output_dir_path / output_filename
+    logger.debug(f"Output path: {output_filepath}")
 
     _, mgr = _load_config_for_input(in_path, args.data_sheet)
 
@@ -336,10 +344,10 @@ def main() -> int:
                 temp_config = _Cfg()
                 temp_config.update({"jira.cloud.estimate.multiply_by_60": True})
 
-        write_csv(result, out_path, config=temp_config if args.fix_cloud_estimates else config)
+        write_csv(result, output_filepath, config=temp_config if args.fix_cloud_estimates else config)
 
-        ui.say(f"Output Import CSV Ready → {fmt.path(out_path)}")
-        logger.info("Wrote output CSV → %s", out_path)
+        ui.say(f"Output Import CSV Ready → {fmt.path(str(output_filepath))}")
+        logger.info("Wrote output CSV → %s", output_filepath)
 
         # non-zero exit if there were errors (so CI can gate)
         _result_code = 0 if result.report.errors == 0 else 1

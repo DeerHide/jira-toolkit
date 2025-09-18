@@ -40,6 +40,25 @@ class App:
         self.git_branch = __git_branch__
         self.build_date = __build_date__
 
+    @staticmethod
+    def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+        """Parse the command line arguments.
+
+        Accepts an optional argv for testability; defaults to sys.argv[1:].
+        """
+        provided_argv = argv if argv is not None else sys.argv[1:]
+
+        # Fast-path preprocessing for lightweight options
+        fast_args = App._preparse_shortcuts(provided_argv)
+        if fast_args is not None:
+            return fast_args
+
+        parser = App._build_parser()
+        args = parser.parse_args(provided_argv)
+        # Store args in class variable for access by event_fatal
+        App._args = args
+        return args
+
     def print_version(self) -> None:
         """Print the version of the App, as declared during the build process."""
         ui.say(f"Jira Importer {self.version_info}")
@@ -95,39 +114,30 @@ class App:
         sys.exit(exit_code)
 
     @staticmethod
-    def parse_args() -> argparse.Namespace:
-        """Parse the command line arguments."""
-        # First, check if --version is in the arguments
-        if "--version" in sys.argv or "-v" in sys.argv:
-            # Create a minimal parser just for version
-            parser = argparse.ArgumentParser(add_help=False)
-            parser.add_argument("-v", "--version", action="store_true")
-            args, _ = parser.parse_known_args()
-            if args.version:
-                # Create a minimal args object with version=True
-                class VersionArgs:
-                    def __init__(self):
-                        self.version = True
-                        self.input_file = None
+    def _preparse_shortcuts(argv: list[str]) -> argparse.Namespace | None:
+        """Handle fast-path flags without building the full parser.
 
-                return VersionArgs()  # type: ignore[return-value]
+        Returns an argparse.Namespace when a shortcut is handled, otherwise None.
+        """
+        if "--version" in argv or "-v" in argv:
+            mini = argparse.ArgumentParser(add_help=False)
+            mini.add_argument("-v", "--version", action="store_true")
+            parsed, _ = mini.parse_known_args(argv)
+            if parsed.version:
+                return argparse.Namespace(version=True, input_file=None)
 
-        # Check if --config-check is in the arguments
-        if "--config-check" in sys.argv:
-            # Create a minimal parser just for config-check
-            parser = argparse.ArgumentParser(add_help=False)
-            parser.add_argument("--config-check", type=str, metavar="CONFIG_FILE")
-            args, _ = parser.parse_known_args()
-            if args.config_check:
-                # Create a minimal args object with config_check
-                class ConfigCheckArgs:
-                    def __init__(self, config_file: str):
-                        self.config_check = config_file
-                        self.input_file = None
-                        self.version = False
+        if "--config-check" in argv:
+            mini = argparse.ArgumentParser(add_help=False)
+            mini.add_argument("--config-check", type=str, metavar="CONFIG_FILE")
+            parsed, _ = mini.parse_known_args(argv)
+            if getattr(parsed, "config_check", None):
+                return argparse.Namespace(config_check=parsed.config_check, input_file=None, version=False)
 
-                return ConfigCheckArgs(args.config_check)  # type: ignore[return-value]
+        return None
 
+    @staticmethod
+    def _build_parser() -> argparse.ArgumentParser:
+        """Construct and return the main ArgumentParser."""
         parser = argparse.ArgumentParser(
             prog="jira-importer",
             description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",
@@ -140,8 +150,17 @@ class App:
         )
         parser.add_argument("input_file", help="Excel XLSX file", default="import.xlsx")
 
-        config_group = parser.add_mutually_exclusive_group()
+        App._add_config_args(parser)
+        App._add_output_args(parser)
+        App._add_confirmation_args(parser)
+        App._add_feature_flags(parser)
+        App._add_misc_args(parser)
 
+        return parser
+
+    @staticmethod
+    def _add_config_args(parser: argparse.ArgumentParser) -> None:
+        config_group = parser.add_mutually_exclusive_group()
         config_group.add_argument(
             "-ci", "--config-input", help="Get the configuration path from the input file location", action="store_true"
         )
@@ -161,19 +180,34 @@ class App:
             "-c", "--config", help="Configuration file path", default=DEFAULT_CONFIG_FILENAME, type=str
         )
 
-        # TODO: Add output group
-        # output_group = parser.add_mutually_exclusive_group()
-        # output_group.add_argument("-o", "--out", default=None, help="Output CSV path (default: <input>.processed.csv)")
-        # output_group.add_argument("-od", "--out-default", default=None, help="Output CSV path in the application location (default: <input>.processed.csv)", action='store_true')
-        # output_group.add_argument("-oi", "--out-input", default=None, help="Output CSV path in the input file location (default: <input>.processed.csv)", action='store_true')
-        # output_group.add_argument("-oc", "--out-current", default=None, help="Output CSV path in the current directory", action='store_true')
+    @staticmethod
+    def _add_output_args(parser: argparse.ArgumentParser) -> None:
+        output_group = parser.add_mutually_exclusive_group()
+        output_group.add_argument(
+            "-o",
+            "--output",
+            default=None,
+            help="Output CSV path (default: <input>.processed.csv)",
+            type=str,
+        )
+        output_group.add_argument(
+            "-oi",
+            "--output-is-input",
+            default=None,
+            help="Output CSV path in the input file location (default: <input>.processed.csv)",
+            action="store_true",
+        )
 
+    @staticmethod
+    def _add_confirmation_args(parser: argparse.ArgumentParser) -> None:
         auto_yes_group = parser.add_mutually_exclusive_group()
         auto_yes_group.add_argument(
             "-y", "-f", "--auto-yes", default=None, action="store_true", help="Auto-yes all prompts"
         )
         auto_yes_group.add_argument("-n", "--auto-no", default=None, action="store_true", help="Auto-no all prompts")
 
+    @staticmethod
+    def _add_feature_flags(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
         parser.add_argument(
             "--enable-excel-rules",
@@ -188,7 +222,6 @@ class App:
             help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).",
         )
         parser.add_argument("--no-report", action="store_true", help="Do not print the validation report.")
-
         parser.add_argument(
             "--fix-cloud-estimates",
             default=False,
@@ -196,11 +229,8 @@ class App:
             help="Apply Jira Cloud x60 estimate quirk IN THE SINK (kept out of rules/fixes).",
         )
 
+    @staticmethod
+    def _add_misc_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-v", "--version", help="Show version", action="store_true")
         parser.add_argument("-d", "--debug", help="Enable debug mode", action="store_true")
         # parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')
-
-        args = parser.parse_args()
-        # Store args in class variable for access by event_fatal
-        App._args = args
-        return args

@@ -239,7 +239,8 @@ class FileManager:
 
         Avoids trailing dots when no extension is provided.
         """
-        base_name, ext = os.path.splitext(input_file)
+        base_name = Path(input_file).stem
+        ext = Path(input_file).suffix
         if file_extension:
             ext = file_extension
         ext = ext.lstrip(".")

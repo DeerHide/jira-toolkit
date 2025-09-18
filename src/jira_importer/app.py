@@ -197,6 +197,12 @@ class App:
             help="Output CSV path in the input file location (default: <input>.processed.csv)",
             action="store_true",
         )
+        parser.add_argument(
+            "--cloud",
+            dest="output_target_cloud",
+            action="store_true",
+            help="Shortcut to select Jira Cloud API as the output target",
+        )
 
     @staticmethod
     def _add_confirmation_args(parser: argparse.ArgumentParser) -> None:

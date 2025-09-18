@@ -27,6 +27,8 @@ from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.processor import ImportProcessor
 from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
 from jira_importer.import_pipeline.sinks.csv_sink import write_csv
+
+# from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud  # implemented in later steps
 from jira_importer.log import add_file_logging, setup_logger
 from jira_importer.utils import find_config_path, open_browser
 
@@ -331,12 +333,18 @@ def main() -> int:
             else:
                 ui.success("Continuing...")
 
-        # Apply Jira Cloud x60 quirk in the SINK if requested
-        if args.fix_cloud_estimates:
+        # Determine output target strictly from CLI: --cloud implies cloud, otherwise csv
+        output_target = "csv"
+        if getattr(args, "output_target_cloud", False):
+            output_target = "cloud"
+
+        # Apply Jira Cloud x60 quirk in CSV sink only, if requested
+        temp_config = None
+        if args.fix_cloud_estimates and output_target == "csv":
             if isinstance(config, dict):
                 temp_config = {**config, "jira.cloud.estimate.multiply_by_60": True}
             else:
-                # minimal dict-like wrapper if config isn't a dict
+
                 class _Cfg(dict):
                     def get(self, k, d=None):  # type: ignore[override]
                         return super().get(k, d)
@@ -344,10 +352,17 @@ def main() -> int:
                 temp_config = _Cfg()
                 temp_config.update({"jira.cloud.estimate.multiply_by_60": True})
 
-        write_csv(result, output_filepath, config=temp_config if args.fix_cloud_estimates else config)
+        if output_target == "cloud":
+            ui.info("Output target: Jira Cloud API")
+            ui.warning(
+                "Cloud output selected, but cloud sink is not yet implemented in this step. Falling back to CSV."
+            )
+            output_target = "csv"
 
-        ui.say(f"Output Import CSV Ready → {fmt.path(str(output_filepath))}")
-        logger.info("Wrote output CSV → %s", output_filepath)
+        if output_target == "csv":
+            write_csv(result, output_filepath, config=temp_config if temp_config is not None else config)
+            ui.say(f"Output Import CSV Ready → {fmt.path(str(output_filepath))}")
+            logger.info("Wrote output CSV → %s", output_filepath)
 
         # non-zero exit if there were errors (so CI can gate)
         _result_code = 0 if result.report.errors == 0 else 1

@@ -7,9 +7,13 @@ Author:
 import logging
 import os
 import sys
+import urllib.parse
 import webbrowser
+from pathlib import Path
+from typing import Any
 
 from .console import ConsoleIO
+from .excel.excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
@@ -131,6 +135,81 @@ def find_config_path(
     logger.warning(f"Expected locations: {search_paths}")
     ui.error(f"Expected locations: {search_paths}")
     return config_filename
+
+
+def default_out_path(in_path: Path) -> Path:
+    """Generate default output path for CSV file based on input path.
+
+    Args:
+        in_path: Input file path
+
+    Returns:
+        Output path with '_jira_ready.csv' suffix
+    """
+    return Path(f"{in_path.stem}_jira_ready.csv")
+
+
+def load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:  # pylint: disable=unused-argument
+    """Return (config_like, excel_manager_or_None).
+
+    - For XLSX input, read 'Config' via ExcelWorkbookManager (keeps things generic).
+    - For CSV input, return {} (you can replace this with your own config loader).
+
+    Args:
+        in_path: Input file path
+        data_sheet: Data sheet name (unused parameter for compatibility)
+
+    Returns:
+        Tuple of (config_dict, excel_manager_or_None)
+    """
+    if in_path.suffix.lower() in {".xlsx", ".xlsm"}:
+        mgr = ExcelWorkbookManager(in_path)
+        mgr.load()
+        cfg = mgr.read_config(sheet="Config")
+        # ImportProcessor will also create/use a manager for meta/report writing.
+        return cfg, mgr
+    return {}, None
+
+
+def open_jira_filter(config: Any, created_issue_keys: list[str], ui_instance: Any, logger_ref: logging.Logger) -> None:
+    """Open Jira filter page showing the newly created issues.
+
+    Args:
+        config: Configuration object with get_value method
+        created_issue_keys: List of created issue keys
+        ui_instance: UI instance for displaying messages
+        logger_ref: Logger instance for logging
+    """
+    if not created_issue_keys:
+        return
+
+    # Get project key and site address from config
+    project_key = config.get_value("jira.project.key", default="", expected_type=str)
+    site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
+
+    if not project_key or not site_address:
+        ui_instance.warning("Cannot open Jira filter: missing project key or site address")
+        return
+
+    # Sort issue keys to get min and max for range query
+    sorted_keys = sorted(created_issue_keys)
+    min_key = sorted_keys[0]
+    max_key = sorted_keys[-1]
+
+    # Build JQL query
+    jql_query = f'project = "{project_key}" AND issuekey >= {min_key} AND issuekey <= {max_key} ORDER BY created DESC'
+
+    # URL encode the JQL query
+    encoded_jql = urllib.parse.quote(jql_query)
+
+    # Build Jira filter URL
+    filter_url = f"{site_address.rstrip('/')}/jira/software/c/projects/{project_key}/issues/?jql={encoded_jql}&selectedIssue={max_key}"
+
+    ui_instance.info(f"Opening Jira filter: {filter_url}")
+    logger_ref.info(f"Opening Jira filter for created issues: {jql_query}")
+
+    # Use the existing open_browser function from utils
+    open_browser(filter_url, logger_ref)
 
 
 def open_browser(url: str, logger_ref: logging.Logger | None = None) -> bool:

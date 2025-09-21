@@ -86,3 +86,8 @@ class JiraCloudClient:
         """POST request."""
         url = f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
         return self._request_with_retries("POST", url, json=json)
+
+    def put(self, path: str, *, json: Any | None = None) -> requests.Response:
+        """PUT request."""
+        url = f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
+        return self._request_with_retries("PUT", url, json=json)

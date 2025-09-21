@@ -87,7 +87,7 @@ class IssueMapper:
 
         return {"fields": fields}
 
-    def _is_valid_jira_key(self, key: str) -> bool:
+    def is_valid_jira_key(self, key: str) -> bool:
         """Check if a string looks like a valid Jira issue key (e.g., PROJ-123)."""
         if not key or not isinstance(key, str):
             return False

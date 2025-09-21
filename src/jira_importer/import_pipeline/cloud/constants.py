@@ -23,6 +23,7 @@ HTTP_SERVER_ERROR_MAX: Final[int] = 599
 
 STATUS_TOO_MANY_REQUESTS: Final[int] = 429
 STATUS_BAD_REQUEST: Final[int] = 400
+HTTP_ERROR_THRESHOLD: Final[int] = 400
 
 # Retry/backoff configuration
 RETRY_MAX_ATTEMPTS: Final[int] = 3
@@ -35,3 +36,21 @@ BATCH_SIZE: Final[int] = 50
 
 # Jira key validation
 JIRA_KEY_PARTS_COUNT: Final[int] = 2
+
+# Parent resolution keywords for logical parent finding
+PARENT_RESOLUTION_KEYWORDS: Final[list[str]] = [
+    "authentication",
+    "security",
+    "project",
+    "field",
+    "discovery",
+    "data validation",
+    "mapping",
+    "import process",
+    "error handling",
+    "recovery",
+    "integration",
+    "workflow",
+    "validation",
+    "performance",
+]

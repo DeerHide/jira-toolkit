@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,7 @@ class CloudSubmitReport:
     failed: int
     batches: int
     errors: list[dict[str, Any]]
+    created_issue_keys: list[str] = field(default_factory=list)
 
 
 def write_cloud(
@@ -73,13 +74,14 @@ def write_cloud(
     parent_issues, child_issues, parent_mapping = _separate_parent_child_issues(result, mapper)
 
     if dry_run:
-        return CloudSubmitReport(created=0, failed=0, batches=0, errors=[])
+        return CloudSubmitReport(created=0, failed=0, batches=0, errors=[], created_issue_keys=[])
 
     created = 0
     failed = 0
     errors: list[dict[str, Any]] = []
     batches = 0
     parent_key_map: dict[str, str] = {}  # Maps placeholder -> real Jira key
+    created_issue_keys: list[str] = []
 
     # Create parent issues first
     if parent_issues:
@@ -89,6 +91,11 @@ def write_cloud(
         failed += parent_results["failed"]
         errors.extend(parent_results["errors"])
         batches += parent_results["batches"]
+
+        # Collect created issue keys
+        for issue in parent_results["created_issues"]:
+            if "key" in issue:
+                created_issue_keys.append(issue["key"])
 
         # Build mapping from placeholder to real keys
         parent_key_map = _build_parent_key_mapping(parent_issues, parent_results["created_issues"])
@@ -104,7 +111,14 @@ def write_cloud(
         errors.extend(child_results["errors"])
         batches += child_results["batches"]
 
-    return CloudSubmitReport(created=created, failed=failed, batches=batches, errors=errors)
+        # Collect created issue keys
+        for issue in child_results["created_issues"]:
+            if "key" in issue:
+                created_issue_keys.append(issue["key"])
+
+    return CloudSubmitReport(
+        created=created, failed=failed, batches=batches, errors=errors, created_issue_keys=created_issue_keys
+    )
 
 
 def _separate_parent_child_issues(

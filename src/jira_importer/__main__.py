@@ -10,6 +10,7 @@ from __future__ import annotations
 # Import libraries
 # TODO: Move most used libraries to init
 import logging
+import urllib.parse
 import warnings
 from pathlib import Path
 from typing import Any
@@ -373,6 +374,16 @@ def main() -> int:
                 ui.success(f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}")
                 if debug_output_dir:
                     ui.info(f"Jira Cloud payloads written to: {debug_output_dir}")
+                if report.created_issue_keys:
+                    # Display created issue keys in a user-friendly format
+                    issue_keys_str = ", ".join(report.created_issue_keys)
+                    ui.info(f"{issue_keys_str.count(',') + 1} issues created: {issue_keys_str}")
+                    logger.info(f"Created Jira issues: {issue_keys_str}")
+
+                    # Open Jira filter if auto_open_page is enabled
+                    if config.get_value("app.import.auto_open_page", default=False, expected_type=bool):
+                        _open_jira_filter(config, report.created_issue_keys, ui, logger)
+
                 if report.failed > 0:
                     CloudReportReporter().render_errors(report, ui)
             except Exception as exc:
@@ -416,6 +427,42 @@ def main() -> int:
     app.event_close(exit_code=0, cleanup=True)
 
     return 0
+
+
+def _open_jira_filter(config, created_issue_keys: list[str], ui, logger) -> None:
+    """Open Jira filter page showing the newly created issues."""
+    if not created_issue_keys:
+        return
+
+    # Get project key and site address from config
+    project_key = config.get_value("jira.project.key", default="", expected_type=str)
+    site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
+
+    if not project_key or not site_address:
+        ui.warning("Cannot open Jira filter: missing project key or site address")
+        return
+
+    # Sort issue keys to get min and max for range query
+    sorted_keys = sorted(created_issue_keys)
+    min_key = sorted_keys[0]
+    max_key = sorted_keys[-1]
+
+    # Build JQL query
+    jql_query = f'project = "{project_key}" AND issuekey >= {min_key} AND issuekey <= {max_key} ORDER BY created DESC'
+
+    # URL encode the JQL query
+
+    encoded_jql = urllib.parse.quote(jql_query)
+
+    # Build Jira filter URL
+    filter_url = f"{site_address.rstrip('/')}/jira/software/c/projects/{project_key}/issues/?jql={encoded_jql}&selectedIssue={max_key}"
+
+    ui.info(f"Opening Jira filter: {filter_url}")
+    logger.info(f"Opening Jira filter for created issues: {jql_query}")
+
+    # Use the existing open_browser function from utils
+
+    open_browser(filter_url, logger)
 
 
 # Main function

@@ -260,6 +260,22 @@ def main() -> int:
 
     ui.success_light("Jira Importer initialized")
 
+    # Determine output target strictly from CLI: --cloud implies cloud, otherwise csv
+    output_target = "csv"
+    if getattr(args, "output_target_cloud", False):
+        if not ui.prompt_yes_no(
+            "The Jira Cloud APU support is experimental and may not work properly. Do you want to continue?",
+            default=False,
+            auto_reply=autoreply,
+        ):
+            app.event_abort(exit_code=1, message="User cancelled the Execution.")
+        else:
+            if autoreply is not None:
+                ui.warning("Auto-reply is set. Continuing...")
+            else:
+                ui.success("Continuing...")
+            output_target = "cloud"
+
     # --- Checking input file ---
     ui.lf()
     ui.progress_light("Checking input file")
@@ -328,14 +344,9 @@ def main() -> int:
 
         if result.report.errors > 0:
             if not ui.prompt_yes_no("Do you want to continue?", default=False, auto_reply=autoreply):
-                app.event_abort(exit_code=1)
+                app.event_abort(exit_code=1, message="User cancelled the Execution.")
             else:
                 ui.success("Continuing...")
-
-        # Determine output target strictly from CLI: --cloud implies cloud, otherwise csv
-        output_target = "csv"
-        if getattr(args, "output_target_cloud", False):
-            output_target = "cloud"
 
         # Apply Jira Cloud x60 quirk in CSV sink only, if requested
         temp_config = None

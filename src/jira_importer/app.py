@@ -73,10 +73,10 @@ class App:
         logger.info("Jira Importer finished.")
         sys.exit(exit_code)
 
-    def event_abort(self, exit_code: int = -1) -> None:
+    def event_abort(self, exit_code: int = -1, message: str = "Execution aborted.") -> None:
         """Event abort, when the script is aborted."""
-        ui.error("You have aborted the script.")
-        logger.critical("Aborted script.")
+        ui.error(message)
+        logger.critical(message)
         self.event_close(exit_code=exit_code)
 
     @staticmethod

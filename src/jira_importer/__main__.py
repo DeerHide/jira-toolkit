@@ -25,7 +25,7 @@ from jira_importer.console import ConsoleIO
 from jira_importer.excel.excel_io import ExcelWorkbookManager
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.processor import ImportProcessor
-from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
+from jira_importer.import_pipeline.reporting import CloudReportReporter, ProblemReporter, ReportOptions
 from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud
 from jira_importer.import_pipeline.sinks.csv_sink import write_csv
 from jira_importer.log import add_file_logging, setup_logger
@@ -354,10 +354,16 @@ def main() -> int:
         if output_target == "cloud":
             ui.info("Output target: Jira Cloud API")
             try:
-                report = write_cloud(result, config, dry_run=False)
+                # Write payloads if debug mode is enabled or cloud debug flag is set
+                debug_output_dir = (
+                    output_dir_path if (args.debug or getattr(args, "cloud_debug_payloads", False)) else None
+                )
+                report = write_cloud(result, config, dry_run=False, output_dir=debug_output_dir, ui=ui)
                 ui.success(f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}")
+                if debug_output_dir:
+                    ui.info(f"Jira Cloud payloads written to: {debug_output_dir}")
                 if report.failed > 0:
-                    ui.warning("Some issues failed to import. See logs for details.")
+                    CloudReportReporter().render_errors(report, ui)
             except Exception as exc:
                 logger.exception("Cloud import failed: %s", exc)
                 App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}")

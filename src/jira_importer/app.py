@@ -203,6 +203,11 @@ class App:
             action="store_true",
             help="Shortcut to select Jira Cloud API as the output target",
         )
+        parser.add_argument(
+            "--cloud-debug-payloads",
+            action="store_true",
+            help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
+        )
 
     @staticmethod
     def _add_confirmation_args(parser: argparse.ArgumentParser) -> None:
@@ -227,7 +232,9 @@ class App:
             action="store_true",
             help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).",
         )
-        parser.add_argument("--no-report", action="store_true", help="Do not print the validation report.")
+        parser.add_argument(
+            "--no-report", action="store_true", help="Do not print the validation report (useful for CI/CD pipelines)."
+        )
         parser.add_argument(
             "--fix-cloud-estimates",
             default=False,
@@ -239,4 +246,3 @@ class App:
     def _add_misc_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-v", "--version", help="Show version", action="store_true")
         parser.add_argument("-d", "--debug", help="Enable debug mode", action="store_true")
-        # parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')

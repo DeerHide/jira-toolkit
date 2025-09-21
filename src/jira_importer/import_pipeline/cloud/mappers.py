@@ -64,7 +64,7 @@ class IssueMapper:
             # Keep parent reference for mapping (will be resolved later)
             fields["parent"] = {"key": parent_key}
 
-        # Convert sub-tasks to stories if no valid parent exists
+        # Convert sub-tasks to task if no valid parent exists
         if (
             indices.issuetype is not None
             and row[indices.issuetype]
@@ -72,7 +72,7 @@ class IssueMapper:
             and "parent" not in fields
         ):
             logger.info("Converting sub-task to story (no valid parent found)")
-            fields["issuetype"] = {"name": "Story"}
+            fields["issuetype"] = {"name": "task"}
 
         # Time tracking (use originalEstimateSeconds)
         if indices.estimate is not None and row[indices.estimate]:

@@ -61,7 +61,7 @@ class OAuthSessionManager(AuthProvider):  # pylint: disable=too-many-instance-at
         if not self._should_refresh():
             return self.access_token or ""
 
-        # TODO: Implement OAuth refresh flow
+        # OAuth refresh flow not yet implemented
         # For now, return empty string to indicate not implemented
         return ""
 

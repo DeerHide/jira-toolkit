@@ -125,79 +125,120 @@ def _separate_parent_child_issues(
     result: ProcessorResult, mapper: IssueMapper
 ) -> tuple[list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], dict[str, str]]:
     """Separate issues into parents and children, return parent mapping."""
-    parent_issues = []
-    child_issues = []
-    parent_mapping: dict[str, str] = {}  # Maps placeholder key to row index
-
     if result.indices is None:
         raise ValueError("Column indices not available for mapping")
 
     # Collect all issues and their summaries
+    all_issues, summary_to_row = _collect_issues_with_summaries(result, mapper)
+
+    # Separate based on issue type and fix parent references
+    parent_issues, child_issues, parent_mapping = _classify_and_fix_issues(all_issues, summary_to_row)
+
+    logger.info(f"Separated {len(parent_issues)} parent issues and {len(child_issues)} child issues")
+    return parent_issues, child_issues, parent_mapping
+
+
+def _collect_issues_with_summaries(result: ProcessorResult, mapper: IssueMapper) -> tuple[list, dict[str, int]]:
+    """Collect all issues and build summary to row mapping."""
     all_issues = []
     summary_to_row = {}
 
     for row_index, row in enumerate(result.rows):
+        if result.indices is None:
+            raise ValueError("Column indices not available for mapping")
         payload = mapper.map_row(row, result.indices)
         summary = payload.get("fields", {}).get("summary", "")
         all_issues.append((row_index, payload, summary))
         if summary:
             summary_to_row[summary] = row_index
 
-    # Separate based on issue type and fix parent references
+    return all_issues, summary_to_row
+
+
+def _classify_and_fix_issues(
+    all_issues: list, summary_to_row: dict[str, int]
+) -> tuple[list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], dict[str, str]]:
+    """Classify issues as parents or children and fix parent references."""
+    parent_issues: list[tuple[int, dict[str, Any]]] = []
+    child_issues: list[tuple[int, dict[str, Any]]] = []
+    parent_mapping: dict[str, str] = {}
+
     for row_index, payload, summary in all_issues:
         issue_type = payload.get("fields", {}).get("issuetype", {}).get("name", "").lower()
 
-        # Classify based on issue type: Sub-Tasks are children, everything else can be parents
         if issue_type == "sub-task":
-            # Sub-Tasks are always children (must have parents)
-            if "parent" in payload.get("fields", {}):
-                # Try to fix parent reference if it looks wrong
-                parent_key = payload.get("fields", {}).get("parent", {}).get("key", "")
-                corrected_parent = _try_fix_parent_reference(parent_key, summary, summary_to_row, all_issues)
-
-                if corrected_parent:
-                    payload["fields"]["parent"]["key"] = corrected_parent
-                    logger.info(
-                        f"Row {row_index}: Corrected parent reference from '{parent_key}' to '{corrected_parent}'"
-                    )
-
-                child_issues.append((row_index, payload))
-                logger.debug(
-                    f"Row {row_index}: Sub-Task with parent '{payload.get('fields', {}).get('parent', {}).get('key', 'unknown')}'"
-                )
-            else:
-                # Sub-Task without parent - convert to Story
-                payload["fields"]["issuetype"]["name"] = "Story"
-                parent_issues.append((row_index, payload))
-                logger.info(f"Row {row_index}: Converted Sub-Task to Story (no parent found)")
-                if summary:
-                    parent_mapping[summary] = str(row_index)
+            _process_subtask(
+                row_index, payload, summary, child_issues, parent_issues, parent_mapping, summary_to_row, all_issues
+            )
         else:
-            # Epics, Stories, Tasks can be parents (and may have parents themselves)
-            # If they have parent references, try to fix them
-            if "parent" in payload.get("fields", {}):
-                parent_key = payload.get("fields", {}).get("parent", {}).get("key", "")
-                corrected_parent = _try_fix_parent_reference(parent_key, summary, summary_to_row, all_issues)
-
-                if corrected_parent:
-                    payload["fields"]["parent"]["key"] = corrected_parent
-                    logger.info(
-                        f"Row {row_index}: Corrected parent reference from '{parent_key}' to '{corrected_parent}'"
-                    )
-                else:
-                    # Remove invalid parent reference
-                    del payload["fields"]["parent"]
-                    logger.debug(f"Row {row_index}: Removed invalid parent reference '{parent_key}'")
-
-            parent_issues.append((row_index, payload))
-            # Store placeholder for mapping (use summary as placeholder key)
-            if summary:
-                parent_mapping[summary] = str(row_index)
-            logger.debug(f"Row {row_index}: {issue_type.title()} issue '{summary}' (can have children)")
-
-    logger.info(f"Separated {len(parent_issues)} parent issues and {len(child_issues)} child issues")
+            _process_parent_issue(
+                row_index, payload, summary, parent_issues, parent_mapping, summary_to_row, all_issues
+            )
 
     return parent_issues, child_issues, parent_mapping
+
+
+def _process_subtask(
+    row_index: int,
+    payload: dict[str, Any],
+    summary: str,
+    child_issues: list,
+    parent_issues: list,
+    parent_mapping: dict[str, str],
+    summary_to_row: dict[str, int],
+    all_issues: list,
+) -> None:
+    """Process a sub-task issue."""
+    if "parent" in payload.get("fields", {}):
+        # Try to fix parent reference if it looks wrong
+        parent_key = payload.get("fields", {}).get("parent", {}).get("key", "")
+        corrected_parent = _try_fix_parent_reference(parent_key, summary, summary_to_row, all_issues)
+
+        if corrected_parent:
+            payload["fields"]["parent"]["key"] = corrected_parent
+            logger.info(f"Row {row_index}: Corrected parent reference from '{parent_key}' to '{corrected_parent}'")
+
+        child_issues.append((row_index, payload))
+        logger.debug(f"Row {row_index}: Sub-Task with parent reference")
+    else:
+        # Sub-Task without parent - convert to Story
+        payload["fields"]["issuetype"]["name"] = "Story"
+        parent_issues.append((row_index, payload))
+        logger.info(f"Row {row_index}: Converted Sub-Task to Story (no parent found)")
+        if summary:
+            parent_mapping[summary] = str(row_index)
+
+
+def _process_parent_issue(
+    row_index: int,
+    payload: dict[str, Any],
+    summary: str,
+    parent_issues: list,
+    parent_mapping: dict[str, str],
+    summary_to_row: dict[str, int],
+    all_issues: list,
+) -> None:
+    """Process a parent issue (Epic, Story, Task)."""
+    issue_type = payload.get("fields", {}).get("issuetype", {}).get("name", "").lower()
+
+    # If they have parent references, try to fix them
+    if "parent" in payload.get("fields", {}):
+        parent_key = payload.get("fields", {}).get("parent", {}).get("key", "")
+        corrected_parent = _try_fix_parent_reference(parent_key, summary, summary_to_row, all_issues)
+
+        if corrected_parent:
+            payload["fields"]["parent"]["key"] = corrected_parent
+            logger.info(f"Row {row_index}: Corrected parent reference from '{parent_key}' to '{corrected_parent}'")
+        else:
+            # Remove invalid parent reference
+            del payload["fields"]["parent"]
+            logger.debug(f"Row {row_index}: Removed invalid parent reference '{parent_key}'")
+
+    parent_issues.append((row_index, payload))
+    # Store placeholder for mapping (use summary as placeholder key)
+    if summary:
+        parent_mapping[summary] = str(row_index)
+    logger.debug(f"Row {row_index}: {issue_type.title()} issue (can have children)")
 
 
 def _try_fix_parent_reference(
@@ -394,7 +435,7 @@ def _build_parent_key_mapping(
             mapping[str(row_index)] = real_key
             summary = parent_payload.get("fields", {}).get("summary", f"parent_{i}")
             mapping[summary] = real_key
-            logger.debug(f"Mapped parent row {row_index} ('{summary}') -> '{real_key}'")
+            logger.debug(f"Mapped parent row {row_index} -> '{real_key}'")
 
     return mapping
 
@@ -415,7 +456,7 @@ def _update_child_parents(
             if placeholder_key in parent_key_map:
                 real_key = parent_key_map[placeholder_key]
                 child_payload["fields"]["parent"]["key"] = real_key
-                logger.debug(f"Updated child parent reference: {placeholder_key} -> {real_key}")
+                logger.debug(f"Updated child parent reference for row {row_index}")
             else:
                 # Check if this is a sub-task with invalid parent reference
                 issuetype = child_payload.get("fields", {}).get("issuetype", {}).get("name", "")
@@ -428,4 +469,4 @@ def _update_child_parents(
 
                 # Remove invalid parent reference
                 del child_payload["fields"]["parent"]
-                logger.debug(f"Removed invalid parent reference '{placeholder_key}' for row {row_index}")
+                logger.debug(f"Removed invalid parent reference for row {row_index}")

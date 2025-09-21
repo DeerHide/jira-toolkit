@@ -265,7 +265,7 @@ def main() -> int:
     output_target = "csv"
     if getattr(args, "output_target_cloud", False):
         if not ui.prompt_yes_no(
-            "The Jira Cloud APU support is experimental and may not work properly. Do you want to continue?",
+            "The Jira Cloud API support is experimental and may not work properly. Do you want to continue?",
             default=False,
             auto_reply=autoreply,
         ):
@@ -429,7 +429,7 @@ def main() -> int:
     return 0
 
 
-def _open_jira_filter(config, created_issue_keys: list[str], ui, logger) -> None:
+def _open_jira_filter(config, created_issue_keys: list[str], ui_instance, logger) -> None:
     """Open Jira filter page showing the newly created issues."""
     if not created_issue_keys:
         return
@@ -439,7 +439,7 @@ def _open_jira_filter(config, created_issue_keys: list[str], ui, logger) -> None
     site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
 
     if not project_key or not site_address:
-        ui.warning("Cannot open Jira filter: missing project key or site address")
+        ui_instance.warning("Cannot open Jira filter: missing project key or site address")
         return
 
     # Sort issue keys to get min and max for range query
@@ -457,11 +457,10 @@ def _open_jira_filter(config, created_issue_keys: list[str], ui, logger) -> None
     # Build Jira filter URL
     filter_url = f"{site_address.rstrip('/')}/jira/software/c/projects/{project_key}/issues/?jql={encoded_jql}&selectedIssue={max_key}"
 
-    ui.info(f"Opening Jira filter: {filter_url}")
+    ui_instance.info(f"Opening Jira filter: {filter_url}")
     logger.info(f"Opening Jira filter for created issues: {jql_query}")
 
     # Use the existing open_browser function from utils
-
     open_browser(filter_url, logger)
 
 

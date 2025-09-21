@@ -1,6 +1,4 @@
-"""Row-to-payload mapping for Jira Cloud (scaffold).
-
-Defines an IssueMapper that will turn normalized rows into Jira issue payloads.
+"""Mappers for converting processed rows to Jira Cloud API payloads.
 
 author:
     Julien (@tom4897)
@@ -14,41 +12,40 @@ from typing import Any
 
 from ...config.config_view import ConfigView
 from ..models import ColumnIndices, ProcessorResult
+from .constants import JIRA_KEY_PARTS_COUNT
 from .metadata import MetadataCache
-from .secrets import redact_secret
 
 logger = logging.getLogger(__name__)
 
 
+def redact_secret(value: str | None) -> str:
+    """Redact secret values for logging."""
+    return "***" if value else ""
+
+
 @dataclass
 class IssueMapper:
-    """Issue mapper."""
+    """Maps processed rows to Jira issue payloads."""
 
     cfg: ConfigView
     metadata: MetadataCache
     _field_map: dict[str, str] | None = None
 
-    def _get_field_map(self) -> dict[str, str]:
-        """Map column names to customfield_xxxxx IDs."""
-        if self._field_map is None:
-            fields = self.metadata.get_fields()
-            self._field_map = {
-                f.get("name", ""): f.get("id", "") for f in fields if f.get("id", "").startswith("customfield_")
-            }
-        return self._field_map
-
     def map_row(self, row: list[str], indices: ColumnIndices) -> dict[str, Any]:
-        """Map a row to a Jira issue payload."""
+        """Map a single row to Jira issue payload."""
         fields: dict[str, Any] = {}
 
         # Required fields
-        project_key: str | None = None
-        if indices.project_key is not None and row[indices.project_key]:
-            project_key = str(row[indices.project_key]).strip()
-        if not project_key:
-            project_key = str(self.cfg.get("jira.project.key", "") or "").strip()
-        if project_key:
-            fields["project"] = {"key": project_key}
+        project_key_from_row = (
+            str(row[indices.project_key]).strip()
+            if indices.project_key is not None and row[indices.project_key]
+            else None
+        )
+        project_key_from_config = self.cfg.get("jira.project.key", None)
+        final_project_key = project_key_from_row or project_key_from_config
+        if final_project_key:
+            fields["project"] = {"key": final_project_key}
+
         if indices.issuetype is not None and row[indices.issuetype]:
             fields["issuetype"] = {"name": str(row[indices.issuetype]).strip()}
         if indices.summary is not None and row[indices.summary]:
@@ -56,19 +53,28 @@ class IssueMapper:
 
         # Optional fields
         if indices.description is not None and row[indices.description]:
-            desc = str(row[indices.description]).strip()
-            # Keep as plain text for now; ADF can be added later
-            fields["description"] = desc
+            description_text = str(row[indices.description]).strip()
+            fields["description"] = self._convert_to_adf(description_text)
 
         if indices.priority is not None and row[indices.priority]:
             fields["priority"] = {"name": str(row[indices.priority]).strip()}
 
-        # Assignee: Jira Cloud v3 requires accountId. Skip until user resolution is implemented.
-
         if indices.parent is not None and row[indices.parent]:
-            fields["parent"] = {"key": str(row[indices.parent]).strip()}
+            parent_key = str(row[indices.parent]).strip()
+            # Keep parent reference for mapping (will be resolved later)
+            fields["parent"] = {"key": parent_key}
 
-        # Time tracking (keep canonical seconds)
+        # Convert sub-tasks to stories if no valid parent exists
+        if (
+            indices.issuetype is not None
+            and row[indices.issuetype]
+            and str(row[indices.issuetype]).strip().lower() == "sub-task"
+            and "parent" not in fields
+        ):
+            logger.info("Converting sub-task to story (no valid parent found)")
+            fields["issuetype"] = {"name": "Story"}
+
+        # Time tracking (use originalEstimateSeconds)
         if indices.estimate is not None and row[indices.estimate]:
             try:
                 est_seconds = int(float(str(row[indices.estimate])))
@@ -76,18 +82,41 @@ class IssueMapper:
             except (ValueError, TypeError):
                 logger.warning(f"Invalid estimate value: {redact_secret(str(row[indices.estimate]))}")
 
-        # Custom fields (map by column name to customfield_xxxxx)
-        # TODO: Implement custom field mapping with config-driven column mapping
+        # TODO: Custom fields mapping
+        # TODO: Assignee (requires accountId resolution)
 
         return {"fields": fields}
 
+    def _is_valid_jira_key(self, key: str) -> bool:
+        """Check if a string looks like a valid Jira issue key (e.g., PROJ-123)."""
+        if not key or not isinstance(key, str):
+            return False
+        # Basic validation: should contain a dash and have alphanumeric parts
+        parts = key.split("-")
+        return len(parts) == JIRA_KEY_PARTS_COUNT and parts[0].isalnum() and parts[1].isdigit()
+
+    def _convert_to_adf(self, text: str) -> dict[str, Any]:
+        """Convert plain text to Atlassian Document Format (ADF).
+
+        ADF is a JSON structure that represents rich text content in Atlassian products.
+        This creates a simple paragraph with the text content.
+        """
+        return {
+            "version": 1,
+            "type": "doc",
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
+        }
+
 
 def build_issue_payloads(result: ProcessorResult, mapper: IssueMapper) -> list[dict[str, Any]]:
-    """Build issue payloads."""
-    payloads: list[dict[str, Any]] = []
-    if not result.indices:
-        logger.warning("No column indices available in ProcessorResult")
-        return payloads
+    """Build issue payloads from processor result."""
+    issues = []
+
+    if result.indices is None:
+        raise ValueError("Column indices not available for mapping")
+
     for row in result.rows:
-        payloads.append(mapper.map_row(row, result.indices))
-    return payloads
+        payload = mapper.map_row(row, result.indices)
+        issues.append(payload)
+
+    return issues

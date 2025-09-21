@@ -22,6 +22,7 @@ HTTP_SERVER_ERROR_MIN: Final[int] = 500
 HTTP_SERVER_ERROR_MAX: Final[int] = 599
 
 STATUS_TOO_MANY_REQUESTS: Final[int] = 429
+STATUS_BAD_REQUEST: Final[int] = 400
 
 # Retry/backoff configuration
 RETRY_MAX_ATTEMPTS: Final[int] = 3
@@ -31,3 +32,6 @@ BACKOFF_MAX_SECONDS: Final[float] = 16.0
 
 # Bulk operation configuration
 BATCH_SIZE: Final[int] = 50
+
+# Jira key validation
+JIRA_KEY_PARTS_COUNT: Final[int] = 2

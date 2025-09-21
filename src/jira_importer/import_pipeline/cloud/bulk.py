@@ -1,4 +1,7 @@
-"""Helpers to build bulk operation payloads (scaffold).
+"""Bulk operation utilities for Jira Cloud API.
+
+This module provides helpers for building bulk operation payloads and
+managing batch sizes for efficient API usage.
 
 author:
     Julien (@tom4897)
@@ -18,14 +21,17 @@ def build_bulk_create_payload(issues: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def chunk_issues(issues: Iterable[dict[str, Any]], *, batch_size: int = BATCH_SIZE) -> list[list[dict[str, Any]]]:
-    """Split issues into chunks with a maximum size (default BATCH_SIZE, defined in constants.py)."""
-    batch: list[dict[str, Any]] = []
-    batches: list[list[dict[str, Any]]] = []
+    """Split issues into chunks with a maximum size."""
+    chunks = []
+    current_chunk = []
+
     for issue in issues:
-        batch.append(issue)
-        if len(batch) >= batch_size:
-            batches.append(batch)
-            batch = []
-    if batch:
-        batches.append(batch)
-    return batches
+        current_chunk.append(issue)
+        if len(current_chunk) >= batch_size:
+            chunks.append(current_chunk)
+            current_chunk = []
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks

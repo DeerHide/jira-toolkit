@@ -58,3 +58,5 @@ class MetadataCache:
             if is_last or (total is not None and start_at + page_size >= int(total)):
                 break
             start_at += page_size
+            if not values:  # Stop if an empty page is returned
+                break

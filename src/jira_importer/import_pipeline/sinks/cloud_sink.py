@@ -192,7 +192,7 @@ def write_cloud(
         logger.info(f"Creating {len(sub_tasks)} sub-tasks...")
         # Resolve Sub-task parent references now that Stories/Tasks exist
         if result.indices is not None:
-            _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues)
+            _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues, config)
         # Update sub-tasks with real parent keys
         _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper, config)
         subtask_results = _create_issues_batch(client, sub_tasks, output_dir, "subtask", ui)
@@ -290,6 +290,7 @@ def _classify_and_fix_issues(
                 summary_to_row,
                 all_issues,
                 indices,
+                config,
             )
         else:  # Level 3 (Story/Task/Bug) or unknown (default to level 3)
             _process_parent_issue(
@@ -317,6 +318,7 @@ def _process_subtask(
     summary_to_row: dict[str, int],  # pylint: disable=unused-argument
     all_issues: list,  # pylint: disable=unused-argument
     indices: ColumnIndices,  # pylint: disable=unused-argument
+    config: Any,
 ) -> None:
     """Process a sub-task issue."""
     if "parent" in payload.get("fields", {}):
@@ -325,10 +327,12 @@ def _process_subtask(
         child_issues.append((row_index, payload))
         logger.debug(f"Row {row_index}: Sub-Task with parent reference (will be resolved later)")
     else:
-        # Sub-Task without parent - convert to Story
-        payload["fields"]["issuetype"]["name"] = "Story"
+        # Sub-Task without parent - convert to default level 3 type
+        config_view = ConfigView(config)
+        fallback_type = get_default_level3_type(config_view.get)
+        payload["fields"]["issuetype"]["name"] = fallback_type
         parent_issues.append((row_index, payload))
-        logger.info(f"Row {row_index}: Converted Sub-Task to Story (no parent found)")
+        logger.info(f"Row {row_index}: Converted Sub-Task to {fallback_type} (no parent found)")
         if summary:
             parent_mapping[summary] = str(row_index)
 
@@ -641,6 +645,7 @@ def _resolve_subtask_parents(
     parent_key_map: dict[str, str],
     indices: ColumnIndices,
     all_issues: list,
+    config: Any,
 ) -> None:
     """Resolve Sub-task parent references now that Stories/Tasks have been created."""
     for row_index, payload in sub_tasks:
@@ -701,15 +706,19 @@ def _resolve_subtask_parents(
                                 break
 
                     if not found_parent:
-                        # Parent not found - convert to Story
-                        payload["fields"]["issuetype"]["name"] = "Story"
+                        # Parent not found - convert to default level 3 type
+                        config_view = ConfigView(config)
+                        fallback_type = get_default_level3_type(config_view.get)
+                        payload["fields"]["issuetype"]["name"] = fallback_type
                         del payload["fields"]["parent"]
-                        logger.info(f"Row {row_index}: Converted Sub-Task to Story (parent not found)")
+                        logger.info(f"Row {row_index}: Converted Sub-Task to {fallback_type} (parent not found)")
                 except (ValueError, TypeError):
-                    # Invalid parent reference - convert to Story
-                    payload["fields"]["issuetype"]["name"] = "Story"
+                    # Invalid parent reference - convert to default level 3 type
+                    config_view = ConfigView(config)
+                    fallback_type = get_default_level3_type(config_view.get)
+                    payload["fields"]["issuetype"]["name"] = fallback_type
                     del payload["fields"]["parent"]
-                    logger.info(f"Row {row_index}: Converted Sub-Task to Story (invalid parent reference)")
+                    logger.info(f"Row {row_index}: Converted Sub-Task to {fallback_type} (invalid parent reference)")
 
 
 def _update_child_parents(

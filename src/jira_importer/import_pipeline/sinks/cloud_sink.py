@@ -27,6 +27,9 @@ HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_NOT_FOUND = 404
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_SERVER_ERROR_START = 500
+HTTP_SERVER_ERROR_END = 600
 
 logger = logging.getLogger(__name__)
 
@@ -82,17 +85,45 @@ def write_cloud(
         # Make a simple API call to test authentication
         test_response = client.get("/myself")
         if test_response.status_code == HTTP_OK:
-            user_info = test_response.json()
-            logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
+            try:
+                user_info = test_response.json()
+                logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
+            except (ValueError, KeyError) as json_error:
+                logger.warning(f"Authentication successful but received malformed response: {json_error}")
+                logger.info("Authentication successful - proceeding with import")
+        elif test_response.status_code == HTTP_UNAUTHORIZED:
+            raise ValueError(
+                f"Jira authentication failed (HTTP 401) - your API token may have expired. "
+                f"Please refresh your token at: {base_url}/secure/ViewProfile.jspa"
+            )
+        elif test_response.status_code == HTTP_FORBIDDEN:
+            raise ValueError(
+                f"Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
+                f"Please check your token at: {base_url}/secure/ViewProfile.jspa"
+            )
+        elif test_response.status_code == HTTP_NOT_FOUND:
+            raise ValueError(
+                f"Jira instance not found at {base_url} (HTTP 404). Please check your site_address configuration."
+            )
+        elif test_response.status_code == HTTP_TOO_MANY_REQUESTS:
+            raise ValueError("Jira API rate limit exceeded (HTTP 429). Please wait a moment and try again.")
+        elif HTTP_SERVER_ERROR_START <= test_response.status_code < HTTP_SERVER_ERROR_END:
+            raise ValueError(
+                f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator."
+            )
         else:
             raise ValueError(f"Authentication test failed with status {test_response.status_code}")
+    except ValueError:
+        # Re-raise our custom ValueError messages
+        raise
     except Exception as e:
-        if str(HTTP_UNAUTHORIZED) in str(e) or str(HTTP_FORBIDDEN) in str(e) or "Unauthorized" in str(e):
+        # Handle network/connection issues
+        error_str = str(e).lower()
+        if any(keyword in error_str for keyword in ["timeout", "connection", "network", "dns", "ssl"]):
             raise ValueError(
-                f"Jira authentication failed - your API token may have expired. "
-                f"Please refresh your token at: {base_url}/secure/ViewProfile.jspa"
+                f"Network connection failed to {base_url}. Please check your internet connection and try again. Error: {e!s}"
             ) from e
-        elif str(HTTP_NOT_FOUND) in str(e) or "Not Found" in str(e):
+        elif "not found" in error_str or "404" in error_str:
             raise ValueError(
                 f"Jira instance not found at {base_url}. Please check your site_address configuration."
             ) from e
@@ -475,13 +506,27 @@ def _create_issues_batch(
                     except Exception:
                         detail = {"error": resp.text}
 
-                    # Check for authentication errors
-                    if resp.status_code in [HTTP_UNAUTHORIZED, HTTP_FORBIDDEN]:
-                        error_msg = f"Authentication failed (HTTP {resp.status_code}) - your API token may have expired"
+                    # Check for specific error cases
+                    if resp.status_code == HTTP_UNAUTHORIZED:
+                        error_msg = "Authentication failed (HTTP 401) - your API token may have expired"
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+                    elif resp.status_code == HTTP_FORBIDDEN:
+                        error_msg = (
+                            "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions"
+                        )
                         logger.error(error_msg)
                         raise ValueError(error_msg)
                     elif resp.status_code == HTTP_NOT_FOUND:
-                        error_msg = f"Jira API endpoint not found (HTTP {resp.status_code}) - check your site_address"
+                        error_msg = "Jira API endpoint not found (HTTP 404) - check your site_address"
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+                    elif resp.status_code == HTTP_TOO_MANY_REQUESTS:
+                        error_msg = "Jira API rate limit exceeded (HTTP 429) - please wait and try again"
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+                    elif HTTP_SERVER_ERROR_START <= resp.status_code < HTTP_SERVER_ERROR_END:
+                        error_msg = f"Jira server error (HTTP {resp.status_code}) - please try again later"
                         logger.error(error_msg)
                         raise ValueError(error_msg)
 
@@ -521,13 +566,27 @@ def _create_issues_batch(
                 except Exception:
                     detail = {"error": resp.text}
 
-                # Check for authentication errors
-                if resp.status_code in [HTTP_UNAUTHORIZED, HTTP_FORBIDDEN]:
-                    error_msg = f"Authentication failed (HTTP {resp.status_code}) - your API token may have expired"
+                # Check for specific error cases
+                if resp.status_code == HTTP_UNAUTHORIZED:
+                    error_msg = "Authentication failed (HTTP 401) - your API token may have expired"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                elif resp.status_code == HTTP_FORBIDDEN:
+                    error_msg = (
+                        "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions"
+                    )
                     logger.error(error_msg)
                     raise ValueError(error_msg)
                 elif resp.status_code == HTTP_NOT_FOUND:
-                    error_msg = f"Jira API endpoint not found (HTTP {resp.status_code}) - check your site_address"
+                    error_msg = "Jira API endpoint not found (HTTP 404) - check your site_address"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                elif resp.status_code == HTTP_TOO_MANY_REQUESTS:
+                    error_msg = "Jira API rate limit exceeded (HTTP 429) - please wait and try again"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                elif HTTP_SERVER_ERROR_START <= resp.status_code < HTTP_SERVER_ERROR_END:
+                    error_msg = f"Jira server error (HTTP {resp.status_code}) - please try again later"
                     logger.error(error_msg)
                     raise ValueError(error_msg)
 

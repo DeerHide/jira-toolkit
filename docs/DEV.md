@@ -10,6 +10,7 @@ We've split the docs into focused files so you can find what you need:
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - All the architecture diagrams and component details
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute, code style, and dev workflow
 - **[CONFIG.md](CONFIG.md)** - Configuration file docs
+- **[CLOUD.md](CLOUD.md)** - Jira Cloud integration technical details
 
 ## 🚀 Let's Get Started
 
@@ -185,7 +186,9 @@ Turn on debug mode with:
 1. **Import errors**: Make sure all dependencies are installed
 2. **File not found**: Check file paths and permissions
 3. **Configuration issues**: Verify JSON syntax in config files
-4. **Line ending issues**: If builds fail or you get cross-platform problems, check that all text files use LF line endings
+4. **Authentication errors**: The importer now provides clear error messages for auth issues (see CONFIG.md troubleshooting section)
+5. **Configuration loading**: Make sure you're using the correct config flags (`-c`, `-ce`, `-ci`, `-cd`)
+6. **Line ending issues**: If builds fail or you get cross-platform problems, check that all text files use LF line endings
 
 ## 📝 Line Endings (CRLF vs LF)
 
@@ -216,6 +219,7 @@ Need more details? Check out:
 - **Architecture and components** → **[ARCHITECTURE.md](ARCHITECTURE.md)**
 - **Contributing and development** → **[CONTRIBUTING.md](CONTRIBUTING.md)**
 - **Configuration options** → **[CONFIG.md](CONFIG.md)**
+- **Jira Cloud integration** → **[CLOUD.md](CLOUD.md)**
 
 ## 📞 Need Help?
 
@@ -227,3 +231,5 @@ Need more details? Check out:
 ---
 
 **Happy coding!** 🎉
+
+:_GeneratedFile_

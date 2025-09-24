@@ -40,6 +40,7 @@ def determine_config_path(args: Any) -> str:
         config_path = args.input_file
         logging.debug(f"config_excel: using input file as config: {config_path}")
     # Check if a specific config file was provided (not the default)
+    # This ensures --config parameter takes precedence over smart defaults
     elif args.config != DEFAULT_CONFIG_FILENAME:
         # Use specified config file with specific path search
         config_path = find_config_path(args.config, args.input_file, config_specific=True)

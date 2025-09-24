@@ -80,6 +80,7 @@ def write_cloud(
     )
 
     # Test authentication before proceeding
+    # This pre-flight test provides clear error messages for common auth issues
     try:
         logger.info("Testing Jira authentication...")
         # Make a simple API call to test authentication
@@ -133,8 +134,7 @@ def write_cloud(
     metadata = MetadataCache(client)
     mapper = IssueMapper(cfg, metadata)
 
-    # Separate issues into three categories
-    # TODO: Make dynamic using the issue type levels (0-5)
+    # Separate issues into three categories based on configurable issue type levels
     epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues = _separate_parent_child_issues(
         result, mapper, config
     )
@@ -271,6 +271,7 @@ def _classify_and_fix_issues(
         issue_type_name = payload.get("fields", {}).get("issuetype", {}).get("name", "")
 
         # Use config-driven level classification instead of hardcoded strings
+        # This supports both new hierarchical config and backward compatibility
         level = get_issue_type_level(config_view.get, issue_type_name)
 
         if level == LEVEL_2_EPIC:  # Epic level
@@ -506,7 +507,7 @@ def _create_issues_batch(
                     except Exception:
                         detail = {"error": resp.text}
 
-                    # Check for specific error cases
+                    # Check for specific error cases and provide clear user guidance
                     if resp.status_code == HTTP_UNAUTHORIZED:
                         error_msg = "Authentication failed (HTTP 401) - your API token may have expired"
                         logger.error(error_msg)

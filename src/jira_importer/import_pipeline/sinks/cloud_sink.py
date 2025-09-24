@@ -13,9 +13,17 @@ from pathlib import Path
 from typing import Any
 
 from ...config.config_view import ConfigView
+from ...config.constants import LEVEL_2_EPIC, LEVEL_3_STORY, LEVEL_4_SUBTASK
+from ...config.issuetypes import get_default_level3_type, get_issue_type_level
 from ..cloud.bulk import build_bulk_create_payload, chunk_issues
 from ..cloud.client import JiraCloudClient
 from ..cloud.constants import BATCH_SIZE, HTTP_ERROR_THRESHOLD, PARENT_RESOLUTION_KEYWORDS
+
+# HTTP status codes for better error handling
+HTTP_OK = 200
+HTTP_UNAUTHORIZED = 401
+HTTP_FORBIDDEN = 403
+HTTP_NOT_FOUND = 404
 from ..cloud.mappers import IssueMapper
 from ..cloud.metadata import MetadataCache
 from ..models import ColumnIndices, ProcessorResult
@@ -67,12 +75,38 @@ def write_cloud(
     client = JiraCloudClient(
         base_url=f"{base_url.rstrip('/')}/rest/api/3", auth_provider=BasicAuthProvider(email=email, api_token=api_token)
     )
+
+    # Test authentication before proceeding
+    try:
+        logger.info("Testing Jira authentication...")
+        # Make a simple API call to test authentication
+        test_response = client.get("/myself")
+        if test_response.status_code == HTTP_OK:
+            user_info = test_response.json()
+            logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
+        else:
+            raise ValueError(f"Authentication test failed with status {test_response.status_code}")
+    except Exception as e:
+        if str(HTTP_UNAUTHORIZED) in str(e) or str(HTTP_FORBIDDEN) in str(e) or "Unauthorized" in str(e):
+            raise ValueError(
+                f"Jira authentication failed - your API token may have expired. "
+                f"Please refresh your token at: {base_url}/secure/ViewProfile.jspa"
+            ) from e
+        elif str(HTTP_NOT_FOUND) in str(e) or "Not Found" in str(e):
+            raise ValueError(
+                f"Jira instance not found at {base_url}. Please check your site_address configuration."
+            ) from e
+        else:
+            raise ValueError(f"Failed to connect to Jira at {base_url}. Error: {e!s}") from e
+
     metadata = MetadataCache(client)
     mapper = IssueMapper(cfg, metadata)
 
     # Separate issues into three categories
     # TODO: Make dynamic using the issue type levels (0-5)
-    epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues = _separate_parent_child_issues(result, mapper)
+    epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues = _separate_parent_child_issues(
+        result, mapper, config
+    )
 
     if dry_run:
         return CloudSubmitReport(created=0, failed=0, batches=0, errors=[], created_issue_keys=[])
@@ -106,7 +140,7 @@ def write_cloud(
     if stories_and_tasks:
         logger.info(f"Creating {len(stories_and_tasks)} stories and tasks...")
         # Update stories and tasks with actual parent keys
-        _update_child_parents(stories_and_tasks, parent_key_map, parent_mapping, mapper)
+        _update_child_parents(stories_and_tasks, parent_key_map, parent_mapping, mapper, config)
         story_task_results = _create_issues_batch(client, stories_and_tasks, output_dir, "Stories & Tasks", ui)
         created += story_task_results["created"]
         failed += story_task_results["failed"]
@@ -127,9 +161,9 @@ def write_cloud(
         logger.info(f"Creating {len(sub_tasks)} sub-tasks...")
         # Resolve Sub-task parent references now that Stories/Tasks exist
         if result.indices is not None:
-            _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues)
+            _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues, config)
         # Update sub-tasks with real parent keys
-        _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper)
+        _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper, config)
         subtask_results = _create_issues_batch(client, sub_tasks, output_dir, "subtask", ui)
         created += subtask_results["created"]
         failed += subtask_results["failed"]
@@ -147,7 +181,7 @@ def write_cloud(
 
 
 def _separate_parent_child_issues(
-    result: ProcessorResult, mapper: IssueMapper
+    result: ProcessorResult, mapper: IssueMapper, config: Any
 ) -> tuple[
     list[tuple[int, dict[str, Any]]],
     list[tuple[int, dict[str, Any]]],
@@ -164,7 +198,7 @@ def _separate_parent_child_issues(
 
     # Separate based on issue type and fix parent references
     epics, stories_and_tasks, sub_tasks, parent_mapping = _classify_and_fix_issues(
-        all_issues, summary_to_row, result.indices
+        all_issues, summary_to_row, result.indices, config
     )
 
     logger.info(f"Separated {len(epics)} epics, {len(stories_and_tasks)} stories/tasks, and {len(sub_tasks)} sub-tasks")
@@ -189,7 +223,7 @@ def _collect_issues_with_summaries(result: ProcessorResult, mapper: IssueMapper)
 
 
 def _classify_and_fix_issues(
-    all_issues: list, summary_to_row: dict[str, int], indices: ColumnIndices
+    all_issues: list, summary_to_row: dict[str, int], indices: ColumnIndices, config: Any
 ) -> tuple[
     list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], dict[str, str]
 ]:
@@ -199,15 +233,21 @@ def _classify_and_fix_issues(
     sub_tasks: list[tuple[int, dict[str, Any]]] = []
     parent_mapping: dict[str, str] = {}
 
-    for row_index, payload, summary, _ in all_issues:
-        issue_type = payload.get("fields", {}).get("issuetype", {}).get("name", "").lower()
+    # Create ConfigView for consistent access pattern
+    config_view = ConfigView(config)
 
-        if issue_type == "epic":
+    for row_index, payload, summary, _ in all_issues:
+        issue_type_name = payload.get("fields", {}).get("issuetype", {}).get("name", "")
+
+        # Use config-driven level classification instead of hardcoded strings
+        level = get_issue_type_level(config_view.get, issue_type_name)
+
+        if level == LEVEL_2_EPIC:  # Epic level
             epics.append((row_index, payload))
             if summary:
                 parent_mapping[summary] = str(row_index)
             logger.debug(f"Row {row_index}: Epic issue (can have children)")
-        elif issue_type == "sub-task":
+        elif level == LEVEL_4_SUBTASK:  # Sub-task level
             _process_subtask(
                 row_index,
                 payload,
@@ -219,9 +259,17 @@ def _classify_and_fix_issues(
                 all_issues,
                 indices,
             )
-        else:
+        else:  # Level 3 (Story/Task/Bug) or unknown (default to level 3)
             _process_parent_issue(
-                row_index, payload, summary, stories_and_tasks, parent_mapping, summary_to_row, all_issues, indices
+                row_index,
+                payload,
+                summary,
+                stories_and_tasks,
+                parent_mapping,
+                summary_to_row,
+                all_issues,
+                indices,
+                config,
             )
 
     return epics, stories_and_tasks, sub_tasks, parent_mapping
@@ -262,8 +310,10 @@ def _process_parent_issue(
     summary_to_row: dict[str, int],
     all_issues: list,
     indices: ColumnIndices,
+    config: Any,
 ) -> None:
     """Process a parent issue (Epic, Story, Task)."""
+    config_view = ConfigView(config)
     issue_type = payload.get("fields", {}).get("issuetype", {}).get("name", "").lower()
 
     # For parent issues, keep parent references if they can be resolved to actual Jira keys
@@ -271,7 +321,7 @@ def _process_parent_issue(
     if "parent" in payload.get("fields", {}):
         parent_key = payload.get("fields", {}).get("parent", {}).get("key", "")
         # Try to resolve the parent reference to a real Jira key
-        corrected_parent = _try_fix_parent_reference(parent_key, summary, summary_to_row, all_issues, indices)
+        corrected_parent = _try_fix_parent_reference(parent_key, summary, summary_to_row, all_issues, indices, config)
 
         if corrected_parent:
             # Check if this is a valid parent reference (not a row index)
@@ -281,7 +331,8 @@ def _process_parent_issue(
                     # This is a row index - we need to check if the referenced parent exists and is a valid parent
                     _, parent_payload, _, _ = all_issues[parent_row_index]
                     parent_issue_type = parent_payload.get("fields", {}).get("issuetype", {}).get("name", "").lower()
-                    if parent_issue_type in ["epic"] and "parent" not in parent_payload.get("fields", {}):
+                    parent_level = get_issue_type_level(config_view.get, parent_issue_type)
+                    if parent_level == LEVEL_2_EPIC and "parent" not in parent_payload.get("fields", {}):
                         # Valid parent reference - keep it as row index for later mapping
                         payload["fields"]["parent"]["key"] = corrected_parent
                         logger.info(
@@ -318,9 +369,16 @@ def _process_parent_issue(
 
 
 def _try_fix_parent_reference(
-    parent_key: str, child_summary: str, summary_to_row: dict[str, int], all_issues: list, indices: ColumnIndices
+    parent_key: str,
+    child_summary: str,
+    summary_to_row: dict[str, int],
+    all_issues: list,
+    indices: ColumnIndices,
+    config: Any,
 ) -> str | None:
     """Try to fix incorrect parent references by finding logical parent relationships."""
+    config_view = ConfigView(config)
+
     if not parent_key or not child_summary:
         return None
 
@@ -346,7 +404,8 @@ def _try_fix_parent_reference(
         parent_issue_type = parent_payload.get("fields", {}).get("issuetype", {}).get("name", "").lower()
 
         # Stories and Epics can be parents of Sub-Tasks
-        if parent_issue_type in ["story", "epic"] and "parent" not in parent_payload.get("fields", {}):
+        parent_level = get_issue_type_level(config_view.get, parent_issue_type)
+        if parent_level in [LEVEL_2_EPIC, LEVEL_3_STORY] and "parent" not in parent_payload.get("fields", {}):
             return str(i)
 
     # Check if this looks like a "Jira Cloud API Integration" sub-task
@@ -415,6 +474,17 @@ def _create_issues_batch(
                         detail = resp.json()
                     except Exception:
                         detail = {"error": resp.text}
+
+                    # Check for authentication errors
+                    if resp.status_code in [HTTP_UNAUTHORIZED, HTTP_FORBIDDEN]:
+                        error_msg = f"Authentication failed (HTTP {resp.status_code}) - your API token may have expired"
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+                    elif resp.status_code == HTTP_NOT_FOUND:
+                        error_msg = f"Jira API endpoint not found (HTTP {resp.status_code}) - check your site_address"
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+
                     errors.append({"status": resp.status_code, "detail": detail})
                     failed += len(batch)
                     progress.advance(task)
@@ -450,6 +520,17 @@ def _create_issues_batch(
                     detail = resp.json()
                 except Exception:
                     detail = {"error": resp.text}
+
+                # Check for authentication errors
+                if resp.status_code in [HTTP_UNAUTHORIZED, HTTP_FORBIDDEN]:
+                    error_msg = f"Authentication failed (HTTP {resp.status_code}) - your API token may have expired"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                elif resp.status_code == HTTP_NOT_FOUND:
+                    error_msg = f"Jira API endpoint not found (HTTP {resp.status_code}) - check your site_address"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+
                 errors.append({"status": resp.status_code, "detail": detail})
                 failed += len(batch)
                 continue
@@ -500,6 +581,7 @@ def _resolve_subtask_parents(
     parent_key_map: dict[str, str],
     indices: ColumnIndices,
     all_issues: list,
+    config: Any,
 ) -> None:
     """Resolve Sub-task parent references now that Stories/Tasks have been created."""
     for row_index, payload in sub_tasks:
@@ -576,8 +658,11 @@ def _update_child_parents(
     parent_key_map: dict[str, str],
     parent_mapping: dict[str, str],  # pylint: disable=unused-argument
     mapper: IssueMapper,
+    config: Any,
 ) -> None:
     """Update child issues with real parent keys (modifies in place)."""
+    config_view = ConfigView(config)
+
     for row_index, child_payload in child_issues:
         # Get the parent reference
         parent_ref = child_payload.get("fields", {}).get("parent", {})
@@ -593,13 +678,14 @@ def _update_child_parents(
                 child_payload["fields"]["parent"]["key"] = real_key
                 logger.debug(f"Updated child parent reference for row {row_index}")
             else:
-                # Check if this is a sub-task with invalid parent reference
+                # Check if this is a level 4 issue type with invalid parent reference
                 issuetype = child_payload.get("fields", {}).get("issuetype", {}).get("name", "")
-                if issuetype.lower() == "sub-task":
-                    # Convert sub-task to story since parent is invalid
-                    child_payload["fields"]["issuetype"]["name"] = "Story"
+                if get_issue_type_level(config_view.get, issuetype) == LEVEL_4_SUBTASK:
+                    # Convert level 4 issue to default level 3 since parent is invalid
+                    fallback_type = get_default_level3_type(config_view.get)
+                    child_payload["fields"]["issuetype"]["name"] = fallback_type
                     logger.info(
-                        f"Row {row_index}: Converted sub-task to story (invalid parent reference '{placeholder_key}')"
+                        f"Row {row_index}: Converted {issuetype} to {fallback_type} (invalid parent reference '{placeholder_key}')"
                     )
 
                 # Remove invalid parent reference

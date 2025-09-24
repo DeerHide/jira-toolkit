@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from ...config.config_view import ConfigView
+from ...config.constants import LEVEL_4_SUBTASK
+from ...config.issuetypes import get_default_level3_type, get_issue_type_level
 from ..models import ColumnIndices, ProcessorResult
 from .constants import JIRA_KEY_PARTS_COUNT
 from .metadata import MetadataCache
@@ -64,15 +66,13 @@ class IssueMapper:
             # Keep parent reference for mapping (will be resolved later)
             fields["parent"] = {"key": parent_key}
 
-        # Convert sub-tasks to task if no valid parent exists
-        if (
-            indices.issuetype is not None
-            and row[indices.issuetype]
-            and str(row[indices.issuetype]).strip().lower() == "sub-task"
-            and "parent" not in fields
-        ):
-            logger.info("Converting sub-task to story (no valid parent found)")
-            fields["issuetype"] = {"name": "task"}
+        # Convert level 4 issue types to level 3 if no valid parent exists
+        if indices.issuetype is not None and row[indices.issuetype] and "parent" not in fields:
+            issue_type_name = str(row[indices.issuetype]).strip()
+            if get_issue_type_level(self.cfg.get, issue_type_name) == LEVEL_4_SUBTASK:
+                fallback_type = get_default_level3_type(self.cfg.get)
+                logger.info(f"Converting {issue_type_name} to {fallback_type} (no valid parent found)")
+                fields["issuetype"] = {"name": fallback_type}
 
         # Time tracking (use originalEstimateSeconds)
         if indices.estimate is not None and row[indices.estimate]:

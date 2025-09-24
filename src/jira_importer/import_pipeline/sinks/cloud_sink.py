@@ -18,15 +18,15 @@ from ...config.issuetypes import get_default_level3_type, get_issue_type_level
 from ..cloud.bulk import build_bulk_create_payload, chunk_issues
 from ..cloud.client import JiraCloudClient
 from ..cloud.constants import BATCH_SIZE, HTTP_ERROR_THRESHOLD, PARENT_RESOLUTION_KEYWORDS
+from ..cloud.mappers import IssueMapper
+from ..cloud.metadata import MetadataCache
+from ..models import ColumnIndices, ProcessorResult
 
 # HTTP status codes for better error handling
 HTTP_OK = 200
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_NOT_FOUND = 404
-from ..cloud.mappers import IssueMapper
-from ..cloud.metadata import MetadataCache
-from ..models import ColumnIndices, ProcessorResult
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ def write_cloud(
         logger.info(f"Creating {len(sub_tasks)} sub-tasks...")
         # Resolve Sub-task parent references now that Stories/Tasks exist
         if result.indices is not None:
-            _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues, config)
+            _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues)
         # Update sub-tasks with real parent keys
         _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper, config)
         subtask_results = _create_issues_batch(client, sub_tasks, output_dir, "subtask", ui)
@@ -581,7 +581,6 @@ def _resolve_subtask_parents(
     parent_key_map: dict[str, str],
     indices: ColumnIndices,
     all_issues: list,
-    config: Any,
 ) -> None:
     """Resolve Sub-task parent references now that Stories/Tasks have been created."""
     for row_index, payload in sub_tasks:

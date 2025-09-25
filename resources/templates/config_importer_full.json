@@ -34,8 +34,8 @@
     "examples": {
       "custom_validation": "Modify jira.priorities array",
       "disable_auto_fix": "Set validation.fixers.disabled array",
-      "jira_cloud_compatibility": "Set jira.cloud.estimate.multiply_by_60 to true",
-      "issue_type_hierarchy": "Configure jira.issuetypes with name and level"
+      "issue_type_hierarchy": "Configure jira.issuetypes with name and level",
+      "jira_cloud_compatibility": "Set jira.cloud.estimate.multiply_by_60 to true"
     },
     "notes": [
       "Copy this file to your project directory and update the values above",
@@ -50,9 +50,9 @@
     "usage": {
       "app": "Application behavior and logging settings",
       "jira": "Jira-specific connection and project settings",
-      "validation": "All validation rules and issue type definitions",
+      "metadata": "Configuration file information and versioning",
       "output": "Output format and unit settings",
-      "metadata": "Configuration file information and versioning"
+      "validation": "All validation rules and issue type definitions"
     }
   },
   "jira": {
@@ -69,9 +69,6 @@
       },
       "site_address": "https://your-instance.atlassian.net"
     },
-    "project": {
-      "key": "PROJECT"
-    },
     "issuetypes": [
         { "name": "Initiative", "level": 1 },
         { "name": "Epic", "level": 2 },
@@ -79,14 +76,30 @@
         { "name": "Task", "level": 3 },
         { "name": "Bug", "level": 3 },
         { "name": "Sub-Task", "level": 4 }
-      ],
+    ],
     "priorities": [
       "Highest",
       "High",
       "Medium",
       "Low",
       "Lowest"
-    ]
+    ],
+    "project": {
+      "key": "PROJECT"
+    }
+  },
+  "metadata": {
+    "description": "Complete Jira Importer Toolkit Configuration - Unified Structure",
+    "last_updated": "2025-01-27",
+    "migration_notes": [
+      "This configuration uses a unified structure with single source of truth",
+      "All validation rules are now under 'validation.*' section",
+      "Issue types and priorities are configured under 'jira.*' section",
+      "Legacy 'app.validation.*' paths are no longer supported",
+      "Eliminated all duplications for cleaner configuration management",
+      "Issue types and priorities are case-sensitive and must match Jira exactly"
+    ],
+    "version": 8
   },
   "output": {
     "estimate": {
@@ -109,24 +122,11 @@
         "summary.required"
       ]
     },
-    "skip_rowtype": true,
     "skip_issuetypes": [
       "comment",
       "note",
       "skip"
-    ]
-  },
-  "metadata": {
-    "description": "Complete Jira Importer Toolkit Configuration - Unified Structure",
-    "last_updated": "2025-01-27",
-    "version": 8,
-    "migration_notes": [
-      "This configuration uses a unified structure with single source of truth",
-      "All validation rules are now under 'validation.*' section",
-      "Issue types and priorities are configured under 'jira.*' section",
-      "Legacy 'app.validation.*' paths are no longer supported",
-      "Eliminated all duplications for cleaner configuration management",
-      "Issue types and priorities are case-sensitive and must match Jira exactly"
-    ]
+    ],
+    "skip_rowtype": true
   }
 }

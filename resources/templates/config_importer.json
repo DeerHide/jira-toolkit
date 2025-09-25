@@ -29,9 +29,6 @@
       },
       "site_address": "https://xyz.atlassian.net"
     },
-    "project": {
-      "key": "JITTP2"
-    },
     "issuetypes": [
       { "name": "Initiative", "level": 1 },
       { "name": "Epic", "level": 2 },
@@ -39,14 +36,29 @@
       { "name": "Task", "level": 3 },
       { "name": "Bug", "level": 3 },
       { "name": "Sub-Task", "level": 4 }
-      ],
+    ],
     "priorities": [
       "Highest",
       "High",
       "Medium",
       "Low",
       "Lowest"
-    ]
+    ],
+    "project": {
+      "key": "JITTP2"
+    }
+  },
+  "metadata": {
+    "description": "Jira Importer Configuration - Unified Structure",
+    "last_updated": "2025-01-27",
+    "migration_notes": [
+      "This configuration uses a unified structure with single source of truth",
+      "All validation rules are now under 'validation.*' section",
+      "Issue types and priorities are configured under 'jira.*' section",
+      "Legacy 'app.validation.*' paths are no longer supported",
+      "Issue types and priorities are case-sensitive and must match Jira exactly"
+    ],
+    "version": 7
   },
   "output": {
     "estimate": {
@@ -69,23 +81,11 @@
         "summary.required"
       ]
     },
-    "skip_rowtype": true,
     "skip_issuetypes": [
       "comment",
       "note",
       "skip"
-    ]
-  },
-  "metadata": {
-    "description": "Jira Importer Configuration - Unified Structure",
-    "last_updated": "2025-01-27",
-    "version": 7,
-    "migration_notes": [
-      "This configuration uses a unified structure with single source of truth",
-      "All validation rules are now under 'validation.*' section",
-      "Issue types and priorities are configured under 'jira.*' section",
-      "Legacy 'app.validation.*' paths are no longer supported",
-      "Issue types and priorities are case-sensitive and must match Jira exactly"
-    ]
+    ],
+    "skip_rowtype": true
   }
 }

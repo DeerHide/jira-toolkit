@@ -85,13 +85,13 @@ class IssueTypesConfig:
 
     @classmethod
     def from_config(cls, config_get) -> "IssueTypesConfig":
-        """Create IssueTypesConfig from config with backward compatibility.
+        """Create IssueTypesConfig from config with unified structure support.
 
-        Supports both formats:
-        - New: jira.issuetypes = [{"name": "Story", "level": 3}, ...]
-        - Old: jira.validation.issue_types = ["Story", "Task", ...]
+        Supports multiple formats in order of preference:
+        - Primary: jira.issuetypes = [{"name": "Story", "level": 3}, ...]
+        - Legacy: jira.validation.issue_types = ["Story", "Task", ...]
         """
-        # Try new format first
+        # Try jira-specific format (primary)
         issuetypes_data = config_get("jira.issuetypes", None)
 
         if isinstance(issuetypes_data, list) and all(isinstance(it, dict) for it in issuetypes_data):
@@ -104,7 +104,7 @@ class IssueTypesConfig:
             if issuetypes:
                 return cls(issuetypes=issuetypes)
 
-        # Fallback to old format
+        # Fallback to legacy format
         old_issue_types = config_get("jira.validation.issue_types", None)
         if isinstance(old_issue_types, list):
             # Convert old flat list to new format with default levels

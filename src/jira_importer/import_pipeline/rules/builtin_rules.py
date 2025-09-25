@@ -125,7 +125,7 @@ class PriorityAllowedRule(IRowRule):
         default = {"Highest", "High", "Medium", "Low", "Lowest"}
         cfg = getattr(ctx.config, "get", None)
         if callable(cfg):
-            values = ctx.config.get("validation.allowed_priorities", default)
+            values = ctx.config.get("jira.priorities", default)
             try:
                 return set(v if isinstance(v, str) else str(v) for v in values)
             except Exception:

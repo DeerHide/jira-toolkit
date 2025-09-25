@@ -13,58 +13,6 @@
       "max_log_size_mb": 10,
       "write_to_file": true
     },
-    "reporting": {
-      "skip_report": false
-    },
-    "sheet_name": "Dataset",
-    "validation": {
-      "issuetypes": [
-          { "name": "initiative", "level": 1 },
-          { "name": "epic", "level": 2 },
-          { "name": "story", "level": 3 },
-          { "name": "task", "level": 3 },
-          { "name": "bug", "level": 3 },
-          { "name": "sub-task", "level": 4 }
-        ],
-      "allowed_priorities": [
-        "highest",
-        "high",
-        "medium",
-        "low",
-        "lowest"
-      ],
-      "estimate": {
-        "accept_integers_as": "seconds",
-        "fields": [
-          "estimate",
-          "origest"
-        ]
-      },
-      "fixers": {
-        "disabled": [
-          "project_key.mismatch",
-          "priority.missing",
-          "estimate.invalid_format",
-          "summary.required"
-        ]
-      },
-      "skip_all": false,
-      "skip_checks": {
-        "assignee": false,
-        "child_issue_id": false,
-        "component": false,
-        "description": false,
-        "fixversion": false,
-        "sprint": false,
-        "story_for_parent_link": false
-      },
-      "skip_issuetypes": [
-        "comment",
-        "note",
-        "skip"
-      ],
-      "skip_rowtype": true
-    },
     "version": "2.0.0"
   },
   "documentation": {
@@ -73,41 +21,45 @@
       "jira.connection.auth.mode - basic | oauth",
       "jira.connection.auth.email - Atlassian account email (env-ready)",
       "jira.connection.auth.api_token - Atlassian API token (env-ready)",
-      "jira.connection.oauth.client_id - OAuth 3LO client id (env-ready)",
-      "jira.connection.oauth.client_secret - OAuth 3LO client secret (env-ready)",
-      "jira.connection.oauth.refresh_token - OAuth 3LO refresh token (env-ready)",
-      "jira.connection.cloud_id - Cloud ID for api.atlassian.com (optional)",
       "jira.project.key - Your Jira project key",
-      "jira.validation.components - Valid component names for your project",
-      "jira.validation.priorities - Valid priority levels",
-      "jira.validation.issue_types - Valid issue types",
-      "jira.validation.statuses - Valid workflow statuses",
-      "jira.validation.fix_versions - Valid release versions",
-      "app.validation.fixers.disabled - Auto-fixers to disable",
-      "jira.cloud.estimate_multiply_by_60 - Jira Cloud estimate compatibility"
+      "jira.issuetypes - Issue types with hierarchy levels",
+      "jira.priorities - Valid priority levels",
+      "validation.fixers.disabled - Auto-fixers to disable",
+      "jira.cloud.estimate.multiply_by_60 - Jira Cloud estimate compatibility",
+      "output.estimate.unit - Output estimate unit (seconds/minutes)",
+      "validation.skip_rowtype - Skip row type validation",
+      "validation.skip_issuetypes - Skip specific issue types"
     ],
-    "description": "Complete Jira Importer Toolkit Configuration File",
+    "description": "Complete Jira Importer Toolkit Configuration File - Unified Structure",
     "examples": {
-      "custom_validation": "Modify jira.validation.allowed_* arrays",
-      "disable_auto_fix": "Set app.import.auto_fix to false",
-      "jira_cloud_compatibility": "Set jira.cloud.estimate_multiply_by_60 to true"
+      "custom_validation": "Modify jira.priorities array",
+      "disable_auto_fix": "Set validation.fixers.disabled array",
+      "jira_cloud_compatibility": "Set jira.cloud.estimate.multiply_by_60 to true",
+      "issue_type_hierarchy": "Configure jira.issuetypes with name and level"
     },
     "notes": [
       "Copy this file to your project directory and update the values above",
       "Use -c flag to specify custom config: jira-importer.exe data.xlsx -c config.json",
-      "Most validation rules can be customized via the validation section",
-      "Auto-fix system can be controlled via app.validation.fixers.disabled",
-      "Jira Cloud users may need jira.cloud.estimate_multiply_by_60: true"
+      "All validation rules are now under 'validation.*' section (single source of truth)",
+      "Issue types and priorities are configured under 'jira.*' section",
+      "Issue types and priorities are case-sensitive and must match Jira exactly",
+      "Jira Cloud users may need jira.cloud.estimate.multiply_by_60: true",
+      "This configuration eliminates duplications and provides clear structure",
+      "Legacy 'app.validation.*' paths are no longer supported"
     ],
     "usage": {
-      "app": "Application behavior, validation, and reporting settings",
-      "jira": "Jira-specific settings and validation rules",
+      "app": "Application behavior and logging settings",
+      "jira": "Jira-specific connection and project settings",
+      "validation": "All validation rules and issue type definitions",
+      "output": "Output format and unit settings",
       "metadata": "Configuration file information and versioning"
     }
   },
   "jira": {
     "cloud": {
-      "estimate_multiply_by_60": false
+      "estimate": {
+        "multiply_by_60": false
+      }
     },
     "connection": {
       "auth": {
@@ -115,59 +67,66 @@
         "email": "${ENV:JIRA_EMAIL}",
         "mode": "basic"
       },
-      "cloud_id": "",
-      "oauth": {
-        "client_id": "${ENV:JIRA_OAUTH_CLIENT_ID}",
-        "client_secret": "${ENV:JIRA_OAUTH_CLIENT_SECRET}",
-        "refresh_token": "${ENV:JIRA_OAUTH_REFRESH_TOKEN}"
-      },
       "site_address": "https://your-instance.atlassian.net"
     },
     "project": {
-      "id": 0,
       "key": "PROJECT"
     },
-    "validation": {
-      "components": [
-        "design",
-        "development",
-        "production",
-        "quality assurance",
-        "quality control",
-        "devops",
-        "sysops"
+    "issuetypes": [
+        { "name": "Initiative", "level": 1 },
+        { "name": "Epic", "level": 2 },
+        { "name": "Story", "level": 3 },
+        { "name": "Task", "level": 3 },
+        { "name": "Bug", "level": 3 },
+        { "name": "Sub-Task", "level": 4 }
       ],
-      "fix_versions": [
-        "Version 1.0",
-        "Version 1.1",
-        "Version 2.0"
-      ],
-      "issue_types": [
-        "epic",
-        "story",
-        "task",
-        "sub-task",
-        "bug"
-      ],
-      "min_sprint_value": 1,
-      "priorities": [
-        "highest",
-        "high",
-        "medium",
-        "low",
-        "lowest"
-      ],
-      "statuses": [
-        "Backlog",
-        "To Do",
-        "In Progress",
-        "Done"
-      ]
+    "priorities": [
+      "Highest",
+      "High",
+      "Medium",
+      "Low",
+      "Lowest"
+    ]
+  },
+  "output": {
+    "estimate": {
+      "unit": "seconds"
     }
   },
+  "validation": {
+    "estimate": {
+      "accept_integers_as": "seconds",
+      "fields": [
+        "estimate",
+        "origest"
+      ]
+    },
+    "fixers": {
+      "disabled": [
+        "project_key.mismatch",
+        "priority.missing",
+        "estimate.invalid_format",
+        "summary.required"
+      ]
+    },
+    "skip_rowtype": true,
+    "skip_issuetypes": [
+      "comment",
+      "note",
+      "skip"
+    ]
+  },
   "metadata": {
-    "description": "Complete Jira Importer Toolkit Configuration",
-    "last_updated": "2025-08-29",
-    "version": 6
+    "description": "Complete Jira Importer Toolkit Configuration - Unified Structure",
+    "last_updated": "2025-01-27",
+    "version": 8,
+    "migration_notes": [
+      "This configuration uses a unified structure with single source of truth",
+      "All validation rules are now under 'validation.*' section",
+      "Issue types and priorities are configured under 'jira.*' section",
+      "Legacy 'app.validation.*' paths are no longer supported",
+      "Eliminated all duplications for cleaner configuration management",
+      "Issue types and priorities are case-sensitive and must match Jira exactly"
+    ]
   }
 }

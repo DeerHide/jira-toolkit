@@ -91,7 +91,7 @@ class PriorityNormalizeFixer(IFixer):
     """Normalizes priority to a canonical label list.
 
     Config (optional):
-      - validation.allowed_priorities: list[str]
+      - jira.priorities: list[str]
         default: ["Highest","High","Medium","Low","Lowest"]
       - validation.priority.number_map: bool
         if true, '1'->first allowed, '2'->second, etc. (default: true)
@@ -106,7 +106,7 @@ class PriorityNormalizeFixer(IFixer):
         if problem.code not in {"priority.invalid", "priority.missing"}:
             return FixOutcome(applied=False)
 
-        allowed = list(_cfg_get(ctx, "validation.allowed_priorities", ["Highest", "High", "Medium", "Low", "Lowest"]))
+        allowed = list(_cfg_get(ctx, "jira.priorities", ["Highest", "High", "Medium", "Low", "Lowest"]))
         val = _cell_str(row, indices.priority)
 
         # If empty priority, choose to no-op by default (teams may prefer manual fill).

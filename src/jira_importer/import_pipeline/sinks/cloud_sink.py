@@ -56,81 +56,36 @@ class CloudSubmitReport:
     created_issue_keys: list[str] = field(default_factory=list)
 
 
-def write_cloud(
-    result: ProcessorResult, config: object, *, dry_run: bool = False, output_dir: Path | None = None, ui=None
-) -> CloudSubmitReport:  # pylint: disable=too-many-locals #TODO: Refactor this method to make it more readable and maintainable
-    """Submit processed issues to Jira Cloud in batches."""
+def _validate_config(config: object) -> tuple[str, str, str]:
+    """Validate and extract Jira Cloud configuration."""
     cfg = ConfigView(config)
-
-    # Resolve base_url from configuration
     base_url = cfg.get("jira.connection.site_address", None)
     if not base_url:
         raise ValueError("Missing jira.connection.site_address in configuration for Cloud sink")
-
-    # Read authentication credentials from configuration
     email = cfg.get("jira.connection.auth.email", None)
     api_token = cfg.get("jira.connection.auth.api_token", None)
     if not email or not api_token:
         raise ValueError("Missing jira.connection.auth.email or jira.connection.auth.api_token in configuration")
+    return base_url, email, api_token
 
+
+def _setup_auth(email: str, api_token: str):
+    """Setup authentication provider for Jira Cloud."""
     from ..cloud.auth import BasicAuthProvider  # pylint: disable=import-outside-toplevel
 
-    client = JiraCloudClient(
-        base_url=f"{base_url.rstrip('/')}/rest/api/3", auth_provider=BasicAuthProvider(email=email, api_token=api_token)
-    )
+    return BasicAuthProvider(email, api_token)
 
-    # Test authentication before proceeding
-    # This pre-flight test provides clear error messages for common auth issues
-    try:
-        logger.info("Testing Jira authentication...")
-        # Make a simple API call to test authentication
-        test_response = client.get("/myself")
-        if test_response.status_code == HTTP_OK:
-            try:
-                user_info = test_response.json()
-                logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
-            except (ValueError, KeyError) as json_error:
-                logger.warning(f"Authentication successful but received malformed response: {json_error}")
-                logger.info("Authentication successful - proceeding with import")
-        elif test_response.status_code == HTTP_UNAUTHORIZED:
-            raise ValueError(
-                f"Jira authentication failed (HTTP 401) - your API token may have expired. "
-                f"Please refresh your token at: {base_url}/secure/ViewProfile.jspa"
-            )
-        elif test_response.status_code == HTTP_FORBIDDEN:
-            raise ValueError(
-                f"Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
-                f"Please check your token at: {base_url}/secure/ViewProfile.jspa"
-            )
-        elif test_response.status_code == HTTP_NOT_FOUND:
-            raise ValueError(
-                f"Jira instance not found at {base_url} (HTTP 404). Please check your site_address configuration."
-            )
-        elif test_response.status_code == HTTP_TOO_MANY_REQUESTS:
-            raise ValueError("Jira API rate limit exceeded (HTTP 429). Please wait a moment and try again.")
-        elif HTTP_SERVER_ERROR_START <= test_response.status_code < HTTP_SERVER_ERROR_END:
-            raise ValueError(
-                f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator."
-            )
-        else:
-            raise ValueError(f"Authentication test failed with status {test_response.status_code}")
-    except ValueError:
-        # Re-raise our custom ValueError messages
-        raise
-    except Exception as e:
-        # Handle network/connection issues
-        error_str = str(e).lower()
-        if any(keyword in error_str for keyword in ["timeout", "connection", "network", "dns", "ssl"]):
-            raise ValueError(
-                f"Network connection failed to {base_url}. Please check your internet connection and try again. Error: {e!s}"
-            ) from e
-        elif "not found" in error_str or "404" in error_str:
-            raise ValueError(
-                f"Jira instance not found at {base_url}. Please check your site_address configuration."
-            ) from e
-        else:
-            raise ValueError(f"Failed to connect to Jira at {base_url}. Error: {e!s}") from e
 
+def _process_batches(
+    result: ProcessorResult,
+    client: JiraCloudClient,
+    dry_run: bool,
+    output_dir: Path | None,
+    ui,
+    config: object,
+) -> CloudSubmitReport:
+    """Process issues in batches and return submission report."""
+    cfg = ConfigView(config)
     metadata = MetadataCache(client)
     mapper = IssueMapper(cfg, metadata)
 
@@ -209,6 +164,69 @@ def write_cloud(
     return CloudSubmitReport(
         created=created, failed=failed, batches=batches, errors=errors, created_issue_keys=created_issue_keys
     )
+
+
+def write_cloud(
+    result: ProcessorResult, config: object, *, dry_run: bool = False, output_dir: Path | None = None, ui=None
+) -> CloudSubmitReport:
+    """Submit processed issues to Jira Cloud in batches."""
+    base_url, email, api_token = _validate_config(config)
+    auth_provider = _setup_auth(email, api_token)
+    client = JiraCloudClient(base_url=f"{base_url.rstrip('/')}/rest/api/3", auth_provider=auth_provider)
+
+    # Test authentication before proceeding
+    # This pre-flight test provides clear error messages for common auth issues
+    try:
+        logger.info("Testing Jira authentication...")
+        # Make a simple API call to test authentication
+        test_response = client.get("/myself")
+        if test_response.status_code == HTTP_OK:
+            try:
+                user_info = test_response.json()
+                logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
+            except (ValueError, KeyError) as json_error:
+                logger.warning(f"Authentication successful but received malformed response: {json_error}")
+                logger.info("Authentication successful - proceeding with import")
+        elif test_response.status_code == HTTP_UNAUTHORIZED:
+            raise ValueError(
+                f"Jira authentication failed (HTTP 401) - your API token may have expired. "
+                f"Please refresh your token at: {base_url}/secure/ViewProfile.jspa"
+            )
+        elif test_response.status_code == HTTP_FORBIDDEN:
+            raise ValueError(
+                f"Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
+                f"Please check your token at: {base_url}/secure/ViewProfile.jspa"
+            )
+        elif test_response.status_code == HTTP_NOT_FOUND:
+            raise ValueError(
+                f"Jira instance not found at {base_url} (HTTP 404). Please check your site_address configuration."
+            )
+        elif test_response.status_code == HTTP_TOO_MANY_REQUESTS:
+            raise ValueError("Jira API rate limit exceeded (HTTP 429). Please wait a moment and try again.")
+        elif HTTP_SERVER_ERROR_START <= test_response.status_code < HTTP_SERVER_ERROR_END:
+            raise ValueError(
+                f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator."
+            )
+        else:
+            raise ValueError(f"Authentication test failed with status {test_response.status_code}")
+    except ValueError:
+        # Re-raise our custom ValueError messages
+        raise
+    except Exception as e:
+        # Handle network/connection issues
+        error_str = str(e).lower()
+        if any(keyword in error_str for keyword in ["timeout", "connection", "network", "dns", "ssl"]):
+            raise ValueError(
+                f"Network connection failed to {base_url}. Please check your internet connection and try again. Error: {e!s}"
+            ) from e
+        elif "not found" in error_str or "404" in error_str:
+            raise ValueError(
+                f"Jira instance not found at {base_url}. Please check your site_address configuration."
+            ) from e
+        else:
+            raise ValueError(f"Failed to connect to Jira at {base_url}. Error: {e!s}") from e
+
+    return _process_batches(result, client, dry_run, output_dir, ui, config)
 
 
 def _separate_parent_child_issues(

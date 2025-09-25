@@ -1,45 +1,31 @@
 {
   "app": {
-    "version": "1.0.0",
-    "sheet_name": "Dataset",
     "artifacts": {
       "delete_enabled": false
     },
     "import": {
       "auto_open_page": false
     },
+    "logging": {
+      "console_output": true,
+      "log_level": "INFO",
+      "max_log_files": 5,
+      "max_log_size_mb": 10,
+      "write_to_file": true
+    },
+    "reporting": {
+      "skip_report": false
+    },
+    "sheet_name": "Dataset",
     "validation": {
-      "skip_all": false,
-      "skip_rowtype": true,
-      "skip_issuetypes": [
-        "comment",
-        "note",
-        "skip"
-      ],
-      "skip_checks": {
-        "description": false,
-        "fixversion": false,
-        "component": false,
-        "child_issue_id": false,
-        "story_for_parent_link": false,
-        "sprint": false,
-        "assignee": false
-      },
-      "fixers": {
-        "disabled": [
-          "project_key.mismatch",
-          "priority.missing",
-          "estimate.invalid_format",
-          "summary.required"
-        ]
-      },
-      "allowed_issuetypes": [
-        "epic",
-        "story",
-        "task",
-        "sub-task",
-        "bug"
-      ],
+      "issuetypes": [
+          { "name": "initiative", "level": 1 },
+          { "name": "epic", "level": 2 },
+          { "name": "story", "level": 3 },
+          { "name": "task", "level": 3 },
+          { "name": "bug", "level": 3 },
+          { "name": "sub-task", "level": 4 }
+        ],
       "allowed_priorities": [
         "highest",
         "high",
@@ -49,92 +35,39 @@
       ],
       "estimate": {
         "accept_integers_as": "seconds",
-        "fields": ["estimate", "origest"]
-      }
-    },
-    "reporting": {
-      "skip_report": false
-    },
-    "logging": {
-      "write_to_file": true,
-      "console_output": true,
-      "log_level": "INFO",
-      "max_log_size_mb": 10,
-      "max_log_files": 5
-    }
-  },
-  "jira": {
-    "connection": {
-      "site_address": "https://your-instance.atlassian.net",
-      "auth": {
-        "mode": "basic",
-        "email": "${ENV:JIRA_EMAIL}",
-        "api_token": "${ENV:JIRA_API_TOKEN}"
+        "fields": [
+          "estimate",
+          "origest"
+        ]
       },
-      "oauth": {
-        "client_id": "${ENV:JIRA_OAUTH_CLIENT_ID}",
-        "client_secret": "${ENV:JIRA_OAUTH_CLIENT_SECRET}",
-        "refresh_token": "${ENV:JIRA_OAUTH_REFRESH_TOKEN}"
+      "fixers": {
+        "disabled": [
+          "project_key.mismatch",
+          "priority.missing",
+          "estimate.invalid_format",
+          "summary.required"
+        ]
       },
-      "cloud_id": ""
+      "skip_all": false,
+      "skip_checks": {
+        "assignee": false,
+        "child_issue_id": false,
+        "component": false,
+        "description": false,
+        "fixversion": false,
+        "sprint": false,
+        "story_for_parent_link": false
+      },
+      "skip_issuetypes": [
+        "comment",
+        "note",
+        "skip"
+      ],
+      "skip_rowtype": true
     },
-    "project": {
-      "key": "PROJECT",
-      "id": 0
-    },
-    "cloud": {
-      "estimate_multiply_by_60": false
-    },
-    "validation": {
-      "components": [
-        "design",
-        "development",
-        "production",
-        "quality assurance",
-        "quality control",
-        "devops",
-        "sysops"
-      ],
-      "priorities": [
-        "highest",
-        "high",
-        "medium",
-        "low",
-        "lowest"
-      ],
-      "issue_types": [
-        "epic",
-        "story",
-        "task",
-        "sub-task",
-        "bug"
-      ],
-      "statuses": [
-        "Backlog",
-        "To Do",
-        "In Progress",
-        "Done"
-      ],
-      "fix_versions": [
-        "Version 1.0",
-        "Version 1.1",
-        "Version 2.0"
-      ],
-      "min_sprint_value": 1
-    }
-  },
-  "metadata": {
-    "version": 6,
-    "description": "Complete Jira Importer Toolkit Configuration",
-    "last_updated": "2025-08-29"
+    "version": "2.0.0"
   },
   "documentation": {
-    "description": "Complete Jira Importer Toolkit Configuration File",
-    "usage": {
-      "metadata": "Configuration file information and versioning",
-      "app": "Application behavior, validation, and reporting settings",
-      "jira": "Jira-specific settings and validation rules"
-    },
     "active_fields": [
       "jira.connection.site_address - Your Jira instance URL",
       "jira.connection.auth.mode - basic | oauth",
@@ -153,6 +86,12 @@
       "app.validation.fixers.disabled - Auto-fixers to disable",
       "jira.cloud.estimate_multiply_by_60 - Jira Cloud estimate compatibility"
     ],
+    "description": "Complete Jira Importer Toolkit Configuration File",
+    "examples": {
+      "custom_validation": "Modify jira.validation.allowed_* arrays",
+      "disable_auto_fix": "Set app.import.auto_fix to false",
+      "jira_cloud_compatibility": "Set jira.cloud.estimate_multiply_by_60 to true"
+    },
     "notes": [
       "Copy this file to your project directory and update the values above",
       "Use -c flag to specify custom config: jira-importer.exe data.xlsx -c config.json",
@@ -160,10 +99,75 @@
       "Auto-fix system can be controlled via app.validation.fixers.disabled",
       "Jira Cloud users may need jira.cloud.estimate_multiply_by_60: true"
     ],
-    "examples": {
-      "disable_auto_fix": "Set app.import.auto_fix to false",
-      "custom_validation": "Modify jira.validation.allowed_* arrays",
-      "jira_cloud_compatibility": "Set jira.cloud.estimate_multiply_by_60 to true"
+    "usage": {
+      "app": "Application behavior, validation, and reporting settings",
+      "jira": "Jira-specific settings and validation rules",
+      "metadata": "Configuration file information and versioning"
     }
+  },
+  "jira": {
+    "cloud": {
+      "estimate_multiply_by_60": false
+    },
+    "connection": {
+      "auth": {
+        "api_token": "${ENV:JIRA_API_TOKEN}",
+        "email": "${ENV:JIRA_EMAIL}",
+        "mode": "basic"
+      },
+      "cloud_id": "",
+      "oauth": {
+        "client_id": "${ENV:JIRA_OAUTH_CLIENT_ID}",
+        "client_secret": "${ENV:JIRA_OAUTH_CLIENT_SECRET}",
+        "refresh_token": "${ENV:JIRA_OAUTH_REFRESH_TOKEN}"
+      },
+      "site_address": "https://your-instance.atlassian.net"
+    },
+    "project": {
+      "id": 0,
+      "key": "PROJECT"
+    },
+    "validation": {
+      "components": [
+        "design",
+        "development",
+        "production",
+        "quality assurance",
+        "quality control",
+        "devops",
+        "sysops"
+      ],
+      "fix_versions": [
+        "Version 1.0",
+        "Version 1.1",
+        "Version 2.0"
+      ],
+      "issue_types": [
+        "epic",
+        "story",
+        "task",
+        "sub-task",
+        "bug"
+      ],
+      "min_sprint_value": 1,
+      "priorities": [
+        "highest",
+        "high",
+        "medium",
+        "low",
+        "lowest"
+      ],
+      "statuses": [
+        "Backlog",
+        "To Do",
+        "In Progress",
+        "Done"
+      ]
+    }
+  },
+  "metadata": {
+    "description": "Complete Jira Importer Toolkit Configuration",
+    "last_updated": "2025-08-29",
+    "version": 6
   }
 }

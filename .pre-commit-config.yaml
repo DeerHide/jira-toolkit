@@ -91,6 +91,15 @@ repos:
           - "pre-push"
           - "pre-commit"
           - "manual"
+      - id: check-json
+        stages:
+          - "pre-commit"
+          - "manual"
+      - id: pretty-format-json
+        args: ["--autofix"]
+        stages:
+          - "pre-commit"
+          - "manual"
   - repo: https://github.com/pylint-dev/pylint
     rev: v3.2.2
     hooks:

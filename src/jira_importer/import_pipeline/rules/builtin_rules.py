@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from ...config.issuetypes import get_allowed_issue_types
 from ..models import ColumnIndices, IRowRule, Problem, ProblemSeverity, ValidationContext, ValidationResult
 
 # helpers functions
@@ -73,16 +74,12 @@ class IssueTypeAllowedRule(IRowRule):
     allowed: set[str] | None = None
 
     def _allowed(self, ctx: ValidationContext) -> set[str]:
-        # Duck-typed ConfigView: try get(), else defaults.
-        default = {"Story", "Task", "Bug", "Epic", "Sub-Task"}
-        cfg = getattr(ctx.config, "get", None)
-        if callable(cfg):
-            values = ctx.config.get("validation.allowed_issuetypes", default)
-            try:
-                return set(v if isinstance(v, str) else str(v) for v in values)
-            except Exception:
-                return default
-        return default
+        # Use unified config-driven issue types (handles both old and new formats)
+        try:
+            return get_allowed_issue_types(ctx.config.get)
+        except Exception:
+            # Final fallback to hardcoded defaults if config is completely broken
+            return {"Story", "Task", "Bug", "Epic", "Sub-Task"}
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
         """Apply the rule to the row."""
@@ -128,7 +125,7 @@ class PriorityAllowedRule(IRowRule):
         default = {"Highest", "High", "Medium", "Low", "Lowest"}
         cfg = getattr(ctx.config, "get", None)
         if callable(cfg):
-            values = ctx.config.get("validation.allowed_priorities", default)
+            values = ctx.config.get("jira.priorities", default)
             try:
                 return set(v if isinstance(v, str) else str(v) for v in values)
             except Exception:

@@ -14,21 +14,21 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from jira_importer import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
+from jira_importer import CFG_REQ_DEFAULT
 
 # Import classes
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
-from jira_importer.config.config_display import display_config_content, display_table_config
 from jira_importer.config.config_factory import ConfigurationFactory
+from jira_importer.config.utils import determine_config_path, display_config
 from jira_importer.console import ConsoleIO
-from jira_importer.excel.excel_io import ExcelWorkbookManager
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.processor import ImportProcessor
-from jira_importer.import_pipeline.reporting import ProblemReporter, ReportOptions
+from jira_importer.import_pipeline.reporting import CloudReportReporter, ProblemReporter, ReportOptions
+from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud
 from jira_importer.import_pipeline.sinks.csv_sink import write_csv
 from jira_importer.log import add_file_logging, setup_logger
-from jira_importer.utils import find_config_path, open_browser
+from jira_importer.utils import load_config_for_input, open_browser, open_jira_filter
 
 # Global variables
 # Warning = Critical = False
@@ -41,135 +41,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
-
-
-def _determine_config_path(args: Any) -> str:
-    """Determine the configuration file path based on command line arguments.
-
-    Args:
-        args: Parsed command line arguments
-
-    Returns:
-        Path to the configuration file
-    """
-    # Handle mutually exclusive configuration arguments
-    if args.config_default:
-        # Use default config filename in script location
-        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_default=True)
-        logging.debug(f"config_default: {config_path}")
-    elif args.config_input:
-        # Use default config filename in input file location
-        config_path = find_config_path(DEFAULT_CONFIG_FILENAME, args.input_file, config_input=True)
-        logging.debug(f"config_input: {config_path}")
-    elif args.config_excel:
-        # Use the input Excel file as configuration source
-        config_path = args.input_file
-        logging.debug(f"config_excel: using input file as config: {config_path}")
-    # Smart default: if input is Excel, try using it as config first
-    elif args.input_file and Path(args.input_file).suffix.lower() in {".xlsx", ".xlsm"}:
-        # Try using the input Excel file as config source
-        input_path = Path(args.input_file)
-        if input_path.exists():
-            config_path = args.input_file
-            logging.debug(f"Smart default: using input Excel file as config: {config_path}")
-        else:
-            # Fall back to traditional config search
-            config_path = find_config_path(args.config, args.input_file)
-            logging.debug(f"Smart default fallback: {config_path}")
-    else:
-        # Use specified config file with default search behavior
-        config_path = find_config_path(args.config, args.input_file)
-        logging.debug(f"!config_default & !config_input & !config_excel: {config_path}")
-
-    return config_path
-
-
-def _display_config(config_file: str) -> None:
-    """Display configuration from the specified file in a user-friendly format.
-
-    Args:
-        config_file: Path to the configuration file to display
-    """
-    setup_logger(logging.DEBUG, None)  # Use debug level for config check
-    logger = logging.getLogger(__name__)
-
-    try:
-        # Load configuration first to get logging settings
-        config = ConfigurationFactory.create_config(config_file, cfg_req=CFG_REQ_DEFAULT)
-
-        add_file_logging(config)
-        logger.info(f"Configuration check started for: {config_file}")
-        ui.title_banner("Configuration Check 🔍", icon="")
-        ui.say(f"Loading configuration from: {fmt.path(config_file)}")
-        ui.lf()
-
-        # Display basic info
-        ui.say(fmt.bold("Configuration Type:"), fmt.default(type(config).__name__))
-        ui.say(fmt.bold("Configuration File:"), fmt.path(config_file))
-        logger.info(f"Configuration type: {type(config).__name__}")
-        logger.info(f"Configuration file: {config_file}")
-
-        if hasattr(config, "path"):
-            ui.say(fmt.bold("Resolved Path:"), fmt.path(config.path))
-            logger.info(f"Resolved path: {config.path}")
-
-        ui.lf()
-
-        # Display configuration content
-        ui.say(fmt.bold("Configuration Content:"))
-        ui.lf()
-
-        if hasattr(config, "content") and config.content:
-            logger.info("Displaying configuration content")
-            display_config_content(config.content, indent=0)
-        else:
-            ui.say(fmt.warning("No configuration content found"))
-            logger.warning("No configuration content found")
-
-        # Display table configuration if available (Excel only)
-        if hasattr(config, "load_table_config"):
-            try:
-                # Load table configuration for Excel files
-                table_config = config.load_table_config()
-                if table_config:
-                    logger.info("Displaying table configuration")
-                    ui.lf()
-                    ui.say(fmt.bold("Table Configuration:"))
-                    ui.lf()
-                    display_table_config(config)
-                else:
-                    logger.info("No table configuration available")
-            except Exception as exc:
-                ui.say(fmt.warning(f"Could not load table configuration: {exc}"))
-                logger.warning(f"Could not load table configuration: {exc}")
-
-        ui.lf()
-        ui.success("Configuration check completed successfully!")
-        logger.info("Configuration check completed successfully!")
-
-    except Exception as exc:
-        logger.error(f"Configuration check failed: {exc}")
-        App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}")
-
-
-def _load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:  # pylint: disable=unused-argument
-    """Return (config_like, excel_manager_or_None).
-
-    - For XLSX input, read 'Config' via ExcelWorkbookManager (keeps things generic).
-    - For CSV input, return {} (you can replace this with your own config loader).
-    """
-    if in_path.suffix.lower() in {".xlsx", ".xlsm"}:
-        mgr = ExcelWorkbookManager(in_path)
-        mgr.load()
-        cfg = mgr.read_config(sheet="Config")
-        # ImportProcessor will also create/use a manager for meta/report writing.
-        return cfg, mgr
-    return {}, None
-
-
-# TODO: Move to utils
-def _default_out_path(in_path: Path) -> Path:
-    return Path(f"{in_path.stem}_jira_ready.csv")
 
 
 # TODO: Move main logic to the app
@@ -201,7 +72,7 @@ def main() -> int:
 
     # Handle config-check mode
     if hasattr(args, "config_check") and args.config_check:
-        _display_config(args.config_check)
+        display_config(args.config_check)
         return 0
 
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
@@ -213,7 +84,7 @@ def main() -> int:
         autoreply = None
 
     # Determine configuration file path
-    config_path = _determine_config_path(args)
+    config_path = determine_config_path(args)
     config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
 
     # Initialize logging with CLI override and config support
@@ -259,6 +130,22 @@ def main() -> int:
 
     ui.success_light("Jira Importer initialized")
 
+    # Determine output target strictly from CLI: --cloud implies cloud, otherwise csv
+    output_target = "csv"
+    if getattr(args, "output_target_cloud", False):
+        if not ui.prompt_yes_no(
+            "The Jira Cloud API support is experimental and may not work properly. Do you want to continue?",
+            default=False,
+            auto_reply=autoreply,
+        ):
+            app.event_abort(exit_code=1, message="User cancelled the Execution.")
+        else:
+            if autoreply is not None:
+                ui.warning("Auto-reply is set. Continuing...")
+            else:
+                ui.success("Continuing...")
+            output_target = "cloud"
+
     # --- Checking input file ---
     ui.lf()
     ui.progress_light("Checking input file")
@@ -283,7 +170,7 @@ def main() -> int:
     output_filepath: Path = output_dir_path / output_filename
     logger.debug(f"Output path: {output_filepath}")
 
-    _, mgr = _load_config_for_input(in_path, args.data_sheet)
+    _, mgr = load_config_for_input(in_path, args.data_sheet)
 
     ui.success_light("Input file is valid")
 
@@ -327,16 +214,17 @@ def main() -> int:
 
         if result.report.errors > 0:
             if not ui.prompt_yes_no("Do you want to continue?", default=False, auto_reply=autoreply):
-                app.event_abort(exit_code=1)
+                app.event_abort(exit_code=1, message="User cancelled the Execution.")
             else:
                 ui.success("Continuing...")
 
-        # Apply Jira Cloud x60 quirk in the SINK if requested
-        if args.fix_cloud_estimates:
+        # Apply Jira Cloud x60 quirk in CSV sink only, if requested
+        temp_config = None
+        if args.fix_cloud_estimates and output_target == "csv":
             if isinstance(config, dict):
                 temp_config = {**config, "jira.cloud.estimate.multiply_by_60": True}
             else:
-                # minimal dict-like wrapper if config isn't a dict
+
                 class _Cfg(dict):
                     def get(self, k, d=None):  # type: ignore[override]
                         return super().get(k, d)
@@ -344,10 +232,44 @@ def main() -> int:
                 temp_config = _Cfg()
                 temp_config.update({"jira.cloud.estimate.multiply_by_60": True})
 
-        write_csv(result, output_filepath, config=temp_config if args.fix_cloud_estimates else config)
+        if output_target == "cloud":
+            ui.info("Output target: Jira Cloud API")
+            try:
+                # Write payloads if debug mode is enabled or cloud debug flag is set
+                debug_output_dir = (
+                    output_dir_path if (args.debug or getattr(args, "cloud_debug_payloads", False)) else None
+                )
+                report = write_cloud(result, config, dry_run=False, output_dir=debug_output_dir, ui=ui)
+                ui.success(f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}")
+                if debug_output_dir:
+                    ui.info(f"Jira Cloud payloads written to: {debug_output_dir}")
+                if report.created_issue_keys:
+                    # Display created issue keys in a user-friendly format
+                    issue_keys_str = ", ".join(report.created_issue_keys)
+                    ui.info(f"{issue_keys_str.count(',') + 1} issues created: {issue_keys_str}")
+                    logger.info(f"Created Jira issues: {issue_keys_str}")
 
-        ui.say(f"Output Import CSV Ready → {fmt.path(str(output_filepath))}")
-        logger.info("Wrote output CSV → %s", output_filepath)
+                    # Open Jira filter if auto_open_page is enabled
+                    if config.get_value("app.import.auto_open_page", default=False, expected_type=bool):
+                        open_jira_filter(config, report.created_issue_keys, ui, logger)
+
+                if report.failed > 0:
+                    CloudReportReporter().render_errors(report, ui)
+            except Exception as exc:
+                logger.exception("Cloud import failed: %s", exc)
+                App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}")
+            # non-zero exit if there were errors (so CI can gate)
+            _result_code = 0 if result.report.errors == 0 else 1
+            # End after cloud path
+            ui.lf()
+            ui.full_panel(fmt.success("Processing complete. You can close this window now."))
+            app.event_close(exit_code=_result_code, cleanup=True)
+            return _result_code
+
+        if output_target == "csv":
+            write_csv(result, output_filepath, config=temp_config if temp_config is not None else config)
+            ui.say(f"Output Import CSV Ready → {fmt.path(str(output_filepath))}")
+            logger.info("Wrote output CSV → %s", output_filepath)
 
         # non-zero exit if there were errors (so CI can gate)
         _result_code = 0 if result.report.errors == 0 else 1

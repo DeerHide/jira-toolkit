@@ -1,15 +1,15 @@
 {
-    "recommendations": [
-        "ms-python.black-formatter",
-        "VisualStudioExptTeam.vscodeintellicode",
-        "VisualStudioExptTeam.intellicode-api-usage-examples",
-        "ms-python.vscode-pylance",
-        "ms-python.pylint",
-        "ms-python.python",
-        "ms-python.debugpy",
-        "redhat.vscode-yaml",
-        "ms-python.mypy-type-checker",
-        "charliermarsh.ruff",
-        "ms-python.isort"
-    ]
+  "recommendations": [
+    "ms-python.black-formatter",
+    "VisualStudioExptTeam.vscodeintellicode",
+    "VisualStudioExptTeam.intellicode-api-usage-examples",
+    "ms-python.vscode-pylance",
+    "ms-python.pylint",
+    "ms-python.python",
+    "ms-python.debugpy",
+    "redhat.vscode-yaml",
+    "ms-python.mypy-type-checker",
+    "charliermarsh.ruff",
+    "ms-python.isort"
+  ]
 }

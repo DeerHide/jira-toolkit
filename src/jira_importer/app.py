@@ -73,10 +73,10 @@ class App:
         logger.info("Jira Importer finished.")
         sys.exit(exit_code)
 
-    def event_abort(self, exit_code: int = -1) -> None:
+    def event_abort(self, exit_code: int = -1, message: str = "Execution aborted.") -> None:
         """Event abort, when the script is aborted."""
-        ui.error("You have aborted the script.")
-        logger.critical("Aborted script.")
+        ui.error(message)
+        logger.critical(message)
         self.event_close(exit_code=exit_code)
 
     @staticmethod
@@ -197,6 +197,17 @@ class App:
             help="Output CSV path in the input file location (default: <input>.processed.csv)",
             action="store_true",
         )
+        parser.add_argument(
+            "--cloud",
+            dest="output_target_cloud",
+            action="store_true",
+            help="Shortcut to select Jira Cloud API as the output target",
+        )
+        parser.add_argument(
+            "--cloud-debug-payloads",
+            action="store_true",
+            help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
+        )
 
     @staticmethod
     def _add_confirmation_args(parser: argparse.ArgumentParser) -> None:
@@ -221,7 +232,9 @@ class App:
             action="store_true",
             help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).",
         )
-        parser.add_argument("--no-report", action="store_true", help="Do not print the validation report.")
+        parser.add_argument(
+            "--no-report", action="store_true", help="Do not print the validation report (useful for CI/CD pipelines)."
+        )
         parser.add_argument(
             "--fix-cloud-estimates",
             default=False,
@@ -233,4 +246,3 @@ class App:
     def _add_misc_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-v", "--version", help="Show version", action="store_true")
         parser.add_argument("-d", "--debug", help="Enable debug mode", action="store_true")
-        # parser.add_argument("-i", "--import-to-cloud", dest="import_to_cloud", help="Import to Atlassian Cloud via the API", default='none')

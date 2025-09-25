@@ -33,12 +33,14 @@ jira_importer.exe your-data.xlsx -c config.json
 ### Command Line Options
 
 - `your-data.xlsx` - Your Excel file to import
-- `-c, --config` - Custom configuration file (default: `config_importer.json`)
-- `-ce, --config-excel` - Use the input Excel file as configuration source (config sheet)
-- `-cd, --config-default` - Use config from application location
-- `-ci, --config-input` - Use config from input file location (recommended)
-- `-d, --debug` - Enable debug mode
+- `-c, --config` - Use a specific configuration file
+- `-ce, --config-excel` - Use settings from your Excel file's Config sheet
+- `-cd, --config-default` - Use the default configuration
+- `-ci, --config-input` - Use config file next to your Excel file (recommended)
+- `-d, --debug` - Show detailed information for troubleshooting
 - `-v, --version` - Show version information
+
+Note: `--cloud` requires `--config-input` or `--config myconfig.json`
 
 ## Input Format
 
@@ -46,6 +48,7 @@ Use the provided `ImportTemplate.xlsx` as a starting point for your data. The to
 
 - Convert your Excel file to CSV format
 - Validate and format data for Jira import
+- Some issues may be fixed (automatic fixing with `--auto-fix`)
 - Generate a properly formatted CSV file ready for Jira
 
 ### Row Skipping
@@ -116,14 +119,14 @@ Notes:
 - `-ci` tells the tool to look for `config_importer.json` next to your Excel file
 - You can also specify a path with `-c path/to/config.json`
 
-### Choosing the config source (flags)
+### Choosing the config source
 
-- `-ce, --config-excel`: Use the Excel file itself (its `Config` sheet)
-- `-ci, --config-input`: Use `config_importer.json` next to your Excel file
-- `-cd, --config-default`: Use the config that ships with the app
-- `-c, --config <file>`: Use a specific JSON file
+- **Excel file** (`-ce`): Put your settings in the Excel file's Config sheet
+- **JSON file** (`-ci`): Place `config_importer.json` next to your Excel file
+- **Default** (`-cd`): Use the built-in configuration
+- **Custom** (`-c`): Point to a specific configuration file
 
-If you’re not sure: just put settings in the Excel `Config` sheet or drop a `config_importer.json` next to your Excel file and use `-ci`.
+**Recommendation**: Use the Excel Config sheet (`-ce`) for simplicity, or place a JSON config file next to your Excel file and use `-ci`.
 
 ### Logging (optional)
 
@@ -131,20 +134,37 @@ If you’re not sure: just put settings in the Excel `Config` sheet or drop a `c
 - Logs are saved next to the app in `jira_importer_logs/`
 - For extra details, run with `-d` (debug mode)
 
+## Recent Improvements
+
+### Better Error Messages ✅
+
+The importer now tells you exactly what's wrong and how to fix it:
+
+- **Clear authentication errors** - Know immediately if your token expired or if there's a connection problem
+- **Helpful guidance** - Get specific instructions like "Refresh your token at [URL]" instead of cryptic error codes
+- **Configuration help** - Better messages when config files are missing or incorrect
+
+### Direct Jira Import ✅
+
+- **Import directly to Jira Cloud** - No more manual CSV uploads
+- **Hierarchical issue types** - Support for Initiatives, Epics, Stories, and Sub-tasks with proper parent-child relationships
+- **Batch processing** - Efficient handling of large imports
+
 ## Future Features
 
-The following features are planned for future releases:
-
-- **Cross-Platform Support** - Mac and Linux builds
-- **Jira Cloud API Integration** - Direct import to Jira Cloud without manual CSV upload
-- **Batch Processing** - Support for multiple Excel files in a single run
-- **Import Templates** - Pre-configured templates for common Jira project types
+- **Mac and Linux support** - Native builds for other operating systems
+- **Multiple file imports** - Process several Excel files at once
+- **Project templates** - Ready-made templates for common project types
 
 ## Troubleshooting
 
-- **File not found**: Ensure your Excel file exists and the path is correct
+### Common Issues
+
+- **File not found**: Make sure your Excel file exists and the path is correct
 - **Permission errors**: Run as administrator if needed
-- **Debug mode**: Use `-d` flag for detailed logging
+- **Authentication problems**: The importer will tell you exactly what's wrong (see [CONFIG.md](docs/CONFIG.md) for details)
+- **Configuration issues**: Check that you're using the right config flags (`-c`, `-ce`, `-ci`, `-cd`)
+- **Need more details**: Use `-d` flag for detailed logging
 
 ## Support
 
@@ -163,4 +183,4 @@ This tool is provided as-is and may not work out of the box for all environments
 - @tom4897
 - @nakool
 
-This project is licensed under the MIT License, don't hesitate to contribute or fork!
+This project is licensed under the [MIT License](LICENSE), don't hesitate to contribute or fork!

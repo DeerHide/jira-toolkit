@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from .models import Problem, ProblemSeverity, ProcessorResult
+from .sinks.cloud_sink import CloudSubmitReport
 
 # Emojis consistent with the rest of the tool
 EMO_ERROR = "❌ "
@@ -178,3 +179,47 @@ def _aggregate_by_code(problems: Sequence[Problem]) -> list[tuple[str, ProblemSe
     items = [(code, sev, cnt) for (code, sev), cnt in counter.items()]
     items.sort(key=lambda x: (-x[2], x[0], x[1].value))
     return items
+
+
+class CloudReportReporter:
+    """Render CloudSubmitReport to a human-friendly format.
+
+    Follows the same pattern as ProblemReporter but for cloud-specific results.
+    """
+
+    def __init__(self, *, max_errors: int = 5) -> None:
+        """Initialize the CloudReportReporter.
+
+        Args:
+            max_errors: Maximum number of errors to display in detail
+        """
+        self.max_errors = max_errors
+
+    def render_errors(self, report: CloudSubmitReport, ui) -> None:
+        """Display error details in a user-friendly format."""
+        if not report.errors:
+            return
+
+        ui.warning("Some issues failed to import. See details below:")
+        # Display first N errors with details
+        for _, err in enumerate(report.errors[: self.max_errors]):
+            if isinstance(err, dict):
+                # Handle Jira API error format
+                element_errors = err.get("elementErrors", {})
+                error_messages = element_errors.get("errorMessages", [])
+                field_errors = element_errors.get("errors", {})
+                failed_element = err.get("failedElementNumber", "Unknown")
+                status = err.get("status", "Unknown")
+
+                if error_messages:
+                    ui.error(f"  Row {failed_element}: {', '.join(error_messages)}")
+                elif field_errors:
+                    for field, msg in field_errors.items():
+                        ui.error(f"  Row {failed_element} - {field}: {msg}")
+                else:
+                    ui.error(f"  Row {failed_element}: {status} - {err}")
+            else:
+                ui.error(f"  {err}")
+
+        if len(report.errors) > self.max_errors:
+            ui.say(f"  ... and {len(report.errors) - self.max_errors} more errors.")

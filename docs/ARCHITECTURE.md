@@ -38,7 +38,7 @@ src/jira_importer/               # Main application package
 │   ├── sinks/                   # Output writers
 │   ├── reporting.py             # Problem reporting
 │   ├── config_view.py           # Typed config access
-│   └── cloud/                   # Cloud integration (future)
+│   └── cloud/                   # Cloud integration
 ├── excel_io.py                  # Excel workbook management
 ├── fileops.py                   # File operations
 ├── artifacts.py                 # Artifact management
@@ -100,6 +100,13 @@ graph TD
     B5G --> B5G2[cloud_sink.py]
 
     B5J --> B5J1[__init__.py]
+    B5J --> B5J2[auth.py]
+    B5J --> B5J3[bulk.py]
+    B5J --> B5J4[client.py]
+    B5J --> B5J5[constants.py]
+    B5J --> B5J6[mappers.py]
+    B5J --> B5J7[metadata.py]
+    B5J --> B5J8[secrets.py]
 
     C --> C1[configs/]
     C --> C2[icons/]
@@ -120,6 +127,7 @@ graph TD
     F --> F1[DEV.md]
     F --> F2[CONFIG.md]
     F --> F3[ARCHITECTURE.md]
+    F --> F4[CLOUD.md]
 
     G --> G1[demo/]
     G --> G2[git-config.sh]
@@ -167,9 +175,14 @@ flowchart TD
 
     N --> O{Output Format?}
     O -->|CSV| P[CsvSink<br/>Jira-ready CSV]
+    O -->|Cloud| S[CloudSink<br/>Direct Jira Import]
     O -->|Excel| Q[Excel Metadata<br/>Processing Report]
 
     P --> R[Final Output]
+    S --> T[Authentication Test]
+    T --> U[Batch Processing]
+    U --> V[Jira Cloud API]
+    V --> W[Import Report]
     Q --> R
 ```
 
@@ -197,8 +210,16 @@ graph TB
         E2 --> E4[Built-in Rules]
         E3 --> E5[Built-in Fixers]
 
-        F --> F1[CsvSink]
-        F --> F2[CloudSink]
+    F --> F1[CsvSink]
+    F --> F2[CloudSink]
+
+    subgraph "Cloud Integration"
+        F2 --> F2A[JiraCloudClient]
+        F2 --> F2B[IssueMapper]
+        F2 --> F2C[MetadataCache]
+        F2 --> F2D[BasicAuthProvider]
+        F2 --> F2E[BulkProcessor]
+    end
     end
 
     subgraph "Supporting Components"
@@ -312,7 +333,7 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`rules/`** - Validation rules (built-in + extensible for Excel-defined rules)
 - **`fixes/`** - Auto-fix system for common issues
 - **`sources/`** - Input readers for CSV and XLSX files
-- **`sinks/`** - Output writers (CSV, future cloud integration)
+- **`sinks/`** - Output writers (CSV, cloud integration)
 - **`reporting.py`** - Rich problem reporting with emojis and tables
 
 ### Configuration System (`config.py`)
@@ -376,9 +397,71 @@ The main processing logic - handles validation, fixes, and data transformation:
 ### Planned Extensions
 
 - Excel-defined validation rules
-- Direct Jira Cloud API integration
-- Batch processing capabilities
+- Direct Jira Cloud API integration ✅ **Implemented**
+- Batch processing capabilities ✅ **Implemented**
 - Import templates for common project types
+
+### Recent Improvements
+
+#### Enhanced Authentication Error Handling
+
+The cloud sink now provides comprehensive error handling for authentication and connection issues:
+
+- **Pre-flight authentication testing** using `/myself` endpoint
+- **Specific error messages** for different HTTP status codes (401, 403, 404, 429, 5xx)
+- **Network error detection** for timeouts, DNS failures, and SSL issues
+- **Malformed response handling** with graceful fallback
+- **Clear user guidance** with actionable error messages
+
+#### Configuration Loading Improvements
+
+- **Fixed config parameter precedence** - `--config` parameter now properly overrides smart defaults
+- **Better error messages** for configuration loading issues
+- **Support for both old and new issue type configurations**
+
+For detailed technical information about the cloud integration, see **[CLOUD.md](CLOUD.md)**.
+
+### Cloud Integration Flow
+
+```mermaid
+flowchart TD
+    A[ProcessorResult] --> B[CloudSink]
+    B --> C[Authentication Test]
+    C --> D{Auth Success?}
+    D -->|No| E[Error Message]
+    D -->|Yes| F[Issue Classification]
+
+    F --> G[Epics - Level 2]
+    F --> H[Stories/Tasks - Level 3]
+    F --> I[Sub-tasks - Level 4]
+
+    G --> J[Batch 1: Create Epics]
+    J --> K[Parent Key Mapping]
+
+    H --> L[Batch 2: Create Stories/Tasks]
+    L --> M[Update Parent References]
+    M --> N[Parent Key Mapping]
+
+    I --> O[Batch 3: Create Sub-tasks]
+    O --> P[Resolve Parent References]
+    P --> Q[Update Parent Keys]
+
+    K --> R[Jira Cloud API]
+    N --> R
+    Q --> R
+
+    R --> S{API Success?}
+    S -->|No| T[Error Handling]
+    S -->|Yes| U[Import Report]
+
+    T --> V[Specific Error Messages]
+    U --> W[Created Issue Keys]
+
+    style C fill:#e3f2fd
+    style R fill:#f3e5f5
+    style T fill:#ffebee
+    style U fill:#e8f5e8
+```
 
 ### Scalability
 
@@ -386,3 +469,5 @@ The main processing logic - handles validation, fixes, and data transformation:
 - Maintain backward compatibility where possible
 - Consider performance for large datasets
 - Plan for API integration features
+
+:_GeneratedFile_

@@ -178,6 +178,31 @@ def main() -> int:
     ui.lf()
     ui.progress_light("Processing CSV file for Jira Import")
 
+    # Early credential preflight for Jira Cloud with fail-fast and logging
+    if output_target == "cloud":
+        try:
+            from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
+            from .import_pipeline.cloud.credential_manager import (
+                ensure_cloud_credentials,  # pylint: disable=import-outside-toplevel
+            )
+
+            status = ensure_cloud_credentials(ui, ConfigView(config), autoreply)
+            if status.get("found"):
+                src = status.get("source", "unknown")
+                logger.info("Jira API Email/Key found (%s)", src)
+                if status.get("email"):
+                    ui.hint(f"Using Jira account: {status['email']}")
+            else:
+                App.event_fatal(
+                    exit_code=2,
+                    message=(
+                        "Jira API credentials are missing. Set them in config/env, or run without -y to enter them."
+                    ),
+                )
+        except Exception as preflight_exc:
+            logger.exception("Credential preflight failed: %s", preflight_exc)
+            App.event_fatal(exit_code=2, message=f"Credential preflight failed: {preflight_exc}")
+
     _result_code = 0
     try:
         processor = ImportProcessor(

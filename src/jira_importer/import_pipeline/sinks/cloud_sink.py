@@ -61,7 +61,10 @@ def _validate_config(config: object) -> tuple[str, str, str]:
     cfg = ConfigView(config)
     base_url = cfg.get("jira.connection.site_address", None)
     if not base_url:
-        raise ValueError("Missing jira.connection.site_address in configuration for Cloud sink")
+        raise ValueError(
+            "Missing jira.connection.site_address in configuration for Cloud sink. "
+            "You can set it in your JSON/Excel config."
+        )
 
     email = cfg.get("jira.connection.auth.email", None)
     api_token = cfg.get("jira.connection.auth.api_token", None)
@@ -70,23 +73,23 @@ def _validate_config(config: object) -> tuple[str, str, str]:
     if not email:
         raise ValueError(
             "Missing jira.connection.auth.email in configuration for Cloud sink. "
-            "Please provide your Jira account email address."
+            "Provide your Jira account email via config, environment variable (JIRA_EMAIL), "
+            "or run without -y to enter it interactively."
         )
 
     # Check for missing or empty API token
     if not api_token:
         raise ValueError(
             "Missing or empty jira.connection.auth.api_token in configuration for Cloud sink. "
-            "Please generate an API token from your Jira account at: "
-            "https://id.atlassian.com/manage-profile/security/api-tokens"
+            "Set it in config, or via environment variable (JIRA_API_TOKEN), or run without -y to enter it. "
+            "Generate a token at: https://id.atlassian.com/manage-profile/security/api-tokens"
         )
 
     # Check if API token is just whitespace
     if not api_token.strip():
         raise ValueError(
             "Empty jira.connection.auth.api_token in configuration for Cloud sink. "
-            "The API token cannot be empty or contain only whitespace. "
-            "Please generate a valid API token from your Jira account at: "
+            "The API token cannot be empty or whitespace. Generate a valid token at: "
             "https://id.atlassian.com/manage-profile/security/api-tokens"
         )
 
@@ -191,9 +194,29 @@ def _process_batches(
 
 
 def write_cloud(
-    result: ProcessorResult, config: object, *, dry_run: bool = False, output_dir: Path | None = None, ui=None
+    result: ProcessorResult,
+    config: object,
+    *,
+    dry_run: bool = False,
+    output_dir: Path | None = None,
+    ui=None,
+    auto_reply: bool | None = None,
 ) -> CloudSubmitReport:
     """Submit processed issues to Jira Cloud in batches."""
+    # Secondary safety net: opportunistic ensure of credentials if UI provided
+    try:
+        if ui is not None:
+            from ..cloud.credential_manager import ensure_cloud_credentials  # pylint: disable=import-outside-toplevel
+
+            status = ensure_cloud_credentials(ui, ConfigView(config), auto_reply)
+            if not status.get("found"):
+                raise ValueError(
+                    "Jira API credentials are missing. Set them in config/env, or run without -y to enter them."
+                )
+    except Exception:
+        # Do not mask errors; validation step below will provide exact messages
+        pass
+
     base_url, email, api_token = _validate_config(config)
     auth_provider = _setup_auth(email, api_token)
     client = JiraCloudClient(base_url=f"{base_url.rstrip('/')}/rest/api/3", auth_provider=auth_provider)

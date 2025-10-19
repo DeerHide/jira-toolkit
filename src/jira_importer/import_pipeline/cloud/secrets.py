@@ -21,6 +21,7 @@ from importlib import import_module
 from ...config.config_view import ConfigView
 
 REDACTED = "****"
+KEYRING_SERVICE = "dh-jira-toolkit"
 
 
 def redact_secret(_: str | None) -> str:
@@ -84,7 +85,7 @@ class SecretSpec:
 
     config_key: str  # e.g., "jira.cloud.auth.api_token"
     env_fallback: str | None = None  # e.g., "JIRA_API_TOKEN"
-    keyring_service: str = "jira-toolkit"
+    keyring_service: str = KEYRING_SERVICE
     keyring_user_key: str | None = None  # defaults to config_key if None
 
 

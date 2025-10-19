@@ -6,7 +6,7 @@ This doc tells you how to contribute to the project.
 
 ### What You Need
 
-- **Python 3.10+**
+- **Python 3.12+** (updated from 3.10+)
 - **Git** for version control
 - **pip** for package management
 - **Cross-platform** (Windows, macOS, Linux)
@@ -38,6 +38,12 @@ This doc tells you how to contribute to the project.
 
    ```bash
    pip install -r requirements.lock
+   ```
+
+   **Note**: The project now uses Poetry for dependency management. You can also use:
+
+   ```bash
+   poetry install --with dev
    ```
 
 4. **Check it works**
@@ -72,6 +78,20 @@ This doc tells you how to contribute to the project.
 
    ```bash
    python3 -m jira_importer path/to/your/file.xlsx --auto-fix
+   ```
+
+5. **With cloud import**
+
+   ```bash
+   python3 -m jira_importer path/to/your/file.xlsx --cloud
+   ```
+
+6. **With credential management**
+
+   ```bash
+   python3 -m jira_importer --credentials run
+   python3 -m jira_importer --credentials show
+   python3 -m jira_importer --credentials clear
    ```
 
 ### Testing Your Changes
@@ -192,10 +212,29 @@ See requirements files
 
 ### Planned Features
 
-- Excel-defined validation rules
-- Direct Jira Cloud API integration
-- Batch processing capabilities
+- Excel-defined validation rules ✅ **Implemented**
+- Direct Jira Cloud API integration ✅ **Implemented**
+- Batch processing capabilities ✅ **Implemented**
 - Import templates for common project types
+- OAuth 2.0 authentication (scaffolded)
+- Advanced credential management ✅ **Implemented**
+
+### New Development Features
+
+#### Cloud Integration Development
+
+- **Credential Management**: Use `--credentials` command for testing authentication
+- **OAuth 2.0**: Scaffolded for future implementation
+- **Batch Processing**: Test with large datasets using `--cloud` flag
+- **Excel Table Configuration**: Use `-ce` flag to test Excel-based configuration
+
+#### New Command Line Options
+
+- **`--credentials`**: Test credential management features
+- **`--auto-fix`**: Test automatic fixing capabilities
+- **`--fix-cloud-estimates`**: Test Jira Cloud ×60 estimate handling
+- **`--enable-excel-rules`**: Test Excel-based validation rules
+- **`--data-sheet`**: Test custom data sheet names
 
 ### Architecture Considerations
 

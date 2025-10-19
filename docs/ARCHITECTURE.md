@@ -27,7 +27,17 @@ jira-toolkit/                    # Repository root
 src/jira_importer/               # Main application package
 ├── __main__.py                  # Entry point
 ├── app.py                       # Application logic
-├── config.py                    # Configuration management
+├── config/                      # Configuration management
+│   ├── config_factory.py       # Configuration factory
+│   ├── config_view.py           # Typed config access
+│   ├── config_models.py         # Configuration data models
+│   ├── excel_config.py         # Excel-based configuration
+│   ├── json_config.py          # JSON configuration
+│   └── models/                  # Configuration models
+│       └── issuetypes.py        # Issue type hierarchy models
+├── excel/                       # Excel processing
+│   ├── excel_io.py             # Excel workbook management
+│   └── excel_table_reader.py   # Excel table configuration reader
 ├── import_pipeline/             # Core import processing
 │   ├── processor.py             # Main pipeline orchestrator
 │   ├── models.py                # Data models and interfaces
@@ -37,9 +47,14 @@ src/jira_importer/               # Main application package
 │   ├── sources/                 # Input readers (CSV, XLSX)
 │   ├── sinks/                   # Output writers
 │   ├── reporting.py             # Problem reporting
-│   ├── config_view.py           # Typed config access
 │   └── cloud/                   # Cloud integration
-├── excel_io.py                  # Excel workbook management
+│       ├── auth.py              # Authentication providers
+│       ├── client.py            # HTTP client wrapper
+│       ├── credential_manager.py # Credential management
+│       ├── secrets.py           # Secrets resolution
+│       ├── mappers.py           # Data mapping to Jira format
+│       ├── metadata.py          # Jira metadata caching
+│       └── bulk.py              # Batch processing utilities
 ├── fileops.py                   # File operations
 ├── artifacts.py                 # Artifact management
 ├── console.py                   # Rich console UI
@@ -66,47 +81,58 @@ graph TD
     B --> B1[jira_importer/]
     B1 --> B2[__main__.py]
     B1 --> B3[app.py]
-    B1 --> B4[config.py]
-    B1 --> B5[import_pipeline/]
-    B1 --> B6[excel_io.py]
+    B1 --> B4[config/]
+    B1 --> B5[excel/]
+    B1 --> B6[import_pipeline/]
     B1 --> B7[fileops.py]
     B1 --> B8[artifacts.py]
     B1 --> B9[console.py]
     B1 --> B10[log.py]
     B1 --> B11[utils.py]
 
-    B5 --> B5A[processor.py]
-    B5 --> B5B[models.py]
-    B5 --> B5C[validator.py]
-    B5 --> B5D[rules/]
-    B5 --> B5E[fixes/]
-    B5 --> B5F[sources/]
-    B5 --> B5G[sinks/]
-    B5 --> B5H[reporting.py]
-    B5 --> B5I[config_view.py]
-    B5 --> B5J[cloud/]
+    B4 --> B4A[config_factory.py]
+    B4 --> B4B[config_view.py]
+    B4 --> B4C[config_models.py]
+    B4 --> B4D[excel_config.py]
+    B4 --> B4E[json_config.py]
+    B4 --> B4F[models/]
 
-    B5D --> B5D1[registry.py]
-    B5D --> B5D2[builtin_rules.py]
-    B5D --> B5D3[excel_rule_loader.py]
+    B5 --> B5A[excel_io.py]
+    B5 --> B5B[excel_table_reader.py]
 
-    B5E --> B5E1[registry.py]
-    B5E --> B5E2[builtin_fixes.py]
+    B6 --> B6A[processor.py]
+    B6 --> B6B[models.py]
+    B6 --> B6C[validator.py]
+    B6 --> B6D[rules/]
+    B6 --> B6E[fixes/]
+    B6 --> B6F[sources/]
+    B6 --> B6G[sinks/]
+    B6 --> B6H[reporting.py]
+    B6 --> B6I[cloud/]
 
-    B5F --> B5F1[csv_source.py]
-    B5F --> B5F2[xlsx_source.py]
+    B6D --> B6D1[registry.py]
+    B6D --> B6D2[builtin_rules.py]
+    B6D --> B6D3[excel_rule_loader.py]
 
-    B5G --> B5G1[csv_sink.py]
-    B5G --> B5G2[cloud_sink.py]
+    B6E --> B6E1[registry.py]
+    B6E --> B6E2[builtin_fixes.py]
 
-    B5J --> B5J1[__init__.py]
-    B5J --> B5J2[auth.py]
-    B5J --> B5J3[bulk.py]
-    B5J --> B5J4[client.py]
-    B5J --> B5J5[constants.py]
-    B5J --> B5J6[mappers.py]
-    B5J --> B5J7[metadata.py]
-    B5J --> B5J8[secrets.py]
+    B6F --> B6F1[csv_source.py]
+    B6F --> B6F2[xlsx_source.py]
+
+    B6G --> B6G1[csv_sink.py]
+    B6G --> B6G2[cloud_sink.py]
+    B6G --> B6G3[sink_utils.py]
+
+    B6I --> B6I1[__init__.py]
+    B6I --> B6I2[auth.py]
+    B6I --> B6I3[bulk.py]
+    B6I --> B6I4[client.py]
+    B6I --> B6I5[constants.py]
+    B6I --> B6I6[credential_manager.py]
+    B6I --> B6I7[mappers.py]
+    B6I --> B6I8[metadata.py]
+    B6I --> B6I9[secrets.py]
 
     C --> C1[configs/]
     C --> C2[icons/]
@@ -128,6 +154,8 @@ graph TD
     F --> F2[CONFIG.md]
     F --> F3[ARCHITECTURE.md]
     F --> F4[CLOUD.md]
+    F --> F5[CONTRIBUTING.md]
+    F --> F6[FEATURES.md]
 
     G --> G1[demo/]
     G --> G2[git-config.sh]
@@ -137,7 +165,9 @@ graph TD
 
     style A fill:#e1f5fe
     style B fill:#f3e5f5
+    style B4 fill:#e8f5e8
     style B5 fill:#e8f5e8
+    style B6 fill:#e8f5e8
     style C fill:#fff3e0
     style E fill:#fce4ec
     style F fill:#f1f8e9
@@ -219,6 +249,8 @@ graph TB
         F2 --> F2C[MetadataCache]
         F2 --> F2D[BasicAuthProvider]
         F2 --> F2E[BulkProcessor]
+        F2 --> F2F[CredentialManager]
+        F2 --> F2G[SecretsResolver]
     end
     end
 
@@ -227,21 +259,23 @@ graph TB
         H[ExcelWorkbookManager] --> D2
         I[ProblemReporter] --> C
         J[Console UI] --> C
+        K[CredentialManager] --> F2
+        L[ExcelTableReader] --> D2
     end
 
     subgraph "Data Models"
-        K[HeaderSchema]
-        L[ColumnIndices]
-        M[ProcessorResult]
-        N[Problem]
-        O[ValidationResult]
+        M1[HeaderSchema]
+        M2[ColumnIndices]
+        M3[ProcessorResult]
+        M4[Problem]
+        M5[ValidationResult]
     end
 
-    C --> K
-    C --> L
-    C --> M
-    E1 --> N
-    E1 --> O
+    C --> M1
+    C --> M2
+    C --> M3
+    E1 --> M4
+    E1 --> M5
 ```
 
 ### Data Flow Through Validation
@@ -336,15 +370,19 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`sinks/`** - Output writers (CSV, cloud integration)
 - **`reporting.py`** - Rich problem reporting with emojis and tables
 
-### Configuration System (`config.py`)
+### Configuration System (`config/`)
 
-- Manages application configuration from JSON files
-- Supports multiple configuration sources
-- Handles validation and defaults
+- **`config_factory.py`** - Unified configuration loading from multiple sources
+- **`config_view.py`** - Typed configuration access with validation
+- **`config_models.py`** - Configuration data models and structures
+- **`excel_config.py`** - Excel-based configuration handling
+- **`json_config.py`** - JSON configuration file processing
+- **`models/issuetypes.py`** - Issue type hierarchy models
 
-### Excel Integration (`excel_io.py`)
+### Excel Processing (`excel/`)
 
-- Excel workbook management
+- **`excel_io.py`** - Enhanced Excel workbook management
+- **`excel_table_reader.py`** - Structured table configuration reader
 - Direct XLSX processing (no intermediate CSV conversion)
 - Metadata writing and processing reports
 
@@ -365,6 +403,17 @@ The main processing logic - handles validation, fixes, and data transformation:
 - Structured logging with colorama support
 - Debug mode support
 - Configurable log levels
+
+### Cloud Integration (`import_pipeline/cloud/`)
+
+- **`auth.py`** - Authentication providers (Basic Auth, OAuth 2.0 scaffolded)
+- **`client.py`** - HTTP client wrapper for Jira Cloud REST API v3
+- **`credential_manager.py`** - Advanced credential management with keyring integration
+- **`secrets.py`** - Secrets resolution (keyring → env → config → prompt)
+- **`mappers.py`** - Data mapping from normalized rows to Jira issue payloads
+- **`metadata.py`** - Jira metadata caching (projects, fields, issue types)
+- **`bulk.py`** - Batch processing utilities for efficient imports
+- **`constants.py`** - Cloud-specific constants and configuration
 
 ## 🚀 Key Design Principles
 
@@ -396,10 +445,12 @@ The main processing logic - handles validation, fixes, and data transformation:
 
 ### Planned Extensions
 
-- Excel-defined validation rules
+- Excel-defined validation rules ✅ **Implemented**
 - Direct Jira Cloud API integration ✅ **Implemented**
 - Batch processing capabilities ✅ **Implemented**
 - Import templates for common project types
+- OAuth 2.0 authentication (scaffolded)
+- Advanced credential management ✅ **Implemented**
 
 ### Recent Improvements
 
@@ -418,6 +469,22 @@ The cloud sink now provides comprehensive error handling for authentication and 
 - **Fixed config parameter precedence** - `--config` parameter now properly overrides smart defaults
 - **Better error messages** for configuration loading issues
 - **Support for both old and new issue type configurations**
+
+#### New Cloud Integration Features
+
+- **Credential Management**: Advanced credential resolution with keyring integration
+- **OAuth 2.0 Support**: Scaffolded OAuth 2.0 authentication with Basic Auth fallback
+- **Excel Table Configuration**: Support for structured configuration tables in Excel
+- **Hierarchical Issue Types**: Full support for parent-child relationships
+- **Batch Processing**: Efficient handling of large imports with proper ordering
+
+#### New Command Line Features
+
+- **`--credentials`**: Interactive credential management (run/show/clear)
+- **`--auto-fix`**: Enable automatic fixing of common validation issues
+- **`--fix-cloud-estimates`**: Apply Jira Cloud ×60 estimate quirk
+- **`--enable-excel-rules`**: Load validation rules from Excel tables
+- **`--data-sheet`**: Specify custom data sheet name
 
 For detailed technical information about the cloud integration, see **[CLOUD.md](CLOUD.md)**.
 

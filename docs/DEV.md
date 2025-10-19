@@ -11,12 +11,13 @@ We've split the docs into focused files so you can find what you need:
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute, code style, and dev workflow
 - **[CONFIG.md](CONFIG.md)** - Configuration file docs
 - **[CLOUD.md](CLOUD.md)** - Jira Cloud integration technical details
+- **[FEATURES.md](FEATURES.md)** - Comprehensive feature guide
 
 ## 🚀 Let's Get Started
 
 ### What You Need
 
-- **Python 3.10+**
+- **Python 3.12+** (updated from 3.10+)
 - **Git** for version control
 - **pip** for package management
 - **Cross-platform** (Windows, macOS, Linux)
@@ -51,6 +52,12 @@ We've split the docs into focused files so you can find what you need:
    python -m pip install -e .[dev]
    ```
 
+   **Note**: The project now uses Poetry for dependency management. You can also use:
+
+   ```bash
+   poetry install --with dev
+   ```
+
 4. **Check it works**
 
    ```bash
@@ -82,7 +89,17 @@ jira-toolkit/                    # Repository root
 src/jira_importer/               # Main application package
 ├── __main__.py                  # Entry point
 ├── app.py                       # Application logic
-├── config.py                    # Configuration management
+├── config/                      # Configuration management
+│   ├── config_factory.py       # Configuration factory
+│   ├── config_view.py           # Typed config access
+│   ├── config_models.py         # Configuration data models
+│   ├── excel_config.py         # Excel-based configuration
+│   ├── json_config.py          # JSON configuration
+│   └── models/                  # Configuration models
+│       └── issuetypes.py        # Issue type hierarchy models
+├── excel/                       # Excel processing
+│   ├── excel_io.py             # Excel workbook management
+│   └── excel_table_reader.py   # Excel table configuration reader
 ├── import_pipeline/             # Core import processing
 │   ├── processor.py             # Main pipeline orchestrator
 │   ├── models.py                # Data models and interfaces
@@ -92,9 +109,14 @@ src/jira_importer/               # Main application package
 │   ├── sources/                 # Input readers (CSV, XLSX)
 │   ├── sinks/                   # Output writers
 │   ├── reporting.py             # Problem reporting
-│   ├── config_view.py           # Typed config access
-│   └── cloud/                   # Cloud integration (future)
-├── excel_io.py                  # Excel workbook management
+│   └── cloud/                   # Cloud integration
+│       ├── auth.py              # Authentication providers
+│       ├── client.py            # HTTP client wrapper
+│       ├── credential_manager.py # Credential management
+│       ├── secrets.py           # Secrets resolution
+│       ├── mappers.py           # Data mapping to Jira format
+│       ├── metadata.py          # Jira metadata caching
+│       └── bulk.py              # Batch processing utilities
 ├── fileops.py                   # File operations
 ├── artifacts.py                 # Artifact management
 ├── console.py                   # Rich console UI
@@ -136,6 +158,26 @@ Want the nitty-gritty details? Check out **[ARCHITECTURE.md](ARCHITECTURE.md)**.
    python -m jira_importer path/to/your/file.xlsx --auto-fix
    ```
 
+4. **With cloud import**
+
+   ```bash
+   python -m jira_importer path/to/your/file.xlsx --cloud
+   ```
+
+5. **With credential management**
+
+   ```bash
+   python -m jira_importer --credentials run
+   python -m jira_importer --credentials show
+   python -m jira_importer --credentials clear
+   ```
+
+6. **With Excel table configuration**
+
+   ```bash
+   python -m jira_importer path/to/your/file.xlsx -ce
+   ```
+
 ### Building
 
 1. **Development build**
@@ -171,6 +213,11 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **Rich console UI** with tables and formatting
 - **Excel metadata writing** and processing reports
 - **Jira Cloud compatibility** with ×60 estimate quirk handling
+- **Advanced credential management** with keyring integration
+- **Excel table-based configuration** for assignees, sprints, components
+- **Hierarchical issue type support** with parent-child relationships
+- **OAuth 2.0 authentication** (scaffolded, with Basic Auth fallback)
+- **Batch processing** for efficient cloud imports
 
 ## 🐛 Debugging
 
@@ -220,6 +267,7 @@ Need more details? Check out:
 - **Contributing and development** → **[CONTRIBUTING.md](CONTRIBUTING.md)**
 - **Configuration options** → **[CONFIG.md](CONFIG.md)**
 - **Jira Cloud integration** → **[CLOUD.md](CLOUD.md)**
+- **Comprehensive feature guide** → **[FEATURES.md](FEATURES.md)**
 
 ## 📞 Need Help?
 

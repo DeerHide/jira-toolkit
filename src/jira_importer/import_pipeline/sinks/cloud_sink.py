@@ -62,10 +62,34 @@ def _validate_config(config: object) -> tuple[str, str, str]:
     base_url = cfg.get("jira.connection.site_address", None)
     if not base_url:
         raise ValueError("Missing jira.connection.site_address in configuration for Cloud sink")
+
     email = cfg.get("jira.connection.auth.email", None)
     api_token = cfg.get("jira.connection.auth.api_token", None)
-    if not email or not api_token:
-        raise ValueError("Missing jira.connection.auth.email or jira.connection.auth.api_token in configuration")
+
+    # Check for missing email
+    if not email:
+        raise ValueError(
+            "Missing jira.connection.auth.email in configuration for Cloud sink. "
+            "Please provide your Jira account email address."
+        )
+
+    # Check for missing or empty API token
+    if not api_token:
+        raise ValueError(
+            "Missing or empty jira.connection.auth.api_token in configuration for Cloud sink. "
+            "Please generate an API token from your Jira account at: "
+            "https://id.atlassian.com/manage-profile/security/api-tokens"
+        )
+
+    # Check if API token is just whitespace
+    if not api_token.strip():
+        raise ValueError(
+            "Empty jira.connection.auth.api_token in configuration for Cloud sink. "
+            "The API token cannot be empty or contain only whitespace. "
+            "Please generate a valid API token from your Jira account at: "
+            "https://id.atlassian.com/manage-profile/security/api-tokens"
+        )
+
     return base_url, email, api_token
 
 
@@ -189,13 +213,13 @@ def write_cloud(
                 logger.info("Authentication successful - proceeding with import")
         elif test_response.status_code == HTTP_UNAUTHORIZED:
             raise ValueError(
-                f"Jira authentication failed (HTTP 401) - your API token may have expired. "
-                f"Please refresh your token at: {base_url}/secure/ViewProfile.jspa"
+                "Jira authentication failed (HTTP 401) - your API token may have expired. "
+                "Please refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
             )
         elif test_response.status_code == HTTP_FORBIDDEN:
             raise ValueError(
-                f"Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
-                f"Please check your token at: {base_url}/secure/ViewProfile.jspa"
+                "Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
+                "Please check your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
             )
         elif test_response.status_code == HTTP_NOT_FOUND:
             raise ValueError(

@@ -1,7 +1,7 @@
 """Description: This script contains the CSV source reader returning HeaderSchema and rows.
 
 Author:
-    ulien (@tom4897)
+    Julien (@tom4897)
 """
 
 from __future__ import annotations

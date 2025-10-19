@@ -2,8 +2,8 @@
     "jira": {
       "validation": {
         "priorities": [
-            "higest",
-            "hight",
+            "highest",
+            "high",
             "medium",
             "low",
             "lowest"

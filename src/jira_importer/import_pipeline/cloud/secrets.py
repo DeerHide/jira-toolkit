@@ -1,9 +1,10 @@
 """Secrets resolution utilities for Jira Cloud integration.
 
 Resolution order:
-    1) Environment variable (supports literal value or ${ENV:VARNAME} indirection)
-    2) OS keychain (keyring) if enabled
-    3) Optional interactive prompt (dev mode only), then store to keyring
+    1) OS keychain (keyring) if enabled
+    2) Environment variable (supports literal value or ${ENV:VARNAME} indirection)
+    3) Configuration file (with ${ENV:VARNAME} indirection)
+    4) Optional interactive prompt (dev mode only), then store to keyring
 
 All returned secrets must be redacted from logs/reports by callers using `redact_secret`.
 
@@ -79,6 +80,22 @@ def store_secret_in_keyring(service: str, username: str, secret: str) -> None:
     _keyring_set(service, username, secret)
 
 
+def _keyring_delete(service: str, username: str) -> None:
+    try:
+        kr = import_module("keyring")  # type: ignore
+    except Exception:
+        return
+    try:
+        kr.delete_password(service, username)  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
+
+def delete_secret_in_keyring(service: str, username: str) -> None:
+    """Public helper to delete a secret from the OS keychain (best-effort)."""
+    _keyring_delete(service, username)
+
+
 @dataclass
 class SecretSpec:
     """Descriptor for a secret to resolve."""
@@ -97,31 +114,31 @@ def resolve_secret(
     prompt_if_missing: bool = False,
     prompt: Callable[[str], str] | None = None,
 ) -> str | None:
-    """Resolve a secret using env -> keyring -> optional prompt.
+    """Resolve a secret using keyring -> env -> config -> optional prompt.
 
-    - Reads the config value and applies ${ENV:VAR} indirection if present.
-    - If not found, checks explicit env fallback (spec.env_fallback).
-    - If still missing and keyring is allowed and enabled, queries keyring.
+    - First checks keyring if enabled.
+    - Then checks explicit env fallback (spec.env_fallback).
+    - Then reads the config value and applies ${ENV:VAR} indirection if present.
     - If missing and prompting is enabled with a prompt function, asks the user and stores in keyring.
     """
-    # 1) Read from config; apply ${ENV:VAR}
-    raw = cfg.get(spec.config_key, None)
-    value = _from_env_or_literal(raw)
-    if value:
-        return value
-
-    # 2) Explicit env override
-    env_val = _get_env_override(spec.env_fallback)
-    if env_val:
-        return env_val
-
-    # 3) Keyring if enabled in config and globally allowed
+    # 1) Keyring if enabled in config and globally allowed
     use_keyring = bool(cfg.get("security.use_keyring", True)) and allow_keyring
     if use_keyring:
         user_key = spec.keyring_user_key or spec.config_key
         kr_val = _keyring_get(spec.keyring_service, user_key)
         if kr_val:
             return kr_val
+
+    # 2) Explicit env override
+    env_val = _get_env_override(spec.env_fallback)
+    if env_val:
+        return env_val
+
+    # 3) Read from config; apply ${ENV:VAR}
+    raw = cfg.get(spec.config_key, None)
+    value = _from_env_or_literal(raw)
+    if value:
+        return value
 
     # 4) Optional prompt (dev mode only) then store to keyring
     if prompt_if_missing and prompt is not None:
@@ -145,28 +162,28 @@ def resolve_secret_with_source(
 ) -> tuple[str | None, str]:
     """Resolve a secret and return a tuple of (value, source).
 
-    Sources: "config", "env", "keyring", "prompt", or "none" when not found.
+    Sources: "keyring", "env", "config", "prompt", or "none" when not found.
     """
-    # 1) Config (with ${ENV:VAR} expansion). If raw was present and expansion yielded a value, credit to env.
-    raw = cfg.get(spec.config_key, None)
-    value = _from_env_or_literal(raw)
-    if value:
-        # If raw looks like indirection, treat as env; otherwise as config
-        source = "env" if isinstance(raw, str) and raw.strip().startswith("${ENV:") else "config"
-        return value, source
-
-    # 2) Explicit env override
-    env_val = _get_env_override(spec.env_fallback)
-    if env_val:
-        return env_val, "env"
-
-    # 3) Keyring
+    # 1) Keyring
     use_keyring = bool(cfg.get("security.use_keyring", True)) and allow_keyring
     if use_keyring:
         user_key = spec.keyring_user_key or spec.config_key
         kr_val = _keyring_get(spec.keyring_service, user_key)
         if kr_val:
             return kr_val, "keyring"
+
+    # 2) Explicit env override
+    env_val = _get_env_override(spec.env_fallback)
+    if env_val:
+        return env_val, "env"
+
+    # 3) Config (with ${ENV:VAR} expansion). If raw was present and expansion yielded a value, credit to env.
+    raw = cfg.get(spec.config_key, None)
+    value = _from_env_or_literal(raw)
+    if value:
+        # If raw looks like indirection, treat as env; otherwise as config
+        source = "env" if isinstance(raw, str) and raw.strip().startswith("${ENV:") else "config"
+        return value, source
 
     # 4) Optional prompt
     if prompt_if_missing and prompt is not None:

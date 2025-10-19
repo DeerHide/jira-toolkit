@@ -54,3 +54,9 @@ PARENT_RESOLUTION_KEYWORDS: Final[list[str]] = [
     "validation",
     "performance",
 ]
+
+# Jira Cloud auth configuration keys
+AUTH_EMAIL_KEY: Final[str] = "jira.connection.auth.email"
+AUTH_TOKEN_KEY: Final[str] = "jira.connection.auth.api_token"
+AUTH_TOKEN_EXPIRES_KEY: Final[str] = "jira.connection.auth.api_token_expires_on"  # ISO date YYYY-MM-DD
+AUTH_TOKEN_INPUT_DATE_KEY: Final[str] = "jira.connection.auth.api_token_input_date"  # ISO date YYYY-MM-DD

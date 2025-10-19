@@ -137,6 +137,17 @@ class ImportProcessor:
 
         logger.debug("Build processor result")
         report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
+        logger.info(
+            f"Report: {report.errors} errors, {report.warnings} warnings, {report.fixes} fixes, problems: {len(problems)}"
+        )
+        logger.debug(f"Normalized rows: {normalized_rows}")
+        logger.debug(f"Complex children: {complex_children}")
+        logger.debug(f"Indices: {indices}")
+        logger.debug(f"Original row count: {original_row_count}")
+        logger.debug(f"Processed row count: {len(normalized_rows)}")
+        logger.debug(f"Skipped row count: {skipped_rows}")
+        logger.debug(f"Write processing meta in excel: {write_processing_meta_in_excel}")
+        logger.debug(f"Write report table in excel: {write_report_table_in_excel}")
         proc_result = ProcessorResult(
             header=header_schema.normalized,
             rows=normalized_rows,

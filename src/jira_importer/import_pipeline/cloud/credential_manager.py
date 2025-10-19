@@ -1,7 +1,7 @@
 """Credential manager for Jira Cloud authentication.
 
 Responsibilities:
-- Resolve Jira credentials (email and API token) using config → env → keyring
+- Resolve Jira credentials (email and API token) using keyring → env → config
 - Optionally prompt the user (when interactive) to input missing values
 - Best-effort persistence to the OS keychain
 
@@ -16,12 +16,13 @@ from datetime import datetime
 from typing import Any
 
 from ...config.config_view import ConfigView
+from .constants import AUTH_EMAIL_KEY, AUTH_TOKEN_EXPIRES_KEY, AUTH_TOKEN_INPUT_DATE_KEY, AUTH_TOKEN_KEY
 from .secrets import KEYRING_SERVICE, SecretSpec, resolve_secret, resolve_secret_with_source, store_secret_in_keyring
 
-EMAIL_KEY = "jira.connection.auth.email"
-TOKEN_KEY = "jira.connection.auth.api_token"
-TOKEN_EXPIRES_KEY = "jira.connection.auth.api_token_expires_on"  # ISO date YYYY-MM-DD
-TOKEN_INPUT_DATE_KEY = "jira.connection.auth.api_token_input_date"  # ISO date YYYY-MM-DD
+EMAIL_KEY = AUTH_EMAIL_KEY
+TOKEN_KEY = AUTH_TOKEN_KEY
+TOKEN_EXPIRES_KEY = AUTH_TOKEN_EXPIRES_KEY  # ISO date YYYY-MM-DD
+TOKEN_INPUT_DATE_KEY = AUTH_TOKEN_INPUT_DATE_KEY  # ISO date YYYY-MM-DD
 
 
 def _prompt_with_ui(ui, prompt_text: str, *, required: bool = True, hint: str | None = None) -> str:
@@ -179,3 +180,123 @@ def ensure_cloud_credentials(ui, cfg: ConfigView, auto_reply: bool | None) -> di
 
     # Still missing after prompt or non-interactive
     return status
+
+
+def get_credential_status(ui, cfg: ConfigView) -> dict[str, Any]:  # pylint: disable=unused-argument
+    """Get current credential status with source and metadata.
+
+    Returns:
+        {
+            "email": {"value": str|None, "source": "config|env|keyring|none", "date": str|None},
+            "api_token": {"value": str|None, "source": "config|env|keyring|none", "date": str|None},
+            "expires_on": str|None,
+            "input_date": str|None
+        }
+    """
+    email_spec = SecretSpec(config_key=EMAIL_KEY, env_fallback="JIRA_EMAIL", keyring_service=KEYRING_SERVICE)
+    token_spec = SecretSpec(config_key=TOKEN_KEY, env_fallback="JIRA_API_TOKEN", keyring_service=KEYRING_SERVICE)
+
+    # Get values and sources
+    email_val, email_src = resolve_secret_with_source(
+        cfg, email_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+    )
+    token_val, token_src = resolve_secret_with_source(
+        cfg, token_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+    )
+
+    # Get metadata from keyring when source is keyring
+    email_date = None
+    token_date = None
+    expires_on = None
+    input_date = None
+
+    if email_src == "keyring":
+        from .secrets import _keyring_get  # pylint: disable=import-outside-toplevel
+
+        email_date = _keyring_get(KEYRING_SERVICE, f"{EMAIL_KEY}_created")
+
+    if token_src == "keyring":
+        from .secrets import _keyring_get  # pylint: disable=import-outside-toplevel
+
+        token_date = _keyring_get(KEYRING_SERVICE, f"{TOKEN_KEY}_created")
+        expires_on = _keyring_get(KEYRING_SERVICE, TOKEN_EXPIRES_KEY)
+        input_date = _keyring_get(KEYRING_SERVICE, TOKEN_INPUT_DATE_KEY)
+
+    return {
+        "email": {"value": email_val, "source": email_src, "date": email_date},
+        "api_token": {"value": token_val, "source": token_src, "date": token_date},
+        "expires_on": expires_on,
+        "input_date": input_date,
+    }
+
+
+def display_credential_status(ui, status: dict[str, Any]) -> None:
+    """Display credentials with sources and dates (mask token)."""
+    ui.say("Current Jira API credentials:")
+
+    email_info = status.get("email", {})
+    token_info = status.get("api_token", {})
+
+    # Show email
+    if email_info.get("value"):
+        date_str = f" (stored {email_info['date']})" if email_info.get("date") else ""
+        ui.say(f"  Email: {email_info['value']} [{email_info['source']}{date_str}]")
+    else:
+        ui.say("  Email: Not set")
+
+    # Show token (masked)
+    if token_info.get("value"):
+        token_value = token_info["value"]
+        TOKEN_MASK_LENGTH = 24
+        if token_value and len(token_value) > TOKEN_MASK_LENGTH:
+            masked = token_value[:TOKEN_MASK_LENGTH] + "..."
+        else:
+            masked = "***"
+        date_str = f" (stored {token_info['date']})" if token_info.get("date") else ""
+        ui.say(f"  API Token: {masked} [{token_info['source']}{date_str}]")
+
+        # Show expiration if available
+        if status.get("expires_on"):
+            ui.hint(f"    Expires: {status['expires_on']}")
+    else:
+        ui.say("  API Token: Not set")
+
+
+def setup_credentials_interactive(ui, cfg: ConfigView) -> dict[str, Any]:
+    """Run interactive setup: prompt, optionally validate, store with metadata."""
+    ui.say("Jira API Credential Setup")
+    ui.say("=" * 40)
+
+    # Show current status first
+    current = get_credential_status(ui, cfg)
+    display_credential_status(ui, current)
+    ui.lf()
+
+    # Prompt for credentials
+    status = ensure_cloud_credentials(ui, cfg, auto_reply=None)
+    if not status.get("found"):
+        raise ValueError("Credentials were not provided.")
+
+    ui.success("Credentials stored in OS keychain (dh-jira-toolkit)")
+    ui.hint("Use --credentials show to view, --credentials clear to remove")
+
+    return status
+
+
+def clear_credentials(ui) -> None:
+    """Remove credentials from keyring and show env var unset instructions."""
+    from .secrets import delete_secret_in_keyring
+
+    delete_secret_in_keyring(KEYRING_SERVICE, EMAIL_KEY)
+    delete_secret_in_keyring(KEYRING_SERVICE, TOKEN_KEY)
+    delete_secret_in_keyring(KEYRING_SERVICE, TOKEN_EXPIRES_KEY)
+    delete_secret_in_keyring(KEYRING_SERVICE, TOKEN_INPUT_DATE_KEY)
+    delete_secret_in_keyring(KEYRING_SERVICE, f"{EMAIL_KEY}_created")
+    delete_secret_in_keyring(KEYRING_SERVICE, f"{TOKEN_KEY}_created")
+
+    ui.success("Cleared credentials from keychain (dh-jira-toolkit)")
+    ui.lf()
+    ui.hint("If you used environment variables, unset them:")
+    ui.say("  Windows PowerShell:  Remove-Item Env:JIRA_EMAIL; Remove-Item Env:JIRA_API_TOKEN")
+    ui.say("  Windows CMD:         set JIRA_EMAIL= & set JIRA_API_TOKEN=")
+    ui.say("  macOS/Linux:         unset JIRA_EMAIL JIRA_API_TOKEN")

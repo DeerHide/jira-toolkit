@@ -59,11 +59,11 @@ def main() -> int:
     # Handle version flag early, before any configuration loading
     if args.version:
         # Create a minimal config for version display
-        class MinimalConfig:  # pylint: disable=too-few-public-methods
+        class MinimalConfigForVersion:  # pylint: disable=too-few-public-methods
             def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
                 return default
 
-        minimal_config = MinimalConfig()
+        minimal_config = MinimalConfigForVersion()
         artifact_manager = ArtifactManager(minimal_config)
         app = App(artifact_manager)
         app.print_version()
@@ -73,6 +73,70 @@ def main() -> int:
     # Handle config-check mode
     if hasattr(args, "config_check") and args.config_check:
         display_config(args.config_check)
+        return 0
+
+    # Handle --credentials mode early (like --version)
+    if hasattr(args, "credentials") and args.credentials:
+        # For credentials, we need minimal config for resolution but don't require input file
+        # Use a minimal config or load default
+        try:
+            if not hasattr(args, "input_file") or not args.input_file:
+                # Provide dummy input_file for config determination
+                args.input_file = "dummy.xlsx"
+            config_path = determine_config_path(args)
+            config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
+        except Exception:
+            # If config loading fails, use minimal config for keyring/env only
+            class MinimalConfigForCredentials:  # pylint: disable=too-few-public-methods
+                def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
+                    return default
+
+                def get(self, key: str, default: Any = None) -> Any:  # pylint: disable=unused-argument
+                    return default
+
+                path = "minimal"
+
+            config = MinimalConfigForCredentials()  # type: ignore
+
+        from .config.config_view import ConfigView
+        from .import_pipeline.cloud.credential_manager import (
+            clear_credentials,
+            display_credential_status,
+            get_credential_status,
+            setup_credentials_interactive,
+        )
+
+        # Create minimal app for event_close
+        artifact_manager = ArtifactManager(config)
+        app = App(artifact_manager)
+
+        action = args.credentials  # "run"|"show"|"clear"
+        cfg_view = ConfigView(config)
+
+        ui.lf()
+
+        if action == "show":
+            st = get_credential_status(ui, cfg_view)
+            display_credential_status(ui, st)
+            app.event_close(exit_code=0, cleanup=False)
+            return 0
+
+        if action == "clear":
+            clear_credentials(ui)
+            app.event_close(exit_code=0, cleanup=False)
+            return 0
+
+        # default: run
+        try:
+            st = setup_credentials_interactive(ui, cfg_view)
+            ui.lf()
+            ui.success("✓ Credentials configured successfully")
+        except Exception as cred_exc:
+            ui.error(f"Credential setup failed: {cred_exc}")
+            app.event_close(exit_code=1, cleanup=False)
+            return 1
+
+        app.event_close(exit_code=0, cleanup=False)
         return 0
 
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise

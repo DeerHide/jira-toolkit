@@ -133,6 +133,13 @@ class App:
             if getattr(parsed, "config_check", None):
                 return argparse.Namespace(config_check=parsed.config_check, input_file=None, version=False)
 
+        if "--credentials" in argv:
+            mini = argparse.ArgumentParser(add_help=False)
+            mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear"], const="run")
+            parsed, _ = mini.parse_known_args(argv)
+            if getattr(parsed, "credentials", None):
+                return argparse.Namespace(credentials=parsed.credentials, input_file=None, version=False)
+
         return None
 
     @staticmethod
@@ -154,6 +161,7 @@ class App:
         App._add_output_args(parser)
         App._add_confirmation_args(parser)
         App._add_feature_flags(parser)
+        App._add_credentials_args(parser)
         App._add_misc_args(parser)
 
         return parser
@@ -240,6 +248,17 @@ class App:
             default=False,
             action="store_true",
             help="Apply Jira Cloud x60 estimate quirk IN THE SINK (kept out of rules/fixes).",
+        )
+
+    @staticmethod
+    def _add_credentials_args(parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            "--credentials",
+            nargs="?",
+            choices=["run", "show", "clear"],
+            const="run",
+            metavar="ACTION",
+            help="Manage Jira API credentials: run (interactive setup), show (display current), clear (remove stored)",
         )
 
     @staticmethod

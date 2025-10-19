@@ -17,7 +17,13 @@ from ...config.constants import LEVEL_2_EPIC, LEVEL_3_STORY, LEVEL_4_SUBTASK
 from ...config.issuetypes import get_default_level3_type, get_issue_type_level
 from ..cloud.bulk import build_bulk_create_payload, chunk_issues
 from ..cloud.client import JiraCloudClient
-from ..cloud.constants import BATCH_SIZE, HTTP_ERROR_THRESHOLD, PARENT_RESOLUTION_KEYWORDS
+from ..cloud.constants import (
+    AUTH_EMAIL_KEY,
+    AUTH_TOKEN_KEY,
+    BATCH_SIZE,
+    HTTP_ERROR_THRESHOLD,
+    PARENT_RESOLUTION_KEYWORDS,
+)
 from ..cloud.mappers import IssueMapper
 from ..cloud.metadata import MetadataCache
 from ..models import ColumnIndices, ProcessorResult
@@ -58,6 +64,8 @@ class CloudSubmitReport:
 
 def _validate_config(config: object) -> tuple[str, str, str]:
     """Validate and extract Jira Cloud configuration."""
+    from ..cloud.secrets import SecretSpec, resolve_secret  # pylint: disable=import-outside-toplevel
+
     cfg = ConfigView(config)
     base_url = cfg.get("jira.connection.site_address", None)
     if not base_url:
@@ -66,22 +74,27 @@ def _validate_config(config: object) -> tuple[str, str, str]:
             "You can set it in your JSON/Excel config."
         )
 
-    email = cfg.get("jira.connection.auth.email", None)
-    api_token = cfg.get("jira.connection.auth.api_token", None)
+    # Use proper credential resolution (keyring -> env -> config)
+    email_spec = SecretSpec(config_key=AUTH_EMAIL_KEY, env_fallback="JIRA_EMAIL")
+    token_spec = SecretSpec(config_key=AUTH_TOKEN_KEY, env_fallback="JIRA_API_TOKEN")
+
+    email = resolve_secret(cfg, email_spec, allow_keyring=True, prompt_if_missing=False)
+    api_token = resolve_secret(cfg, token_spec, allow_keyring=True, prompt_if_missing=False)
 
     # Check for missing email
     if not email:
         raise ValueError(
             "Missing jira.connection.auth.email in configuration for Cloud sink. "
-            "Provide your Jira account email via config, environment variable (JIRA_EMAIL), "
-            "or run without -y to enter it interactively."
+            "Set it via one of: config key 'jira.connection.auth.email'; environment variable JIRA_EMAIL; "
+            "or run 'jira-importer --credentials' to enter and store it securely."
         )
 
     # Check for missing or empty API token
     if not api_token:
         raise ValueError(
             "Missing or empty jira.connection.auth.api_token in configuration for Cloud sink. "
-            "Set it in config, or via environment variable (JIRA_API_TOKEN), or run without -y to enter it. "
+            "Set it via one of: config key 'jira.connection.auth.api_token'; environment variable JIRA_API_TOKEN; "
+            "or run 'jira-importer --credentials' to enter and store it securely. "
             "Generate a token at: https://id.atlassian.com/manage-profile/security/api-tokens"
         )
 
@@ -89,8 +102,8 @@ def _validate_config(config: object) -> tuple[str, str, str]:
     if not api_token.strip():
         raise ValueError(
             "Empty jira.connection.auth.api_token in configuration for Cloud sink. "
-            "The API token cannot be empty or whitespace. Generate a valid token at: "
-            "https://id.atlassian.com/manage-profile/security/api-tokens"
+            "The API token cannot be empty or whitespace. Set it via config/env or with 'jira-importer --credentials'. "
+            "Generate a valid token at: https://id.atlassian.com/manage-profile/security/api-tokens"
         )
 
     return base_url, email, api_token
@@ -216,7 +229,8 @@ def write_cloud(
             auth_status = status
             if not status.get("found"):
                 raise ValueError(
-                    "Jira API credentials are missing. Set them in config/env, or run without -y to enter them."
+                    "Jira API credentials are missing. Set them via config (jira.connection.auth.email/api_token), "
+                    "environment variables (JIRA_EMAIL/JIRA_API_TOKEN), or run 'jira-importer --credentials' to set them."
                 )
     except Exception:
         # Do not mask errors; validation step below will provide exact messages
@@ -247,13 +261,15 @@ def write_cloud(
         elif test_response.status_code == HTTP_UNAUTHORIZED:
             raise ValueError(
                 "Jira authentication failed (HTTP 401) - your API token may have expired. "
-                "Please refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
+                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
+                "Refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
                 f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})"
             )
         elif test_response.status_code == HTTP_FORBIDDEN:
             raise ValueError(
                 "Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
-                "Please check your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
+                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
+                "Check/rotate your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
                 f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})"
             )
         elif test_response.status_code == HTTP_NOT_FOUND:

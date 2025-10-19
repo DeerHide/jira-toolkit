@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any
 
 from ...config.config_view import ConfigView
-from .secrets import KEYRING_SERVICE, SecretSpec, resolve_secret, store_secret_in_keyring
+from .secrets import KEYRING_SERVICE, SecretSpec, resolve_secret, resolve_secret_with_source, store_secret_in_keyring
 
 EMAIL_KEY = "jira.connection.auth.email"
 TOKEN_KEY = "jira.connection.auth.api_token"
@@ -113,17 +113,22 @@ def ensure_cloud_credentials(ui, cfg: ConfigView, auto_reply: bool | None) -> di
     email_spec = SecretSpec(config_key=EMAIL_KEY, env_fallback="JIRA_EMAIL", keyring_service=KEYRING_SERVICE)
     token_spec = SecretSpec(config_key=TOKEN_KEY, env_fallback="JIRA_API_TOKEN", keyring_service=KEYRING_SERVICE)
 
-    # First, try non-interactive resolution (config/env/keyring)
-    email_val = resolve_secret(cfg, email_spec, allow_keyring=True, prompt_if_missing=False, prompt=None)
-    token_val = resolve_secret(cfg, token_spec, allow_keyring=True, prompt_if_missing=False, prompt=None)
+    # First, try non-interactive resolution (config/env/keyring) and capture sources
+    email_val, email_src = resolve_secret_with_source(
+        cfg, email_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+    )
+    token_val, token_src = resolve_secret_with_source(
+        cfg, token_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+    )
 
     if email_val and token_val:
         status.update(
             {
                 "found": True,
-                "source": "config|env|keyring",
+                "source": token_src or "none",
                 "email": email_val,
                 "api_token": token_val,
+                "email_source": email_src or "none",
             }
         )
         return status
@@ -138,8 +143,10 @@ def ensure_cloud_credentials(ui, cfg: ConfigView, auto_reply: bool | None) -> di
 
     if prompter_email is not None:
         email_val = _resolve_with_prompt(cfg, email_spec, prompter=prompter_email)
+        email_src = "prompt" if email_val else email_src
     if prompter_token is not None:
         token_val = _resolve_with_prompt(cfg, token_spec, prompter=prompter_token)
+        token_src = "prompt" if token_val else token_src
 
     if email_val and token_val:
         # Ask for optional expiration date only when we just collected a token interactively
@@ -149,9 +156,10 @@ def ensure_cloud_credentials(ui, cfg: ConfigView, auto_reply: bool | None) -> di
         status.update(
             {
                 "found": True,
-                "source": "prompt",
+                "source": token_src or "prompt",
                 "email": email_val,
                 "api_token": token_val,
+                "email_source": email_src or "prompt",
                 "api_token_expires_on": expires_on or None,
                 "api_token_input_date": input_date,
             }

@@ -110,6 +110,7 @@ def _process_batches(
     output_dir: Path | None,
     ui,
     config: object,
+    auth_context: dict | None,
 ) -> CloudSubmitReport:
     """Process issues in batches and return submission report."""
     cfg = ConfigView(config)
@@ -134,7 +135,7 @@ def _process_batches(
     # Batch 1: Create Epics first (standalone)
     if epics:
         logger.info(f"Creating {len(epics)} epics...")
-        epic_results = _create_issues_batch(client, epics, output_dir, "epic", ui)
+        epic_results = _create_issues_batch(client, epics, output_dir, "epic", ui, auth_context)
         created += epic_results["created"]
         failed += epic_results["failed"]
         errors.extend(epic_results["errors"])
@@ -154,7 +155,9 @@ def _process_batches(
         logger.info(f"Creating {len(stories_and_tasks)} stories and tasks...")
         # Update stories and tasks with actual parent keys
         _update_child_parents(stories_and_tasks, parent_key_map, parent_mapping, mapper, config)
-        story_task_results = _create_issues_batch(client, stories_and_tasks, output_dir, "Stories & Tasks", ui)
+        story_task_results = _create_issues_batch(
+            client, stories_and_tasks, output_dir, "Stories & Tasks", ui, auth_context
+        )
         created += story_task_results["created"]
         failed += story_task_results["failed"]
         errors.extend(story_task_results["errors"])
@@ -177,7 +180,7 @@ def _process_batches(
             _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues, config)
         # Update sub-tasks with real parent keys
         _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper, config)
-        subtask_results = _create_issues_batch(client, sub_tasks, output_dir, "subtask", ui)
+        subtask_results = _create_issues_batch(client, sub_tasks, output_dir, "subtask", ui, auth_context)
         created += subtask_results["created"]
         failed += subtask_results["failed"]
         errors.extend(subtask_results["errors"])
@@ -204,11 +207,13 @@ def write_cloud(
 ) -> CloudSubmitReport:
     """Submit processed issues to Jira Cloud in batches."""
     # Secondary safety net: opportunistic ensure of credentials if UI provided
+    auth_status = None
     try:
         if ui is not None:
             from ..cloud.credential_manager import ensure_cloud_credentials  # pylint: disable=import-outside-toplevel
 
             status = ensure_cloud_credentials(ui, ConfigView(config), auto_reply)
+            auth_status = status
             if not status.get("found"):
                 raise ValueError(
                     "Jira API credentials are missing. Set them in config/env, or run without -y to enter them."
@@ -218,6 +223,11 @@ def write_cloud(
         pass
 
     base_url, email, api_token = _validate_config(config)
+    # Build auth context for downstream error messages
+    auth_context = {
+        "email": (auth_status or {}).get("email") or email,
+        "secret_source": (auth_status or {}).get("source") or "unknown",
+    }
     auth_provider = _setup_auth(email, api_token)
     client = JiraCloudClient(base_url=f"{base_url.rstrip('/')}/rest/api/3", auth_provider=auth_provider)
 
@@ -238,11 +248,13 @@ def write_cloud(
             raise ValueError(
                 "Jira authentication failed (HTTP 401) - your API token may have expired. "
                 "Please refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
+                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})"
             )
         elif test_response.status_code == HTTP_FORBIDDEN:
             raise ValueError(
                 "Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
                 "Please check your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
+                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})"
             )
         elif test_response.status_code == HTTP_NOT_FOUND:
             raise ValueError(
@@ -255,7 +267,10 @@ def write_cloud(
                 f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator."
             )
         else:
-            raise ValueError(f"Authentication test failed with status {test_response.status_code}")
+            raise ValueError(
+                f"Authentication test failed with status {test_response.status_code}"
+                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})"
+            )
     except ValueError:
         # Re-raise our custom ValueError messages
         raise
@@ -273,7 +288,7 @@ def write_cloud(
         else:
             raise ValueError(f"Failed to connect to Jira at {base_url}. Error: {e!s}") from e
 
-    return _process_batches(result, client, dry_run, output_dir, ui, config)
+    return _process_batches(result, client, dry_run, output_dir, ui, config, auth_context)
 
 
 def _separate_parent_child_issues(
@@ -541,7 +556,12 @@ def _find_logical_parent(child_summary: str, summary_to_row: dict[str, int]) -> 
 
 
 def _create_issues_batch(
-    client: JiraCloudClient, issues: list[tuple[int, dict[str, Any]]], output_dir: Path | None, issue_type: str, ui=None
+    client: JiraCloudClient,
+    issues: list[tuple[int, dict[str, Any]]],
+    output_dir: Path | None,
+    issue_type: str,
+    ui=None,
+    auth_context: dict | None = None,
 ) -> dict[str, Any]:
     """Create a batch of issues and return results."""
     created = 0
@@ -555,6 +575,14 @@ def _create_issues_batch(
 
     # Calculate total batches for progress tracking
     total_batches = len(list(chunk_issues(payloads, batch_size=BATCH_SIZE)))
+
+    # Build auth context suffix for error messages
+    context_suffix = ""
+    if auth_context is not None:
+        context_suffix = (
+            f" (email: {auth_context.get('email') or 'unknown'}, "
+            f"secret source: {auth_context.get('secret_source') or 'unknown'})"
+        )
 
     # Add progress tracking if UI is available
     if ui and hasattr(ui, "progress"):
@@ -578,12 +606,15 @@ def _create_issues_batch(
 
                     # Check for specific error cases and provide clear user guidance
                     if resp.status_code == HTTP_UNAUTHORIZED:
-                        error_msg = "Authentication failed (HTTP 401) - your API token may have expired"
+                        error_msg = (
+                            "Authentication failed (HTTP 401) - your API token may have expired" + context_suffix
+                        )
                         logger.error(error_msg)
                         raise ValueError(error_msg)
                     elif resp.status_code == HTTP_FORBIDDEN:
                         error_msg = (
                             "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions"
+                            + context_suffix
                         )
                         logger.error(error_msg)
                         raise ValueError(error_msg)
@@ -638,12 +669,13 @@ def _create_issues_batch(
 
                 # Check for specific error cases
                 if resp.status_code == HTTP_UNAUTHORIZED:
-                    error_msg = "Authentication failed (HTTP 401) - your API token may have expired"
+                    error_msg = "Authentication failed (HTTP 401) - your API token may have expired" + context_suffix
                     logger.error(error_msg)
                     raise ValueError(error_msg)
                 elif resp.status_code == HTTP_FORBIDDEN:
                     error_msg = (
                         "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions"
+                        + context_suffix
                     )
                     logger.error(error_msg)
                     raise ValueError(error_msg)

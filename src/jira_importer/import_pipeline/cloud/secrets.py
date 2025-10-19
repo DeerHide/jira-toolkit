@@ -135,6 +135,51 @@ def resolve_secret(
     return None
 
 
+def resolve_secret_with_source(
+    cfg: ConfigView,
+    spec: SecretSpec,
+    *,
+    allow_keyring: bool = True,
+    prompt_if_missing: bool = False,
+    prompt: Callable[[str], str] | None = None,
+) -> tuple[str | None, str]:
+    """Resolve a secret and return a tuple of (value, source).
+
+    Sources: "config", "env", "keyring", "prompt", or "none" when not found.
+    """
+    # 1) Config (with ${ENV:VAR} expansion). If raw was present and expansion yielded a value, credit to env.
+    raw = cfg.get(spec.config_key, None)
+    value = _from_env_or_literal(raw)
+    if value:
+        # If raw looks like indirection, treat as env; otherwise as config
+        source = "env" if isinstance(raw, str) and raw.strip().startswith("${ENV:") else "config"
+        return value, source
+
+    # 2) Explicit env override
+    env_val = _get_env_override(spec.env_fallback)
+    if env_val:
+        return env_val, "env"
+
+    # 3) Keyring
+    use_keyring = bool(cfg.get("security.use_keyring", True)) and allow_keyring
+    if use_keyring:
+        user_key = spec.keyring_user_key or spec.config_key
+        kr_val = _keyring_get(spec.keyring_service, user_key)
+        if kr_val:
+            return kr_val, "keyring"
+
+    # 4) Optional prompt
+    if prompt_if_missing and prompt is not None:
+        user_key = spec.keyring_user_key or spec.config_key
+        entered = prompt(f"Enter value for {spec.config_key}: ")
+        if entered:
+            if use_keyring:
+                _keyring_set(spec.keyring_service, user_key, entered)
+            return entered, "prompt"
+
+    return None, "none"
+
+
 def resolve_minimal_cloud_config(cfg: ConfigView) -> dict[str, str | bool | None]:
     """Return minimal cloud config values resolved (non-secret + placeholders for secrets).
 

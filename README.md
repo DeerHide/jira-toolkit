@@ -88,8 +88,6 @@ Update docs,Medium,Task,PROCESS
 }
 ```
 
-See [ROW_SKIPPING.md](docs/ROW_SKIPPING.md) for detailed documentation.
-
 ## Output
 
 The tool can generate output in multiple formats:

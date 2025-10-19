@@ -37,6 +37,10 @@ jira_importer.exe your-data.xlsx -c config.json
 - `-ce, --config-excel` - Use settings from your Excel file's Config sheet
 - `-cd, --config-default` - Use the default configuration
 - `-ci, --config-input` - Use config file next to your Excel file (recommended)
+- `--cloud` - Import directly to Jira Cloud (requires configuration)
+- `--auto-fix` - Enable automatic fixing of validation issues
+- `--credentials [ACTION]` - Manage Jira API credentials (run/show/clear)
+- `--data-sheet NAME` - Specify custom data sheet name
 - `-d, --debug` - Show detailed information for troubleshooting
 - `-v, --version` - Show version information
 
@@ -46,10 +50,11 @@ Note: `--cloud` requires `--config-input` or `--config myconfig.json`
 
 Use the provided `ImportTemplate.xlsx` as a starting point for your data. The tool will:
 
-- Convert your Excel file to CSV format
-- Validate and format data for Jira import
-- Some issues may be fixed (automatic fixing with `--auto-fix`)
-- Generate a properly formatted CSV file ready for Jira
+- **Direct Jira Cloud Import**: Import directly to Jira Cloud (with `--cloud` flag)
+- **CSV Export**: Convert your Excel file to CSV format for manual import
+- **Smart Validation**: Validate and format data for Jira import
+- **Auto-fixing**: Automatically fix common issues (with `--auto-fix` flag)
+- **Hierarchical Support**: Handle Initiatives, Epics, Stories, and Sub-tasks with proper relationships
 
 ### Row Skipping
 
@@ -87,7 +92,11 @@ See [ROW_SKIPPING.md](docs/ROW_SKIPPING.md) for detailed documentation.
 
 ## Output
 
-The tool generates a formatted CSV file in the same directory as your input file, ready for import into Jira.
+The tool can generate output in multiple formats:
+
+- **Direct Jira Import**: Issues are created directly in Jira Cloud (with `--cloud` flag)
+- **CSV Export**: A formatted CSV file ready for manual Jira import
+- **Excel Reports**: Processing reports with metadata written back to Excel files
 
 ## Configuration
 
@@ -103,6 +112,7 @@ Tips:
 
 - You can also keep helpful lookup tables (assignees, sprints, components, etc.) in the same Excel, on the `Config` sheet. The tool will read them automatically if present.
 - To force using the Excel file as config, add `-ce` when running.
+- **Excel Table Configuration**: Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents` for advanced configuration.
 
 ### Option B: Use a JSON file
 
@@ -149,6 +159,46 @@ The importer now tells you exactly what's wrong and how to fix it:
 - **Import directly to Jira Cloud** - No more manual CSV uploads
 - **Hierarchical issue types** - Support for Initiatives, Epics, Stories, and Sub-tasks with proper parent-child relationships
 - **Batch processing** - Efficient handling of large imports
+- **Credential management** - Secure credential storage with keyring integration
+- **Excel table configuration** - Advanced configuration using structured Excel tables
+
+## Cloud Import Workflow
+
+### Quick Start with Cloud Import
+
+1. **Set up credentials**:
+
+   ```bash
+   jira_importer.exe --credentials run
+   ```
+
+2. **Import directly to Jira**:
+
+   ```bash
+   jira_importer.exe your-data.xlsx --cloud
+   ```
+
+3. **With auto-fix enabled**:
+
+   ```bash
+   jira_importer.exe your-data.xlsx --cloud --auto-fix
+   ```
+
+### Credential Management
+
+- **Interactive setup**: `--credentials run` - Set up authentication interactively
+- **View credentials**: `--credentials show` - Display current credentials
+- **Clear credentials**: `--credentials clear` - Remove stored credentials
+- **Environment variables**: Use `JIRA_EMAIL` and `JIRA_API_TOKEN` for automation
+
+### Hierarchical Issue Types
+
+The tool supports proper parent-child relationships:
+
+- **Level 1 (Initiative)**: Can parent all other levels
+- **Level 2 (Epic)**: Can parent levels 3 and 4
+- **Level 3 (Story/Task/Bug)**: Can parent level 4
+- **Level 4 (Sub-Task)**: Must have a parent
 
 ## Future Features
 
@@ -164,6 +214,8 @@ The importer now tells you exactly what's wrong and how to fix it:
 - **Permission errors**: Run as administrator if needed
 - **Authentication problems**: The importer will tell you exactly what's wrong (see [CONFIG.md](docs/CONFIG.md) for details)
 - **Configuration issues**: Check that you're using the right config flags (`-c`, `-ce`, `-ci`, `-cd`)
+- **Credential issues**: Use `--credentials show` to check your stored credentials
+- **Cloud import failures**: Check your Jira permissions and project access
 - **Need more details**: Use `-d` flag for detailed logging
 
 ## Support

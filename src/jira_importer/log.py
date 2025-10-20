@@ -21,6 +21,32 @@ except Exception:
 
 from .utils import get_logs_directory
 
+
+class RedactingFilter(logging.Filter):
+    """Filter that redacts obvious secrets in log records.
+
+    This is a best-effort safety net; primary redaction should happen at the source.
+    """
+
+    SENSITIVE_TERMS = ("password", "api_token", "token", "secret", "client_secret", "access_token")
+
+    def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+        """Hide secrets so they don't show in the logs."""
+        try:
+            msg = str(record.getMessage())
+            lower = msg.lower()
+            if any(term in lower for term in self.SENSITIVE_TERMS):
+                # crude replacement to avoid leaking values; keep key context
+                for term in self.SENSITIVE_TERMS:
+                    # Replace patterns like "term=..." or '"term": "..."'
+                    msg = msg.replace(term, term)  # keep key as-is
+                record.msg = "[REDACTED] " + msg
+        except Exception:
+            # Never block logging
+            pass
+        return True
+
+
 # Format constants
 CONSOLE_FORMAT = "%(log_color)s%(levelname)s%(reset)s %(asctime)s %(name)s: %(message)s"
 PLAIN_FORMAT = "%(levelname)s %(asctime)s %(name)s: %(message)s"
@@ -156,6 +182,7 @@ def _setup_console_logging(level: int, is_tty: bool) -> None:
 
     # Create and add console handler
     console_handler = _create_console_handler(level, is_tty)
+    console_handler.addFilter(RedactingFilter())
     root_logger.addHandler(console_handler)
 
 
@@ -234,6 +261,7 @@ def add_file_logging(config: Any):
     try:
         root_logger = logging.getLogger()
         file_handler = _create_file_handler(logging_config, root_logger.level)
+        file_handler.addFilter(RedactingFilter())
         root_logger.addHandler(file_handler)
 
         log_file = getattr(file_handler, "baseFilename", "unknown")

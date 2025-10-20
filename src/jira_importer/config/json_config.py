@@ -108,13 +108,22 @@ class JsonConfiguration:
         return current
 
     def _redacted_content(self) -> dict:
-        """Return a redacted copy of the configuration for safe logging."""
-        sensitive_keys = {"api_token", "password", "secret", "token"}
+        """Return a redacted copy of the configuration for safe logging.
+
+        Redacts common sensitive keys, including nested occurrences and case-insensitive matches.
+        """
+        sensitive_terms = {"api_token", "password", "secret", "token", "client_secret", "access_token"}
 
         def redact(obj: Any) -> Any:
-            """Redact the configuration file."""
             if isinstance(obj, dict):
-                return {k: ("***" if k in sensitive_keys else redact(v)) for k, v in obj.items()}
+                redacted: dict[str, Any] = {}
+                for k, v in obj.items():
+                    key_lower = str(k).lower()
+                    if any(term in key_lower for term in sensitive_terms):
+                        redacted[k] = "***"
+                    else:
+                        redacted[k] = redact(v)
+                return redacted
             if isinstance(obj, list):
                 return [redact(v) for v in obj]
             return obj

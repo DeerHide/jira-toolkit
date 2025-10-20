@@ -13,7 +13,7 @@ from __future__ import annotations
 import base64
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -30,7 +30,7 @@ class BasicAuthProvider(AuthProvider):
     """Basic authentication using email and API token."""
 
     email: str
-    api_token: str
+    api_token: str = field(repr=False)
 
     def get_auth_header(self) -> dict[str, str]:
         """Return Basic auth header."""
@@ -44,9 +44,9 @@ class OAuthSessionManager(AuthProvider):  # pylint: disable=too-many-instance-at
     """Manages OAuth 2.0 (3LO) tokens, including refresh and persistence."""
 
     client_id: str
-    client_secret: str
-    refresh_token: str | None = None
-    access_token: str | None = None
+    client_secret: str = field(repr=False)
+    refresh_token: str | None = field(default=None, repr=False)
+    access_token: str | None = field(default=None, repr=False)
     expires_at: float = 0.0  # Unix timestamp
     token_url: str = "https://auth.atlassian.com/oauth/token"
     keyring_service: str = "jira-toolkit-oauth"

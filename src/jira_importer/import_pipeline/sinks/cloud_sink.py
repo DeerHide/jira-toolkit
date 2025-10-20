@@ -47,7 +47,7 @@ def _write_payload_debug(payload: dict[str, Any], batch_num: int, output_dir: Pa
         with open(debug_file, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
         logger.debug(f"Wrote Jira Cloud payload to: {debug_file}")
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         logger.warning(f"Failed to write payload debug file: {e}")
 
 
@@ -617,7 +617,7 @@ def _create_issues_batch(
                 if resp.status_code >= HTTP_ERROR_THRESHOLD:
                     try:
                         detail = resp.json()
-                    except Exception:
+                    except ValueError:
                         detail = {"error": resp.text}
 
                     # Check for specific error cases and provide clear user guidance
@@ -680,7 +680,7 @@ def _create_issues_batch(
             if resp.status_code >= HTTP_ERROR_THRESHOLD:
                 try:
                     detail = resp.json()
-                except Exception:
+                except ValueError:
                     detail = {"error": resp.text}
 
                 # Check for specific error cases

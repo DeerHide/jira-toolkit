@@ -32,6 +32,26 @@ from .validator import JiraImportValidator  # expects validate_row(...)
 logger = logging.getLogger(__name__)
 
 
+class ProcessingError(Exception):
+    """Base exception for processing errors."""
+
+
+class FileReadError(ProcessingError):
+    """File reading failures."""
+
+
+class ValidationSetupError(ProcessingError):
+    """Validation setup failures."""
+
+
+class RowProcessingError(ProcessingError):
+    """Row processing failures."""
+
+
+class MetadataWriteError(ProcessingError):
+    """Excel metadata write failures."""
+
+
 class ImportProcessor:
     """Orchestrates reading → validation/fixes → writing.
 
@@ -65,111 +85,129 @@ class ImportProcessor:
         )
 
     def process(self) -> ProcessorResult:  # pylint: disable=too-many-locals
-        """Process the input file."""
-        # Source
-        header_schema, rows = self._read_source()
+        """Process the input file with phased error handling and safe cleanup."""
+        header_schema = None
+        rows: list[list[object]] | None = None
 
-        # Resolve indices once (based on header + config mappings)
-        indices = self._extract_indices(header_schema)
+        # Phase 1: File Reading & Setup
+        try:
+            header_schema, rows = self._read_source()
+            indices = self._extract_indices(header_schema)
+        except FileNotFoundError as e:
+            raise FileReadError(f"Input file not found: {e}") from e
+        except PermissionError as e:
+            raise FileReadError(f"Permission denied: {e}") from e
+        except Exception as e:  # keep a final guard with context
+            raise FileReadError(f"Failed to read input: {e}") from e
 
-        logger.debug("Compose rules/fixes/validator")
-        cfg_view = ConfigView(self.config)
-        rule_registry = build_registry(cfg_view, self._excel_loader_ctx())
-        rules = rule_registry.get_rules()
+        # Phase 2: Validation Setup
+        try:
+            logger.debug("Compose rules/fixes/validator")
+            cfg_view = ConfigView(self.config)
+            rule_registry = build_registry(cfg_view, self._excel_loader_ctx())
+            rules = rule_registry.get_rules()
+            fix_registry = build_fix_registry(cfg_view) if self.enable_auto_fix else None
+            validator = JiraImportValidator(rules=rules, fix_registry=fix_registry)
 
-        fix_registry = build_fix_registry(cfg_view) if self.enable_auto_fix else None
-        validator = JiraImportValidator(rules=rules, fix_registry=fix_registry)
+            skip_enabled = cfg_view.get("validation.skip_rowtype", True)
+            skip_issuetypes = cfg_view.get("validation.skip_issuetypes", ["comment", "note", "skip"])
+            write_processing_meta_in_excel = cfg_view.get("app.write_processing_meta", False)
+            write_report_table_in_excel = cfg_view.get("app.write_report_table", False)
+        except Exception as e:  # pylint: disable=broad-except
+            raise ValidationSetupError(f"Failed to setup validation: {e}") from e
 
-        skip_enabled = cfg_view.get("validation.skip_rowtype", True)
-        skip_issuetypes = cfg_view.get("validation.skip_issuetypes", ["comment", "note", "skip"])
+        # Phase 3: Row Processing
+        try:
+            logger.debug("Validate + apply patches row-by-row")
+            problems: list[Problem] = []
+            normalized_rows = []  # Build dynamically, only including non-skipped rows
+            complex_children: list[ComplexChildIssue] = []  # fill from your rules if needed
 
-        write_processing_meta_in_excel = cfg_view.get("app.write_processing_meta", False)
-        write_report_table_in_excel = cfg_view.get("app.write_report_table", False)
+            issue_id_seen: dict[str, None] = {}
+            skipped_rows = 0
+            original_row_count = len(rows)
 
-        logger.debug("Validate + apply patches row-by-row")
-        problems: list[Problem] = []
-        normalized_rows = []  # Build dynamically, only including non-skipped rows
-        complex_children: list[ComplexChildIssue] = []  # fill from your rules if needed
+            # Pre-populate issue_id_seen with existing Issue IDs to avoid conflicts during auto-fixing
+            self._pre_populate_issue_ids(rows, indices, issue_id_seen)  # type: ignore[arg-type]
 
-        issue_id_seen: dict[str, None] = {}
-        skipped_rows = 0
-        original_row_count = len(rows)
+            logger.debug("row_index is 1-based (header = 1), so first data row is 2")
+            for i, row in enumerate(rows, start=2):
+                # Skip rows with RowType = "SKIP"
+                if self._should_skip_row_rowtype(row, indices, skip_enabled):
+                    skipped_rows += 1
+                    logger.debug(f"Skipping row {i} (RowType = SKIP)")
+                    continue
 
-        # Pre-populate issue_id_seen with existing Issue IDs to avoid conflicts during auto-fixing
-        self._pre_populate_issue_ids(rows, indices, issue_id_seen)  # type: ignore[arg-type]
+                # Skip rows with Issue Type = "Epic"
+                if self._should_skip_row_issuetype(row, indices, skip_issuetypes):
+                    skipped_rows += 1
+                    logger.debug(f"Skipping row {i} (Issue Type = EPIC)")
+                    continue
 
-        logger.debug("row_index is 1-based (header = 1), so first data row is 2")
-        for i, row in enumerate(rows, start=2):
-            # Skip rows with RowType = "SKIP"
-            if self._should_skip_row_rowtype(row, indices, skip_enabled):
-                skipped_rows += 1
-                logger.debug(f"Skipping row {i} (RowType = SKIP)")
-                continue
+                # Add non-skipped row to normalized_rows
+                normalized_rows.append(list(row))
 
-            # Skip rows with Issue Type = "Epic"
-            if self._should_skip_row_issuetype(row, indices, skip_issuetypes):
-                skipped_rows += 1
-                logger.debug(f"Skipping row {i} (Issue Type = EPIC)")
-                continue
+                ctx = ValidationContext(
+                    row_index=i,
+                    config=cfg_view,
+                    feature_flags={"excel_rules": self.enable_excel_rules},
+                    auto_fix_enabled=self.enable_auto_fix,
+                    issue_id_seen=issue_id_seen,
+                )
+                result: ValidationResult = validator.validate_row(row, indices, ctx)
 
-            # Add non-skipped row to normalized_rows
-            normalized_rows.append(list(row))
+                if result.patch:
+                    # Apply patch to the last added row (current row index in normalized_rows)
+                    _apply_patch_inplace(normalized_rows, row_idx=len(normalized_rows) - 1, patch=dict(result.patch))
 
-            ctx = ValidationContext(
-                row_index=i,
-                config=cfg_view,
-                feature_flags={"excel_rules": self.enable_excel_rules},
-                auto_fix_enabled=self.enable_auto_fix,
-                issue_id_seen=issue_id_seen,
+                if result.problems:
+                    problems.extend(result.problems)
+
+            # TODO: Add a report for the skipped rows
+            if skipped_rows > 0:
+                logger.info(f"Skipped {skipped_rows} rows (RowType = SKIP or Issue Type in skip list)")
+
+            logger.debug("Build processor result")
+            report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
+            logger.info(
+                f"Report: {report.errors} errors, {report.warnings} warnings, {report.fixes} fixes, problems: {len(problems)}"
             )
-            result: ValidationResult = validator.validate_row(row, indices, ctx)
+            logger.debug(f"Normalized rows: {normalized_rows}")
+            logger.debug(f"Complex children: {complex_children}")
+            logger.debug(f"Indices: {indices}")
+            logger.debug(f"Original row count: {original_row_count}")
+            logger.debug(f"Processed row count: {len(normalized_rows)}")
+            logger.debug(f"Skipped row count: {skipped_rows}")
+            logger.debug(f"Write processing meta in excel: {write_processing_meta_in_excel}")
+            logger.debug(f"Write report table in excel: {write_report_table_in_excel}")
+            proc_result = ProcessorResult(
+                header=header_schema.normalized,
+                rows=normalized_rows,
+                problems=problems,
+                report=report,
+                complex_children=complex_children,
+                indices=indices,
+            )
 
-            if result.patch:
-                # Apply patch to the last added row (current row index in normalized_rows)
-                _apply_patch_inplace(normalized_rows, row_idx=len(normalized_rows) - 1, patch=dict(result.patch))
+            # Store row counts for Excel metadata
+            proc_result.original_row_count = original_row_count
+            proc_result.processed_row_count = len(normalized_rows)
+            proc_result.skipped_row_count = skipped_rows
+        except MemoryError as e:
+            raise RowProcessingError("Processing aborted due to memory limits") from e
+        except Exception as e:  # pylint: disable=broad-except
+            raise RowProcessingError(f"Failed to process rows: {e}") from e
 
-            if result.problems:
-                problems.extend(result.problems)
-
-        # TODO: Add a report for the skipped rows
-        if skipped_rows > 0:
-            logger.info(f"Skipped {skipped_rows} rows (RowType = SKIP or Issue Type in skip list)")
-
-        logger.debug("Build processor result")
-        report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
-        logger.info(
-            f"Report: {report.errors} errors, {report.warnings} warnings, {report.fixes} fixes, problems: {len(problems)}"
-        )
-        logger.debug(f"Normalized rows: {normalized_rows}")
-        logger.debug(f"Complex children: {complex_children}")
-        logger.debug(f"Indices: {indices}")
-        logger.debug(f"Original row count: {original_row_count}")
-        logger.debug(f"Processed row count: {len(normalized_rows)}")
-        logger.debug(f"Skipped row count: {skipped_rows}")
-        logger.debug(f"Write processing meta in excel: {write_processing_meta_in_excel}")
-        logger.debug(f"Write report table in excel: {write_report_table_in_excel}")
-        proc_result = ProcessorResult(
-            header=header_schema.normalized,
-            rows=normalized_rows,
-            problems=problems,
-            report=report,
-            complex_children=complex_children,
-            indices=indices,
-        )
-
-        # Store row counts for Excel metadata
-        proc_result.original_row_count = original_row_count
-        proc_result.processed_row_count = len(normalized_rows)
-        proc_result.skipped_row_count = skipped_rows
-
-        logger.debug("Optional: write back to Excel (metadata/report)")
+        # Phase 4: Optional metadata write
         if self._is_excel(self.path):
-            self._write_excel_meta(proc_result, write_processing_meta_in_excel, write_report_table_in_excel)
+            try:
+                self._write_excel_meta(proc_result, write_processing_meta_in_excel, write_report_table_in_excel)
+            except Exception as e:  # pylint: disable=broad-except
+                logger.warning(f"Failed to write Excel metadata: {e}")
 
         return proc_result
 
     # Internals
-
     def _read_source(self) -> tuple[HeaderSchema, list[list[object]]]:
         if self._is_excel(self.path):
             mgr = ExcelWorkbookManager(self.path)

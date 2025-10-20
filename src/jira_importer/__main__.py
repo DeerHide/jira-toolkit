@@ -246,8 +246,8 @@ def main() -> int:
     if output_target == "cloud":
         try:
             from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
-            from .import_pipeline.cloud.credential_manager import (
-                ensure_cloud_credentials,  # pylint: disable=import-outside-toplevel
+            from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
+                ensure_cloud_credentials,
             )
 
             status = ensure_cloud_credentials(ui, ConfigView(config), autoreply)
@@ -365,7 +365,7 @@ def main() -> int:
 
     except Exception as exc:
         logger.exception("Import failed: %s", exc)
-        App.event_fatal(exit_code=3, message=f"Import failed: {exc}")
+        App.event_fatal(exit_code=3, message=f"An exception occurred in the processor, please check the logs: {exc}")
     finally:
         try:
             if mgr is not None:

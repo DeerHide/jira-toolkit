@@ -17,6 +17,7 @@ from typing import Any
 from .artifacts import ArtifactManager
 from .console import ConsoleIO
 from .excel.excel_io import ExcelWorkbookManager
+from .utils import _sanitize_relative_path  # internal helper for traversal checks
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
@@ -57,7 +58,21 @@ class FileManager:
             logger.error(msg)
             return False
 
-        path = Path(output_file)
+        # Normalize and validate output path
+        try:
+            candidate = Path(output_file)
+            if not candidate.is_absolute():
+                # Only allow safe relative names, resolve relative to CWD
+                rel = _sanitize_relative_path(str(candidate))
+                candidate = (Path.cwd() / rel).resolve()
+            else:
+                candidate = candidate.resolve()
+        except Exception as exc:
+            ui.error(f"Invalid output path: {output_file} ({exc})")
+            logger.error("Invalid output path '%s': %s", output_file, exc)
+            return False
+
+        path = candidate
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = path.with_suffix(path.suffix + ".tmp")
 
@@ -133,8 +148,28 @@ class FileManager:
         artifact_cb        Optional callback to register the created artifact (path:str) -> None.
         manager            Optional ExcelWorkbookManager to read the workbook (no pandas dependency).
         """
-        xlsx_file = Path(xlsx_file)
-        csv_file = Path(csv_file)
+        # Validate and normalize paths
+        try:
+            xlsx_path = Path(xlsx_file)
+            if not xlsx_path.is_absolute():
+                rel_in = _sanitize_relative_path(str(xlsx_path))
+                xlsx_path = (Path.cwd() / rel_in).resolve()
+            else:
+                xlsx_path = xlsx_path.resolve()
+
+            csv_path = Path(csv_file)
+            if not csv_path.is_absolute():
+                rel_out = _sanitize_relative_path(str(csv_path))
+                csv_path = (Path.cwd() / rel_out).resolve()
+            else:
+                csv_path = csv_path.resolve()
+        except Exception as exc:
+            ui.error(f"Invalid path(s) for conversion: {exc}")
+            logger.error("Invalid xlsx/csv path(s): %s", exc)
+            return False
+
+        xlsx_file = xlsx_path
+        csv_file = csv_path
         # csv_file.parent.mkdir(parents=True, exist_ok=True)
 
         if manager is not None:

@@ -454,6 +454,27 @@ The main processing logic - handles validation, fixes, and data transformation:
 
 ### Recent Improvements
 
+#### Enhanced Security and Error Handling
+
+The toolkit has been significantly improved with security enhancements and better error handling:
+
+- **Path Validation**: New constants module with ASCII control character limits and maximum relative path length
+- **Sensitive Data Redaction**: Automatic redaction of sensitive information in logs using RedactingFilter
+- **Phased Error Handling**: Custom exceptions and safer Excel metadata writing
+- **Improved Error Messages**: Better error logging for import failures with specific guidance
+
+#### Enhanced Excel Configuration
+
+- **Improved Type Conversion**: Better handling of Excel configuration reading with fallback logic
+- **Configuration Display Fixes**: Fixed display of Excel configuration table values (CfgAutofieldValues)
+- **Fallback Logic**: Added fallback logic to search all column pairs for configuration keys
+
+#### New Development Features
+
+- **Dry-run Mode**: New debug option to show configuration without requiring an input file
+- **Configuration Display**: Ability to show configuration without input file using `--show-config`
+- **Better Exception Handling**: Narrowed broad exception handlers for payload write and JSON parsing
+
 #### Enhanced Authentication Error Handling
 
 The cloud sink now provides comprehensive error handling for authentication and connection issues:

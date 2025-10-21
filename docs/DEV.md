@@ -178,6 +178,18 @@ Want the nitty-gritty details? Check out **[ARCHITECTURE.md](ARCHITECTURE.md)**.
    python -m jira_importer path/to/your/file.xlsx -ce
    ```
 
+7. **With dry-run mode (new)**
+
+   ```bash
+   python -m jira_importer --dry-run
+   ```
+
+8. **Show configuration without input file (new)**
+
+   ```bash
+   python -m jira_importer --show-config
+   ```
+
 ### Building
 
 1. **Development build**
@@ -233,9 +245,11 @@ Turn on debug mode with:
 1. **Import errors**: Make sure all dependencies are installed
 2. **File not found**: Check file paths and permissions
 3. **Configuration issues**: Verify JSON syntax in config files
-4. **Authentication errors**: The importer now provides clear error messages for auth issues (see CONFIG.md troubleshooting section)
+4. **Authentication errors**: The importer provides clear error messages for auth issues (see CONFIG.md troubleshooting section)
 5. **Configuration loading**: Make sure you're using the correct config flags (`-c`, `-ce`, `-ci`, `-cd`)
 6. **Line ending issues**: If builds fail or you get cross-platform problems, check that all text files use LF line endings
+7. **Path validation errors**: The toolkit validates file paths for security - ensure paths don't contain control characters or exceed length limits
+8. **Sensitive data in logs**: Sensitive information is automatically redacted from logs for security
 
 ## 📝 Line Endings (CRLF vs LF)
 

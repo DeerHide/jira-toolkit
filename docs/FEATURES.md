@@ -44,6 +44,8 @@ This document covers the current features and capabilities of the Jira Importer 
 - **`--enable-excel-rules`**: Load validation rules from Excel tables
 - **`--data-sheet NAME`**: Specify custom data sheet name
 - **`--no-report`**: Suppress validation reports (useful for CI/CD)
+- **`--dry-run`**: Process data without writing output (new)
+- **`--show-config`**: Show configuration without requiring input file (new)
 
 #### Configuration Options
 
@@ -93,6 +95,26 @@ This document covers the current features and capabilities of the Jira Importer 
 - **Batch optimization**: Efficient handling of large imports
 - **Rate limiting**: Built-in handling of API rate limits
 
+## 🔒 Security Features
+
+### Path Validation
+
+- **ASCII Control Character Limits**: Prevents paths with control characters (ASCII 0-31)
+- **Maximum Path Length**: Enforces 4096 character limit for relative paths
+- **Path Sanitization**: Automatic sanitization of file paths to prevent security issues
+
+### Sensitive Data Protection
+
+- **Automatic Redaction**: Sensitive terms are automatically redacted from logs
+- **Redacted Terms**: password, api_token, token, secret, client_secret, access_token
+- **Log Safety**: Prevents accidental exposure of credentials in log files
+
+### Error Handling
+
+- **Phased Error Handling**: Custom exceptions for better error management
+- **Safe Excel Writing**: Safer Excel metadata writing with proper error handling
+- **Improved Error Messages**: Better error logging with specific guidance
+
 ## 🔧 Development Features
 
 ### Architecture
@@ -109,7 +131,7 @@ This document covers the current features and capabilities of the Jira Importer 
 - **`excel/excel_io.py`**: Enhanced Excel workbook management
 - **`excel/excel_table_reader.py`**: Structured table configuration reader
 
-#### Cloud Integration
+#### Cloud Integration Components
 
 - **`import_pipeline/cloud/auth.py`**: Authentication providers
 - **`import_pipeline/cloud/client.py`**: HTTP client wrapper
@@ -144,7 +166,7 @@ python -m jira_importer your-data.xlsx -ce
 python -m jira_importer your-data.xlsx --data-sheet "MyData" -ce
 ```
 
-#### Cloud Integration Testing
+#### Cloud Integration Testing Examples
 
 ```bash
 # Test cloud import
@@ -155,6 +177,19 @@ python -m jira_importer your-data.xlsx --cloud --auto-fix
 
 # Test with cloud estimates fix
 python -m jira_importer your-data.xlsx --cloud --fix-cloud-estimates
+```
+
+#### New Development Testing Features
+
+```bash
+# Test dry-run mode (new)
+python -m jira_importer your-data.xlsx --dry-run
+
+# Test configuration display (new)
+python -m jira_importer --show-config
+
+# Test with enhanced error handling
+python -m jira_importer your-data.xlsx --debug
 ```
 
 ## 📚 Documentation

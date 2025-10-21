@@ -98,8 +98,8 @@ def main() -> int:
 
             config = MinimalConfigForCredentials()  # type: ignore
 
-        from .config.config_view import ConfigView
-        from .import_pipeline.cloud.credential_manager import (
+        from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
+        from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
             clear_credentials,
             display_credential_status,
             get_credential_status,
@@ -149,7 +149,7 @@ def main() -> int:
 
     # Determine configuration file path
     config_path = determine_config_path(args)
-    config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
+    config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")
 
     # Initialize logging with CLI override and config support
     setup_logger(logging.DEBUG if args.debug else None, config)

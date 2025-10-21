@@ -151,8 +151,37 @@ class ExcelConfiguration:
         if value is None:
             return default
 
+        # Handle type conversion for Excel configurations
         if expected_type is not None and not isinstance(value, expected_type):
-            raise TypeError(f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}")
+            # Try to convert string values to expected types for Excel configurations
+            if isinstance(expected_type, type) and expected_type is bool and isinstance(value, str):
+                # Convert common boolean string representations
+                value_lower = value.lower().strip()
+                if value_lower in {"true", "1", "yes", "on", "enabled"}:
+                    value = True
+                elif value_lower in {"false", "0", "no", "off", "disabled"}:
+                    value = False
+                else:
+                    raise TypeError(
+                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')"
+                    )
+            elif isinstance(expected_type, type) and expected_type is int and isinstance(value, str):
+                try:
+                    value = int(value)
+                except ValueError as exc:
+                    raise TypeError(
+                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')"
+                    ) from exc
+            elif isinstance(expected_type, type) and expected_type is float and isinstance(value, str):
+                try:
+                    value = float(value)
+                except ValueError as exc:
+                    raise TypeError(
+                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')"
+                    ) from exc
+            else:
+                # For other type mismatches, raise an error
+                raise TypeError(f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}")
 
         return value  # type: ignore[return-value]
 

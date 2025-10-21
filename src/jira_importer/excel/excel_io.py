@@ -151,6 +151,7 @@ class ExcelWorkbookManager:
         """Read a two-column key/value sheet.
 
         A1:'key' B1:'value' header is optional; empty keys skipped.
+        Also handles complex Excel layouts where config data may be in different columns.
         """
         ws = self._get_ws(sheet, must_exist=False)
         if ws is None:
@@ -171,6 +172,24 @@ class ExcelWorkbookManager:
             if not k:
                 continue
             cfg[k] = val
+
+        # look for configuration data in other columns
+        if not cfg or not any(key.startswith(("metadata.", "jira.", "app.")) for key in cfg.keys()):
+            # Look for configuration data in all columns
+            for i, raw in enumerate(ws.iter_rows(values_only=True), start=1):
+                if not raw:
+                    continue
+
+                # Check all column pairs for configuration keys (key, value)
+                for j in range(0, len(raw) - 1, 2):
+                    key = raw[j] if j < len(raw) else None
+                    val = raw[j + 1] if j + 1 < len(raw) else None
+
+                    if key and isinstance(key, str) and any(prefix in key for prefix in ["metadata.", "jira.", "app."]):
+                        k = str(key).strip()
+                        if k and k not in cfg:  # Don't overwrite existing values (keys)
+                            cfg[k] = val
+
         return cfg
 
     def read_rules(self, *, sheet: str = "Rules") -> list[dict[str, Any]]:

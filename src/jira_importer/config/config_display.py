@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from ..console import ConsoleIO
+from .constants import MAX_DISPLAY_ITEMS
 
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
@@ -66,16 +67,20 @@ def display_table_config(config: Any) -> None:
             if table_data:
                 logger.info(f"Displaying {table_name}: {len(table_data)} items")
                 ui.say(fmt.bold(f"{table_name} ({len(table_data)} items):"))
-                for item in table_data[:10]:  # Show first 10 items
-                    if hasattr(item, "name"):
+                for item in table_data[:MAX_DISPLAY_ITEMS]:  # Show first MAX_DISPLAY_ITEMS items
+                    # Special handling for Auto Field Values - show both name and value
+                    if table_name == "Auto Field Values" and hasattr(item, "name") and hasattr(item, "value"):
+                        ui.say(f"  • {item.name}: {item.value}")
+                        logger.debug(f"  {table_name} item: {item.name} = {item.value}")
+                    elif hasattr(item, "name"):
                         ui.say(f"  • {item.name}")
                         logger.debug(f"  {table_name} item: {item.name}")
                     elif hasattr(item, "id"):
                         ui.say(f"  • {item.id}")
                         logger.debug(f"  {table_name} item: {item.id}")
-                if len(table_data) > 10:
-                    ui.say(f"  ... and {len(table_data) - 10} more items")
-                    logger.debug(f"  ... and {len(table_data) - 10} more items")
+                if len(table_data) > MAX_DISPLAY_ITEMS:
+                    ui.say(f"  ... and {len(table_data) - MAX_DISPLAY_ITEMS} more items")
+                    logger.debug(f"  ... and {len(table_data) - MAX_DISPLAY_ITEMS} more items")
                 ui.lf()
 
     except Exception as exc:

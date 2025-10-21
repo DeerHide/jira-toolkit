@@ -19,3 +19,6 @@ DEFAULT_ISSUE_TYPES = [
     {"name": "Epic", "level": LEVEL_2_EPIC},
     {"name": "Sub-Task", "level": LEVEL_4_SUBTASK},
 ]
+
+# Constants for readability
+MAX_DISPLAY_ITEMS = 20

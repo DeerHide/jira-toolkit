@@ -128,9 +128,9 @@ def display_config(config_file: str) -> None:
                 logger.warning(f"Could not load table configuration: {exc}")
 
         ui.lf()
-        ui.success("Configuration check completed successfully!")
-        logger.info("Configuration check completed successfully!")
+        ui.success("Configuration successfully loaded!")
+        logger.info("Configuration successfully loaded!")
 
     except Exception as exc:
-        logger.error(f"Configuration check failed: {exc}")
+        logger.error(f"Configuration loading failed: {exc}")
         App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}")

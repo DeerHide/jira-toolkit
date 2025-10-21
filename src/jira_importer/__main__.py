@@ -70,10 +70,19 @@ def main() -> int:
         app.event_close(exit_code=0, cleanup=False)
         return 0
 
-    # Handle config-check mode
-    if hasattr(args, "config_check") and args.config_check:
-        display_config(args.config_check)
-        return 0
+    # Handle debug show-config mode
+    if args.show_config:
+        # For show-config, we need minimal config for resolution but don't require input file
+        try:
+            if not hasattr(args, "input_file") or not args.input_file:
+                # Provide dummy input_file for config determination
+                args.input_file = "dummy.xlsx"
+            config_path = determine_config_path(args)
+            display_config(config_path)
+            return 0
+        except Exception as exc:
+            ui.error(f"Failed to load configuration for show-config: {exc}")
+            return 1
 
     # Handle --credentials mode early (like --version)
     if hasattr(args, "credentials") and args.credentials:
@@ -306,6 +315,18 @@ def main() -> int:
                 app.event_abort(exit_code=1, message="User cancelled the Execution.")
             else:
                 ui.success("Continuing...")
+
+        # Handle dry-run mode - stop before sinks
+        if args.dry_run:
+            ui.info("Dry-run mode: Processing complete, stopping before sinks")
+            ui.success(f"Dry-run completed successfully. {len(result.rows)} rows processed.")
+            ui.hint("Remove --dry-run flag to run with actual output")
+            # Exit with validation-based code
+            _result_code = 0 if result.report.errors == 0 else 1
+            ui.lf()
+            ui.full_panel(fmt.success("Dry-run complete. You can close this window now."))
+            app.event_close(exit_code=_result_code, cleanup=True)
+            return _result_code
 
         # Apply Jira Cloud x60 quirk in CSV sink only, if requested
         temp_config = None

@@ -126,13 +126,6 @@ class App:
             if parsed.version:
                 return argparse.Namespace(version=True, input_file=None)
 
-        if "--config-check" in argv:
-            mini = argparse.ArgumentParser(add_help=False)
-            mini.add_argument("--config-check", type=str, metavar="CONFIG_FILE")
-            parsed, _ = mini.parse_known_args(argv)
-            if getattr(parsed, "config_check", None):
-                return argparse.Namespace(config_check=parsed.config_check, input_file=None, version=False)
-
         if "--credentials" in argv:
             mini = argparse.ArgumentParser(add_help=False)
             mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear"], const="run")
@@ -154,6 +147,7 @@ class App:
             jira-importer dataset.xlsx -c config_importer.json -d -y
             jira-importer dataset.xlsx -ce -y --auto-fix
             """,
+            allow_abbrev=False,
         )
         parser.add_argument("input_file", help="Excel XLSX file", default="import.xlsx")
 
@@ -163,55 +157,64 @@ class App:
         App._add_feature_flags(parser)
         App._add_credentials_args(parser)
         App._add_misc_args(parser)
+        App._add_debug_args(parser)
 
         return parser
 
     @staticmethod
     def _add_config_args(parser: argparse.ArgumentParser) -> None:
-        config_group = parser.add_mutually_exclusive_group()
-        config_group.add_argument(
+        config_group = parser.add_argument_group(
+            title="Configuration Options", description="Choose how to load configuration settings"
+        )
+        config_group_exclusive = config_group.add_mutually_exclusive_group()
+        config_group_exclusive.add_argument(
             "-ci", "--config-input", help="Get the configuration path from the input file location", action="store_true"
         )
-        config_group.add_argument(
+        config_group_exclusive.add_argument(
             "-ce",
             "--config-excel",
             help="Use the input Excel file as configuration source (sheet: Config)",
             action="store_true",
         )
-        config_group.add_argument(
+        config_group_exclusive.add_argument(
             "-cd",
             "--config-default",
-            help="Get the configuration path from the application location",
+            help=argparse.SUPPRESS,
+            # help="Get the configuration path from the application location",
             action="store_true",
         )
-        config_group.add_argument(
+        config_group_exclusive.add_argument(
             "-c", "--config", help="Configuration file path", default=DEFAULT_CONFIG_FILENAME, type=str
         )
 
     @staticmethod
     def _add_output_args(parser: argparse.ArgumentParser) -> None:
-        output_group = parser.add_mutually_exclusive_group()
-        output_group.add_argument(
+        output_group = parser.add_argument_group(
+            title="Output Options", description="Control where and how output is generated"
+        )
+        output_group_exclusive = output_group.add_mutually_exclusive_group()
+        output_group_exclusive.add_argument(
             "-o",
             "--output",
             default=None,
             help="Output CSV path (default: <input>.processed.csv)",
             type=str,
         )
-        output_group.add_argument(
+        output_group_exclusive.add_argument(
             "-oi",
             "--output-is-input",
             default=None,
-            help="Output CSV path in the input file location (default: <input>.processed.csv)",
+            help=argparse.SUPPRESS,
+            # help="Output CSV path in the input file location (default: <input>.processed.csv)",
             action="store_true",
         )
-        parser.add_argument(
+        output_group_exclusive.add_argument(
             "--cloud",
             dest="output_target_cloud",
             action="store_true",
             help="Shortcut to select Jira Cloud API as the output target",
         )
-        parser.add_argument(
+        output_group.add_argument(
             "--cloud-debug-payloads",
             action="store_true",
             help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
@@ -219,9 +222,12 @@ class App:
 
     @staticmethod
     def _add_confirmation_args(parser: argparse.ArgumentParser) -> None:
-        auto_yes_group = parser.add_mutually_exclusive_group()
+        confirmation_group = parser.add_argument_group(
+            title="Confirmation Options", description="Control whether to auto-confirm prompts"
+        )
+        auto_yes_group = confirmation_group.add_mutually_exclusive_group()
         auto_yes_group.add_argument(
-            "-y", "-f", "--auto-yes", default=None, action="store_true", help="Auto-yes all prompts"
+            "-y", "--force", "--auto-yes", default=None, action="store_true", help="Auto-yes all prompts"
         )
         auto_yes_group.add_argument("-n", "--auto-no", default=None, action="store_true", help="Auto-no all prompts")
 
@@ -264,4 +270,11 @@ class App:
     @staticmethod
     def _add_misc_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument("-v", "--version", help="Show version", action="store_true")
-        parser.add_argument("-d", "--debug", help="Enable debug mode", action="store_true")
+
+    @staticmethod
+    def _add_debug_args(parser: argparse.ArgumentParser) -> None:
+        """Add debug-specific arguments that are hidden from main help."""
+        debug_group = parser.add_argument_group("Debug Options")
+        debug_group.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
+        debug_group.add_argument("--show-config", help="Show configuration and exit", action="store_true")
+        debug_group.add_argument("--dry-run", help="Process data but stop before writing output", action="store_true")

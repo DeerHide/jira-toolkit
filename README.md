@@ -10,7 +10,14 @@ Many teams continue to do their planning in Excel, even when their task executio
 
 1. **Download** the `jira_importer.exe` file
 2. **Prepare** your Excel file using the provided template
-3. **Run** the executable with your Excel file
+3. **Test your setup** (optional but recommended):
+
+   ```bash
+   jira_importer.exe --show-config
+   jira_importer.exe your-data.xlsx --dry-run
+   ```
+
+4. **Run** the executable with your Excel file
 
 ## Usage
 
@@ -41,6 +48,8 @@ jira_importer.exe your-data.xlsx -c config.json
 - `--auto-fix` - Enable automatic fixing of validation issues
 - `--credentials [ACTION]` - Manage Jira API credentials (run/show/clear)
 - `--data-sheet NAME` - Specify custom data sheet name
+- `--dry-run` - Process data without writing output (new)
+- `--show-config` - Show configuration without requiring input file (new)
 - `-d, --debug` - Show detailed information for troubleshooting
 - `-v, --version` - Show version information
 
@@ -144,6 +153,15 @@ Notes:
 
 ## Recent Improvements
 
+### Enhanced Security & Error Handling ✅
+
+The toolkit now includes comprehensive security improvements:
+
+- **Path validation** - Automatic validation of file paths to prevent security issues
+- **Sensitive data protection** - Automatic redaction of passwords, tokens, and secrets from logs
+- **Improved error handling** - Better error messages with specific guidance for troubleshooting
+- **Safer file operations** - Enhanced file handling with proper error management
+
 ### Better Error Messages ✅
 
 The importer now tells you exactly what's wrong and how to fix it:
@@ -151,6 +169,12 @@ The importer now tells you exactly what's wrong and how to fix it:
 - **Clear authentication errors** - Know immediately if your token expired or if there's a connection problem
 - **Helpful guidance** - Get specific instructions like "Refresh your token at [URL]" instead of cryptic error codes
 - **Configuration help** - Better messages when config files are missing or incorrect
+
+### New Debug Features ✅
+
+- **Dry-run mode** - Test your configuration and data processing without writing output files
+- **Configuration display** - Show your current configuration without requiring an input file
+- **Enhanced Excel configuration** - Improved type conversion and fallback logic for better reliability
 
 ### Direct Jira Import ✅
 
@@ -198,6 +222,22 @@ The tool supports proper parent-child relationships:
 - **Level 3 (Story/Task/Bug)**: Can parent level 4
 - **Level 4 (Sub-Task)**: Must have a parent
 
+### Testing Your Setup
+
+Before importing your data, you can test your configuration:
+
+```bash
+# Test your configuration without processing data
+jira_importer.exe -c your-config.json --show-config
+jira_importer.exe your-data.xlsx -ce --show-config
+
+# Test data processing without writing output files
+jira_importer.exe your-data.xlsx --dry-run
+
+# Test with debug information
+jira_importer.exe your-data.xlsx --debug
+```
+
 ## Future Features
 
 - **Mac and Linux support** - Native builds for other operating systems
@@ -214,7 +254,10 @@ The tool supports proper parent-child relationships:
 - **Configuration issues**: Check that you're using the right config flags (`-c`, `-ce`, `-ci`, `-cd`)
 - **Credential issues**: Use `--credentials show` to check your stored credentials
 - **Cloud import failures**: Check your Jira permissions and project access
+- **Path validation errors**: Ensure file paths don't contain control characters or exceed length limits
+- **Sensitive data in logs**: Sensitive information is automatically redacted for security
 - **Need more details**: Use `-d` flag for detailed logging
+- **Test your setup**: Use `--show-config` and `--dry-run` to test before importing
 
 ## Support
 

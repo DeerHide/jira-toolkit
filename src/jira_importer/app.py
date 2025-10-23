@@ -131,7 +131,9 @@ class App:
             mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear"], const="run")
             parsed, _ = mini.parse_known_args(argv)
             if getattr(parsed, "credentials", None):
-                return argparse.Namespace(credentials=parsed.credentials, input_file=None, version=False)
+                return argparse.Namespace(
+                    credentials=parsed.credentials, input_file=None, version=False, show_config=False
+                )
 
         return None
 

@@ -305,7 +305,8 @@ def main() -> int:
             ProblemReporter(options=ReportOptions(show_details=False, show_aggregate_by_code=True)).render(result)
 
         if not processor.enable_auto_fix:
-            ui.warning("Auto-fix is disabled. Please fix the issues manually.")
+            if result.report.errors > 0:
+                ui.warning("Auto-fix is disabled. Please fix the issues manually.")
             ui.hint(
                 "You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag."
             )

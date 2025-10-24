@@ -120,7 +120,7 @@ class ExcelWorkbookManager:
         # Add progress tracking if UI is available
         if ui and hasattr(ui, "progress"):
             with ui.progress() as progress:
-                task = progress.add_task("Reading Excel data", total=total_rows)
+                task = progress.add_task("Processing Excel data", total=total_rows)
 
                 for raw in rows_list:
                     row = list(raw or [])
@@ -174,21 +174,20 @@ class ExcelWorkbookManager:
             cfg[k] = val
 
         # look for configuration data in other columns
-        if not cfg or not any(key.startswith(("metadata.", "jira.", "app.")) for key in cfg.keys()):
-            # Look for configuration data in all columns
-            for i, raw in enumerate(ws.iter_rows(values_only=True), start=1):
-                if not raw:
-                    continue
+        # Always search all columns for configuration data, not just when first two columns are empty
+        for i, raw in enumerate(ws.iter_rows(values_only=True), start=1):
+            if not raw:
+                continue
 
-                # Check all column pairs for configuration keys (key, value)
-                for j in range(0, len(raw) - 1, 2):
-                    key = raw[j] if j < len(raw) else None
-                    val = raw[j + 1] if j + 1 < len(raw) else None
+            # Check all column pairs for configuration keys (key, value)
+            for j in range(0, len(raw) - 1, 2):
+                key = raw[j] if j < len(raw) else None
+                val = raw[j + 1] if j + 1 < len(raw) else None
 
-                    if key and isinstance(key, str) and any(prefix in key for prefix in ["metadata.", "jira.", "app."]):
-                        k = str(key).strip()
-                        if k and k not in cfg:  # Don't overwrite existing values (keys)
-                            cfg[k] = val
+                if key and isinstance(key, str) and any(prefix in key for prefix in ["metadata.", "jira.", "app."]):
+                    k = str(key).strip()
+                    if k and k not in cfg:  # Don't overwrite existing values (keys)
+                        cfg[k] = val
 
         return cfg
 

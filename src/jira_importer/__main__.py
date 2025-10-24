@@ -165,7 +165,6 @@ def main() -> int:
     logger = logging.getLogger(__name__)
 
     # Add file logging if enabled in config
-
     add_file_logging(config)
 
     if logging.getLogger().level == logging.DEBUG:

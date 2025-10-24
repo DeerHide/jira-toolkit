@@ -123,10 +123,13 @@ class ProblemReporter:
         w = result.report.warnings
         f = result.report.fixes
         total = len(result.problems)
-        return f"[bold]{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}[/bold]  • total findings: [bold]{total}[/bold]"
+        if total > 0:
+            return (
+                f"[bold]{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}[/bold]  • total findings: [bold]{total}[/bold]"
+            )
+        return "[bold]No issues found[/bold]"
 
     # internals, plain rendering
-
     def _render_plain(self, result: ProcessorResult) -> None:
         print("=== Jira Import Validation Report ===")
         print(self.build_summary_line(result))

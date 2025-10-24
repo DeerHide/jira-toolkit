@@ -9,11 +9,13 @@ from __future__ import annotations
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar, Literal
 
 from rich.align import Align
 from rich.console import Console
 from rich.errors import MissingStyle
+from rich.markdown import Markdown
 from rich.markup import escape as rich_escape
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
@@ -671,6 +673,43 @@ class ConsoleUI:
         """
         self.say(self.fmt.danger("This action cannot be undone."))
         return self.prompt_yes_no(f"{action}? ", default=default)
+
+    def render_markdown(
+        self,
+        content: str | None = None,
+        *,
+        file_path: Path | None = None,
+        title: str | None = None,
+        style: str = "accent",
+    ) -> None:
+        """Render markdown content in the console.
+
+        Args:
+            content: Markdown content as a string. If provided, file_path is ignored.
+            file_path: Path to a markdown file to read and render.
+            title: Optional title to display above the markdown content.
+            style: Style for the title if provided.
+        """
+        if content is None and file_path is None:
+            raise ValueError("Either content or file_path must be provided")
+
+        if content is None:
+            try:
+                with open(file_path, encoding="utf-8") as f:  # type: ignore[arg-type]
+                    content = f.read()
+            except FileNotFoundError:
+                self.error(f"Markdown file not found: {file_path}")
+                return
+            except Exception as e:
+                self.error(f"Error reading markdown file: {e}")
+                return
+
+        if title:
+            self.c.print(f"[{style}]{title}[/]")
+            self.c.print("")
+
+        markdown = Markdown(content)
+        self.c.print(markdown)
 
 
 class ConsoleIO:

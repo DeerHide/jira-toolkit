@@ -1,19 +1,8 @@
 {
   "app": {
-    "artifacts": {
-      "delete_enabled": false
-    },
     "import": {
       "auto_open_page": false
-    },
-    "logging": {
-      "console_output": true,
-      "log_level": "INFO",
-      "max_log_files": 5,
-      "max_log_size_mb": 10,
-      "write_to_file": true
-    },
-    "version": "2.0.0"
+    }
   },
   "jira": {
     "cloud": {
@@ -22,11 +11,6 @@
       }
     },
     "connection": {
-      "auth": {
-        "api_token": "${ENV:JIRA_API_TOKEN}",
-        "email": "${ENV:JIRA_EMAIL}",
-        "mode": "basic"
-      },
       "site_address": "https://xyz.atlassian.net"
     },
     "issuetypes": [
@@ -49,15 +33,6 @@
     }
   },
   "metadata": {
-    "description": "Jira Importer Configuration - Unified Structure",
-    "last_updated": "2025-01-27",
-    "migration_notes": [
-      "This configuration uses a unified structure with single source of truth",
-      "All validation rules are now under 'validation.*' section",
-      "Issue types and priorities are configured under 'jira.*' section",
-      "Legacy 'app.validation.*' paths are no longer supported",
-      "Issue types and priorities are case-sensitive and must match Jira exactly"
-    ],
     "version": 7
   },
   "output": {
@@ -74,12 +49,7 @@
       ]
     },
     "fixers": {
-      "disabled": [
-        "project_key.mismatch",
-        "priority.missing",
-        "estimate.invalid_format",
-        "summary.required"
-      ]
+      "disabled": []
     },
     "skip_issuetypes": [
       "comment",

@@ -80,8 +80,8 @@ class ProblemReporter:
         Table = self._Table  # pylint: disable=invalid-name
         console = Console()
 
-        # console.rule("[bold]Jira Import Validation Report")
-        console.print("[bold]Jira Import Validation Report")
+        console.print("")
+        console.print("[bold]Validation Report[/bold]")
         console.print("")
         console.print(self._summary_rich(result))
 
@@ -131,7 +131,7 @@ class ProblemReporter:
 
     # internals, plain rendering
     def _render_plain(self, result: ProcessorResult) -> None:
-        print("=== Jira Import Validation Report ===")
+        print("=== Validation Report ===")
         print(self.build_summary_line(result))
 
         if self.opt.show_aggregate_by_code:

@@ -7,7 +7,8 @@
       "clean_temp": false,
       "check_dependencies": false,
       "install_requirements": false,
-      "copy_documentation": false
+      "copy_documentation": false,
+      "create_zip": false
     },
     "code_signing": {
       "enabled": false

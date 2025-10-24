@@ -10,6 +10,7 @@ import logging
 import os
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 from scripts.build_utils.build_context import BuildContext
@@ -232,6 +233,63 @@ def build_executable(config, config_name) -> bool:
     return True
 
 
+def get_version_string() -> str:
+    """Extract version string from src/jira_importer/version.py."""
+    try:
+        # Import the version module to get version info
+        version_path = Path("src/jira_importer/version.py")
+        if not version_path.exists():
+            _logger.warning("⚠️  Version file not found: %s", version_path)
+            return "0.1.0"
+
+        # Read and execute the version file to get __version_info__
+        with open(version_path, encoding="utf-8") as f:
+            version_content = f.read()
+
+        # Create a temporary namespace to execute the version file
+        version_namespace: dict[str, object] = {}
+        exec(version_content, version_namespace)  # pylint: disable=exec-used
+
+        # Extract version tuple
+        version_info = version_namespace.get("__version_info__", (0, 1, 0, 0))
+        MIN_VERSION_TUPLE_LENGTH = 3
+        if isinstance(version_info, tuple) and len(version_info) >= MIN_VERSION_TUPLE_LENGTH:
+            major, minor, patch = version_info[0], version_info[1], version_info[2]
+        else:
+            major, minor, patch = 0, 1, 0
+
+        return f"{major}.{minor}.{patch}"
+    except Exception as e:
+        _logger.warning("⚠️  Could not extract version info: %s", e)
+        return "0.1.0"
+
+
+def copy_resources_to_dist(config, config_name) -> bool:
+    """Copy resources folder to dist directory."""
+    if not config["build_options"].get("copy_resources_to_dist", True):
+        _logger.info("⏭️  Resources copying disabled in config")
+        return True
+
+    resources_dir = config["directories"]["resources"]
+    dist_dir = config["directories"]["dist"]
+    config_dist_dir = Path(dist_dir) / config_name
+
+    if not Path(resources_dir).exists():
+        _logger.warning("⚠️  Resources directory not found: %s", resources_dir)
+        return False
+
+    if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
+        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
+        return False
+
+    resources_dest = config_dist_dir / "resources"
+    if not _safe_ops.copy_directory(resources_dir, resources_dest, "resources directory"):
+        return False
+
+    _logger.info("✅ Resources copied to dist successfully")
+    return True
+
+
 def copy_documentation(config, config_name) -> bool:
     """Copy documentation files to dist directory."""
     if not config["build_options"]["copy_documentation"]:
@@ -263,6 +321,42 @@ def copy_documentation(config, config_name) -> bool:
         _logger.info("✅ Documentation copied successfully")
 
     return success
+
+
+def create_zip_archive(config, config_name, platform_tag) -> bool:
+    """Create ZIP archive of the build output."""
+    if not config["build_options"].get("create_zip", True):
+        _logger.info("⏭️  ZIP creation disabled in config")
+        return True
+
+    dist_dir = config["directories"]["dist"]
+    config_dist_dir = Path(dist_dir) / config_name
+
+    if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
+        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
+        return False
+
+    # Get version string
+    version = get_version_string()
+    zip_filename = f"jira-importer-{config_name}-{platform_tag}-{version}.zip"
+    zip_path = Path(dist_dir) / zip_filename
+
+    try:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through the config dist directory and add all files
+            for root, _, files in os.walk(config_dist_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    # Calculate relative path from config_dist_dir
+                    arcname = file_path.relative_to(config_dist_dir)
+                    zipf.write(file_path, arcname)
+                    _logger.debug("📦 Added to ZIP: %s", arcname)
+
+        _logger.info("✅ ZIP archive created successfully: %s", zip_path)
+        return True
+    except Exception as e:
+        _logger.error("❌ Failed to create ZIP archive: %s", e)
+        return False
 
 
 def cleanup_temp_files(config) -> bool:
@@ -372,9 +466,17 @@ def main() -> None:
                     if file.endswith(".exe"):
                         _logger.debug("Found executable: %s", Path(root) / file)
 
+    _logger.info("📁 Copying resources to dist...")
+    if not copy_resources_to_dist(CONFIG, args.config):
+        _logger.warning("⚠️  Warning: Failed to copy resources to dist")
+
     _logger.info("📚 Copying documentation...")
     if not copy_documentation(CONFIG, args.config):  # Pass config_name
         _logger.warning("⚠️  Warning: Failed to copy documentation")
+
+    _logger.info("📦 Creating ZIP archive...")
+    if not create_zip_archive(CONFIG, args.config, build_context.platform_tag):
+        _logger.warning("⚠️  Warning: Failed to create ZIP archive")
 
     if CONFIG["build_options"]["clean_temp"]:
         if not cleanup_temp_files(CONFIG):

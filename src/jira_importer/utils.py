@@ -52,7 +52,8 @@ def _sanitize_relative_path(relative_path: str) -> Path:
 
     p = Path(relative_path)
     if any(part == ".." for part in p.parts):
-        raise ValueError("path traversal is not allowed")
+        # raise ValueError("path traversal is not allowed")
+        logger.warning("path traversal is not recommended for security reasons: %s", relative_path)
 
     return p
 

@@ -458,7 +458,7 @@ class ConsoleUI:
         """
         return Progress(
             SpinnerColumn(),
-            TextColumn("[accent]{task.description}"),
+            TextColumn("{task.description}"),
             BarColumn(),
             TextColumn("[muted]{task.percentage:>3.0f}%"),
             TimeElapsedColumn(),

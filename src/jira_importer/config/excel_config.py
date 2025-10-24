@@ -141,12 +141,8 @@ class ExcelConfiguration:
         Returns:
             Configuration value or default
         """
-        # Handle new nested structure
-        if "metadata" in self.content:
-            value: Any = self._get_nested_value(key)
-        else:
-            # Fallback to old flat structure
-            value = self.content.get(key, default)
+        # Always use nested structure for Excel configurations since _build_nested_config creates it
+        value: Any = self._get_nested_value(key)
 
         if value is None:
             return default

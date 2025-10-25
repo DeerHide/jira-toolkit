@@ -211,6 +211,20 @@ def build_executable(config, config_name) -> bool:
                 "jira_importer.import_pipeline.reporting",
                 "--hidden-import",
                 "jira_importer.import_pipeline.sinks.csv_sink",
+                "--hidden-import",
+                "jira_importer.import_pipeline.cloud.client",
+                "--hidden-import",
+                "jira_importer.import_pipeline.cloud.auth",
+                "--hidden-import",
+                "jira_importer.import_pipeline.cloud.secrets",
+                "--hidden-import",
+                "jira_importer.import_pipeline.cloud.credential_manager",
+                "--hidden-import",
+                "requests",
+                "--hidden-import",
+                "keyring",
+                "--hidden-import",
+                "colorama",
             ]
         )
 

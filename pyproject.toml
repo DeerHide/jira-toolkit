@@ -17,6 +17,9 @@ dependencies = [
     "structlog>=23.0.0",
     "colorlog>=6.7.0",
     "PyYAML>=6.0",
+    "requests>=2.25.0",
+    "keyring>=23.0.0",
+    "colorama>=0.4.0; platform_system == 'Windows'",
 ]
 
 [project.optional-dependencies]
@@ -76,7 +79,14 @@ hiddenimport = [
   "jira_importer.artifacts",
   "jira_importer.fileops",
   "jira_importer.log",
-  "jira_importer.utils"
+  "jira_importer.utils",
+  "jira_importer.import_pipeline.cloud.client",
+  "jira_importer.import_pipeline.cloud.auth",
+  "jira_importer.import_pipeline.cloud.secrets",
+  "jira_importer.import_pipeline.cloud.credential_manager",
+  "requests",
+  "keyring",
+  "colorama"
 ]
 
 

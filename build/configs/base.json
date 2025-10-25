@@ -16,7 +16,7 @@
     "readme": "README_APP.md"
   },
   "dependencies": {
-    "required": ["pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog"]
+    "required": ["pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog", "requests", "keyring", "colorama"]
   },
   "build_options": {
     "clean_dist": true,

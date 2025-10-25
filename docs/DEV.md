@@ -45,14 +45,21 @@ We've split the docs into focused files so you can find what you need:
    source .venv/bin/activate
    ```
 
-3. **Install stuff**
+3. **Install dependencies**
 
    ```bash
+   # Install pip-tools for dependency management
+   pip install pip-tools
+
+   # Generate/refresh requirements.lock (if needed)
+   pip-compile requirements.in
+
+   # Install all dependencies
    pip install -r requirements.lock
    python -m pip install -e .[dev]
    ```
 
-   **Note**: The project now uses Poetry for dependency management. You can also use:
+   **Note**: The project uses both pip-tools and Poetry for dependency management. You can also use:
 
    ```bash
    poetry install --with dev
@@ -272,6 +279,40 @@ We use **LF (Line Feed)** line endings for all text files. This keeps things con
 - **LF endings (Unix style):** Python files, Markdown, JSON, YAML, config files, shell scripts
 - **CRLF endings (Windows style):** Batch files (.bat, .cmd), PowerShell scripts (.ps1)
 - **Binary files:** Images, executables, libraries, and other binary assets
+
+## 📦 Dependency Management
+
+### Refreshing Dependencies
+
+To update the requirements.lock file with latest versions:
+
+```bash
+# Update to latest versions
+pip-compile --upgrade requirements.in
+
+# Or just refresh with current constraints
+pip-compile requirements.in
+```
+
+### Adding New Dependencies
+
+1. Add to `requirements.in`
+2. Run `pip-compile requirements.in`
+3. Commit both files
+
+### Current Dependencies
+
+The project uses **37 dependencies** (9 direct + 28 transitive), which is normal for a project of this scope:
+
+- **Direct dependencies**: 9 packages (pandas, rich, openpyxl, etc.)
+- **Transitive dependencies**: 28 packages (numpy, requests, keyring, etc.)
+- **Total footprint**: Reasonable for a data processing + UI + cloud integration tool
+
+### Troubleshooting Dependencies
+
+- **Import errors**: Make sure all dependencies are installed with `pip install -r requirements.lock`
+- **Version conflicts**: Use `pip-compile --upgrade requirements.in` to resolve
+- **Missing packages**: Check if they're in `requirements.in` and run `pip-compile`
 
 ## 🔄 What's Next?
 

@@ -34,13 +34,20 @@ This doc tells you how to contribute to the project.
    source .venv/bin/activate
    ```
 
-3. **Install stuff**
+3. **Install dependencies**
 
    ```bash
+   # Install pip-tools for dependency management
+   pip install pip-tools
+
+   # Generate/refresh requirements.lock (if needed)
+   pip-compile requirements.in
+
+   # Install all dependencies
    pip install -r requirements.lock
    ```
 
-   **Note**: The project now uses Poetry for dependency management. You can also use:
+   **Note**: The project uses both pip-tools and Poetry for dependency management. You can also use:
 
    ```bash
    poetry install --with dev
@@ -180,13 +187,40 @@ Turn on debug mode with:
 
 ## 📦 Dependencies
 
+### Dependency Management
+
+The project uses **pip-tools** for dependency management with 37 total dependencies (9 direct + 28 transitive).
+
+### Refreshing Dependencies
+
+```bash
+# Update to latest versions
+pip-compile --upgrade requirements.in
+
+# Or just refresh with current constraints
+pip-compile requirements.in
+```
+
+### Adding New Dependencies
+
+1. Add to `requirements.in`
+2. Run `pip-compile requirements.in`
+3. Commit both files
+
 ### Core Dependencies
 
-See requirements files
+- **Data processing**: pandas, openpyxl, numpy
+- **UI/Console**: rich, rich-argparse, tqdm, colorlog, colorama
+- **HTTP/API**: requests, urllib3, certifi
+- **Security**: keyring, jaraco-* packages
+- **Logging**: structlog, colorlog
+- **Development**: pre-commit, virtualenv, platformdirs
 
 ### Development Dependencies
 
-See requirements files
+- **Testing**: pytest, pytest-cov
+- **Code quality**: black, isort, mypy, ruff, pylint
+- **Build tools**: pip-tools, poetry, pyinstaller
 
 ## 🚀 Deployment
 

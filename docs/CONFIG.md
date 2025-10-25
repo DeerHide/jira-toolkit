@@ -15,7 +15,7 @@ Tip: You can also add helpful lookup tables (assignees, sprints, components, etc
 How to run:
 
 ```bash
-jira_importer.exe your-data.xlsx -ce
+jira-importer.exe your-data.xlsx -ce
 ```
 
 `-ce` tells the tool to use the Excel `Config` sheet as the configuration source.
@@ -28,7 +28,7 @@ jira_importer.exe your-data.xlsx -ce
 How to run:
 
 ```bash
-jira_importer.exe your-data.xlsx -ci
+jira-importer.exe your-data.xlsx -ci
 ```
 
 `-ci` tells the tool to look for `config_importer.json` next to your Excel file.
@@ -189,13 +189,13 @@ If you're getting "Missing jira.connection.site_address" errors:
 
    ```bash
    # Use specific config file
-   jira_importer.exe your-data.xlsx -c path/to/config.json
+   jira-importer.exe your-data.xlsx -c path/to/config.json
 
    # Use Excel config sheet
-   jira_importer.exe your-data.xlsx -ce
+   jira-importer.exe your-data.xlsx -ce
 
    # Use config next to Excel file
-   jira_importer.exe your-data.xlsx -ci
+   jira-importer.exe your-data.xlsx -ci
    ```
 
 2. **Verify your config file**: Make sure it contains the required fields:

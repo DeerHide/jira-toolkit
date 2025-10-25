@@ -8,13 +8,13 @@ Many teams continue to do their planning in Excel, even when their task executio
 
 ## Quick Start
 
-1. **Download** the `jira_importer.exe` file
+1. **Download** the `jira-importer.exe` file
 2. **Prepare** your Excel file using the provided template
 3. **Test your setup** (optional but recommended):
 
    ```bash
-   jira_importer.exe --show-config
-   jira_importer.exe your-data.xlsx --dry-run
+   jira-importer.exe --show-config
+   jira-importer.exe your-data.xlsx --dry-run
    ```
 
 4. **Run** the executable with your Excel file
@@ -28,13 +28,13 @@ Drag and drop your excel file on the exe
 ### Basic Usage
 
 ```bash
-jira_importer.exe your-data.xlsx
+jira-importer.exe your-data.xlsx
 ```
 
 ### With Custom Configuration
 
 ```bash
-jira_importer.exe your-data.xlsx -c config.json
+jira-importer.exe your-data.xlsx -c config.json
 ```
 
 ### Command Line Options
@@ -128,7 +128,7 @@ Tips:
 - Run:
 
 ```bash
-jira_importer.exe your-data.xlsx -ci
+jira-importer.exe your-data.xlsx -ci
 ```
 
 Notes:
@@ -191,19 +191,19 @@ The importer now tells you exactly what's wrong and how to fix it:
 1. **Set up credentials**:
 
    ```bash
-   jira_importer.exe --credentials run
+   jira-importer.exe --credentials run
    ```
 
 2. **Import directly to Jira**:
 
    ```bash
-   jira_importer.exe your-data.xlsx --cloud
+   jira-importer.exe your-data.xlsx --cloud
    ```
 
 3. **With auto-fix enabled**:
 
    ```bash
-   jira_importer.exe your-data.xlsx --cloud --auto-fix
+   jira-importer.exe your-data.xlsx --cloud --auto-fix
    ```
 
 ### Credential Management
@@ -228,14 +228,14 @@ Before importing your data, you can test your configuration:
 
 ```bash
 # Test your configuration without processing data
-jira_importer.exe -c your-config.json --show-config
-jira_importer.exe your-data.xlsx -ce --show-config
+jira-importer.exe -c your-config.json --show-config
+jira-importer.exe your-data.xlsx -ce --show-config
 
 # Test data processing without writing output files
-jira_importer.exe your-data.xlsx --dry-run
+jira-importer.exe your-data.xlsx --dry-run
 
 # Test with debug information
-jira_importer.exe your-data.xlsx --debug
+jira-importer.exe your-data.xlsx --debug
 ```
 
 ## Future Features

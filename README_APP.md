@@ -27,17 +27,17 @@ Perfect for teams who plan in Excel but execute in JIRA.
 
 ```bash
 # First time: Set up credentials
-jira_importer.exe --credentials run
+jira-importer.exe --credentials run
 
 # Import directly to JIRA
-jira_importer.exe your-data.xlsx --cloud
+jira-importer.exe your-data.xlsx --cloud
 ```
 
 #### Option B: Generate CSV for Manual Import
 
 ```bash
 # Generate CSV file for manual JIRA import
-jira_importer.exe your-data.xlsx
+jira-importer.exe your-data.xlsx
 ```
 
 ### 3. That's it! 🎉
@@ -55,42 +55,42 @@ Your data is now ready for JIRA! The tool handles:
 
 ```bash
 # Check your configuration
-jira_importer.exe --show-config
+jira-importer.exe --show-config
 
 # Test your data without importing
-jira_importer.exe your-data.xlsx --dry-run
+jira-importer.exe your-data.xlsx --dry-run
 ```
 
 ### Common Commands
 
 ```bash
 # Generate CSV for manual JIRA import (default)
-jira_importer.exe your-data.xlsx
+jira-importer.exe your-data.xlsx
 
 # Import directly to JIRA Cloud
-jira_importer.exe your-data.xlsx --cloud
+jira-importer.exe your-data.xlsx --cloud
 
 # Import with auto-fix for common issues
-jira_importer.exe your-data.xlsx --cloud --auto-fix
+jira-importer.exe your-data.xlsx --cloud --auto-fix
 
 # Use Excel file as configuration
-jira_importer.exe your-data.xlsx -ce
+jira-importer.exe your-data.xlsx -ce
 
 # Debug mode for troubleshooting
-jira_importer.exe your-data.xlsx --debug
+jira-importer.exe your-data.xlsx --debug
 ```
 
 ### Credential Management
 
 ```bash
 # Set up credentials
-jira_importer.exe --credentials run
+jira-importer.exe --credentials run
 
 # View current credentials
-jira_importer.exe --credentials show
+jira-importer.exe --credentials show
 
 # Clear credentials
-jira_importer.exe --credentials clear
+jira-importer.exe --credentials clear
 ```
 
 ## Configuration Options
@@ -99,17 +99,17 @@ jira_importer.exe --credentials clear
 
 - Put your settings in the `Config` sheet of your Excel file
 - Use the included template: `ImportTemplate.xlsx`
-- Run: `jira_importer.exe your-data.xlsx -ce`
+- Run: `jira-importer.exe your-data.xlsx -ce`
 
 ### Option B: JSON Configuration
 
 - Copy `config_importer.json` next to your Excel file
 - Fill in your JIRA details
-- Run: `jira_importer.exe your-data.xlsx -ci`
+- Run: `jira-importer.exe your-data.xlsx -ci`
 
 ## What's Included
 
-- `jira_importer.exe` - The main executable
+- `jira-importer.exe` - The main executable
 - `ImportTemplate.xlsx` - Excel template with examples
 - `config_importer.json` - Configuration template
 - `README_EXECUTABLE.md` - This guide

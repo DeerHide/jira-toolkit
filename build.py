@@ -238,7 +238,7 @@ def get_version_string() -> str:
         version_path = Path("src/jira_importer/version.py")
         if not version_path.exists():
             _logger.warning("⚠️  Version file not found: %s", version_path)
-            return "0.1.0"
+            return "1.0.0"
 
         # Read and execute the version file to get __version_info__
         with open(version_path, encoding="utf-8") as f:
@@ -249,17 +249,17 @@ def get_version_string() -> str:
         exec(version_content, version_namespace)  # pylint: disable=exec-used
 
         # Extract version tuple
-        version_info = version_namespace.get("__version_info__", (0, 1, 0, 0))
+        version_info = version_namespace.get("__version_info__", (1, 0, 0, 0))
         MIN_VERSION_TUPLE_LENGTH = 3
         if isinstance(version_info, tuple) and len(version_info) >= MIN_VERSION_TUPLE_LENGTH:
             major, minor, patch = version_info[0], version_info[1], version_info[2]
         else:
-            major, minor, patch = 0, 1, 0
+            major, minor, patch = 1, 0, 0
 
         return f"{major}.{minor}.{patch}"
     except Exception as e:
         _logger.warning("⚠️  Could not extract version info: %s", e)
-        return "0.1.0"
+        return "1.0.0"
 
 
 def copy_resources_to_dist(config, config_name) -> bool:

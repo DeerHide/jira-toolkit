@@ -147,6 +147,18 @@ def build_executable(config, config_name) -> bool:
     original_cwd = Path.cwd()
     os.chdir(str(temp_dir))
 
+    # Get absolute path to hooks directory before changing directory
+    hooks_dir = (original_cwd / "src" / "jira_importer" / "hooks").resolve()
+
+    # Verify hooks directory exists and contains hook files
+    if hooks_dir.exists():
+        hook_files = list(hooks_dir.glob("hook-*.py"))
+        _logger.info("🔧 Found %d hook files in %s", len(hook_files), hooks_dir)
+        for hook_file in hook_files:
+            _logger.info("  - %s", hook_file.name)
+    else:
+        _logger.warning("⚠️  Hooks directory not found: %s", hooks_dir)
+
     try:
         pyinstaller_cmd = [
             "pyinstaller",
@@ -170,7 +182,7 @@ def build_executable(config, config_name) -> bool:
                 "--paths",
                 "src",  # Use local src directory
                 "--additional-hooks-dir",
-                "src/jira_importer/hooks",  # Include custom hooks for macOS compatibility
+                str(hooks_dir),  # Use absolute path to hooks directory
                 "--name",
                 config["pyinstaller"]["name"],
             ]
@@ -281,11 +293,24 @@ def build_executable(config, config_name) -> bool:
                 "--hidden-import",
                 "urllib3.poolmanager",
                 "--hidden-import",
+                "urllib3.connectionpool",
+                "--hidden-import",
+                "urllib3.response",
+                "--hidden-import",
                 "certifi",
                 "--hidden-import",
                 "charset_normalizer",
                 "--hidden-import",
                 "idna",
+                # Additional requests dependencies for macOS
+                "--hidden-import",
+                "requests.packages",
+                "--hidden-import",
+                "requests.packages.urllib3",
+                "--hidden-import",
+                "requests.packages.urllib3.util",
+                "--hidden-import",
+                "requests.packages.urllib3.util.retry",
                 "--hidden-import",
                 "keyring",
                 "--hidden-import",

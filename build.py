@@ -161,7 +161,9 @@ def build_executable(config, config_name) -> bool:
 
     try:
         pyinstaller_cmd = [
-            "pyinstaller",
+            sys.executable,  # Use the current Python interpreter (from venv)
+            "-m",
+            "PyInstaller",
         ]
 
         # Choose onefile/onedir based on configuration (default: onefile)
@@ -303,14 +305,6 @@ def build_executable(config, config_name) -> bool:
                 "--hidden-import",
                 "idna",
                 # Additional requests dependencies for macOS
-                "--hidden-import",
-                "requests.packages",
-                "--hidden-import",
-                "requests.packages.urllib3",
-                "--hidden-import",
-                "requests.packages.urllib3.util",
-                "--hidden-import",
-                "requests.packages.urllib3.util.retry",
                 "--hidden-import",
                 "keyring",
                 "--hidden-import",

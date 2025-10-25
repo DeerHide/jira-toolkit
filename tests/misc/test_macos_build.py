@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Test script to verify macOS build fixes for requests module.
+"""Test script to verify PyInstaller build includes requests dependencies.
 
-This script helps test if the PyInstaller build includes all necessary
-requests dependencies for macOS compatibility.
+This script tests that the PyInstaller build process correctly includes
+all necessary third-party dependencies for the requests module on macOS.
 
 Author:
     Julien (@tom4897)
@@ -12,9 +12,10 @@ import sys
 
 
 def test_imports():
-    """Test if all required modules can be imported."""
-    print("🧪 Testing imports...")
+    """Test if all required third-party modules can be imported."""
+    print("🧪 Testing third-party module imports...")
 
+    # Focus on third-party modules that PyInstaller might miss
     required_modules = [
         "requests",
         "requests.adapters",
@@ -29,6 +30,9 @@ def test_imports():
         "urllib3.util",
         "urllib3.util.retry",
         "urllib3.poolmanager",
+        "urllib3.connectionpool",
+        "urllib3.response",
+        "urllib3.exceptions",
         "certifi",
         "charset_normalizer",
         "idna",
@@ -49,7 +53,7 @@ def test_imports():
         for module in failed_imports:
             print(f"  - {module}")
         return False
-    print(f"\n✅ All {len(required_modules)} modules imported successfully!")
+    print(f"\n✅ All {len(required_modules)} third-party modules imported successfully!")
     return True
 
 
@@ -89,7 +93,7 @@ def test_requests_functionality():
 
 def main():
     """Run all tests."""
-    print("🔧 Testing macOS build fixes for requests module\n")
+    print("🔧 Testing PyInstaller build includes requests dependencies\n")
 
     # Test imports
     imports_ok = test_imports()
@@ -98,9 +102,9 @@ def main():
     functionality_ok = test_requests_functionality()
 
     if imports_ok and functionality_ok:
-        print("\n🎉 All tests passed! The requests module should work correctly on macOS.")
+        print("\n🎉 All tests passed! The PyInstaller build correctly includes requests dependencies.")
         return 0
-    print("\n❌ Some tests failed. Check the build configuration.")
+    print("\n❌ Some tests failed. Check the PyInstaller build configuration.")
     return 1
 
 

@@ -36,7 +36,7 @@ def get_version_strings() -> dict[str, str]:
     ret["company_name"] = "Deerhide.run"
     ret["file_description"] = "Jira Importer"
     ret["internal_name"] = "jira_importer"
-    ret["original_filename"] = "jira_importer.exe"
+    ret["original_filename"] = "jira-importer.exe"
     ret["product_name"] = "Jira Importer"
     ret["legal_trademarks"] = "Jira is a registered trademark of Atlassian Pty Ltd."
     ret["bundle_identifier"] = "com.deerhide.jira-importer"

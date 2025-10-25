@@ -147,17 +147,6 @@ def build_executable(config, config_name) -> bool:
     original_cwd = Path.cwd()
     os.chdir(str(temp_dir))
 
-    # Get absolute path to hooks directory before changing directory
-    hooks_dir = (original_cwd / "src" / "jira_importer" / "hooks").resolve()
-
-    # Verify hooks directory exists and contains hook files
-    if hooks_dir.exists():
-        hook_files = list(hooks_dir.glob("hook-*.py"))
-        _logger.info("🔧 Found %d hook files in %s", len(hook_files), hooks_dir)
-        for hook_file in hook_files:
-            _logger.info("  - %s", hook_file.name)
-    else:
-        _logger.warning("⚠️  Hooks directory not found: %s", hooks_dir)
 
     try:
         pyinstaller_cmd = [
@@ -183,8 +172,6 @@ def build_executable(config, config_name) -> bool:
                 str(spec_dir),  # Use absolute path
                 "--paths",
                 "src",  # Use local src directory
-                "--additional-hooks-dir",
-                str(hooks_dir),  # Use absolute path to hooks directory
                 "--name",
                 config["pyinstaller"]["name"],
             ]
@@ -200,111 +187,24 @@ def build_executable(config, config_name) -> bool:
             version_filename = Path(config["files"]["version"]).name
             pyinstaller_cmd.extend(["--version-file", version_filename])
 
-        # Add hidden imports
+        # Add hidden imports - simplified to only essential third-party dependencies
         pyinstaller_cmd.extend(
             [
+                # Core package
                 "--hidden-import",
                 "jira_importer",
-                "--hidden-import",
-                "jira_importer.console",
-                "--hidden-import",
-                "jira_importer.excel_io",
-                "--hidden-import",
-                "jira_importer.app",
-                "--hidden-import",
-                "jira_importer.config",
-                "--hidden-import",
-                "jira_importer.artifacts",
-                "--hidden-import",
-                "jira_importer.fileops",
-                "--hidden-import",
-                "jira_importer.log",
-                "--hidden-import",
-                "jira_importer.utils",
-                "--hidden-import",
-                "jira_importer.import_pipeline.processor",
-                "--hidden-import",
-                "jira_importer.import_pipeline.reporting",
-                "--hidden-import",
-                "jira_importer.import_pipeline.sinks.csv_sink",
-                "--hidden-import",
-                "jira_importer.import_pipeline.sinks.cloud_sink",
-                "--hidden-import",
-                "jira_importer.import_pipeline.sources.csv_source",
-                "--hidden-import",
-                "jira_importer.import_pipeline.sources.xlsx_source",
-                "--hidden-import",
-                "jira_importer.import_pipeline.validator",
-                "--hidden-import",
-                "jira_importer.import_pipeline.models",
-                "--hidden-import",
-                "jira_importer.import_pipeline.cloud.client",
-                "--hidden-import",
-                "jira_importer.import_pipeline.cloud.auth",
-                "--hidden-import",
-                "jira_importer.import_pipeline.cloud.secrets",
-                "--hidden-import",
-                "jira_importer.import_pipeline.cloud.credential_manager",
-                "--hidden-import",
-                "jira_importer.import_pipeline.cloud.bulk",
-                "--hidden-import",
-                "jira_importer.import_pipeline.cloud.mappers",
-                "--hidden-import",
-                "jira_importer.import_pipeline.cloud.metadata",
-                "--hidden-import",
-                "jira_importer.excel.excel_io",
-                "--hidden-import",
-                "jira_importer.excel.excel_table_reader",
-                "--hidden-import",
-                "jira_importer.config.config_display",
-                "--hidden-import",
-                "jira_importer.config.config_view",
-                "--hidden-import",
-                "jira_importer.config.constants",
-                "--hidden-import",
-                "jira_importer.config.issuetypes",
-                "--hidden-import",
-                "jira_importer.config.json_config",
-                "--hidden-import",
-                "jira_importer.config.utils",
-                # Requests and HTTP dependencies (fixes macOS build issues)
+
+                # Third-party dependencies that PyInstaller might miss
                 "--hidden-import",
                 "requests",
                 "--hidden-import",
-                "requests.adapters",
-                "--hidden-import",
-                "requests.auth",
-                "--hidden-import",
-                "requests.cookies",
-                "--hidden-import",
-                "requests.exceptions",
-                "--hidden-import",
-                "requests.models",
-                "--hidden-import",
-                "requests.sessions",
-                "--hidden-import",
-                "requests.structures",
-                "--hidden-import",
-                "requests.utils",
-                "--hidden-import",
                 "urllib3",
-                "--hidden-import",
-                "urllib3.util",
-                "--hidden-import",
-                "urllib3.util.retry",
-                "--hidden-import",
-                "urllib3.poolmanager",
-                "--hidden-import",
-                "urllib3.connectionpool",
-                "--hidden-import",
-                "urllib3.response",
                 "--hidden-import",
                 "certifi",
                 "--hidden-import",
                 "charset_normalizer",
                 "--hidden-import",
                 "idna",
-                # Additional requests dependencies for macOS
                 "--hidden-import",
                 "keyring",
                 "--hidden-import",

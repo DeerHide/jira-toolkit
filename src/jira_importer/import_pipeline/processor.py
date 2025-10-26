@@ -127,8 +127,8 @@ class ImportProcessor:
             skipped_rows = 0
             original_row_count = len(rows)
 
-            # Pre-populate issue_id_seen with existing Issue IDs to avoid conflicts during auto-fixing
-            self._pre_populate_issue_ids(rows, indices, issue_id_seen)  # type: ignore[arg-type]
+            # Pre-populate issue_id_seen with existing Issue IDs and collect issue data for parent validation
+            issue_data = self._pre_populate_issue_data(rows, indices, issue_id_seen)
 
             logger.debug("row_index is 1-based (header = 1), so first data row is 2")
             for i, row in enumerate(rows, start=2):
@@ -153,6 +153,7 @@ class ImportProcessor:
                     feature_flags={"excel_rules": self.enable_excel_rules},
                     auto_fix_enabled=self.enable_auto_fix,
                     issue_id_seen=issue_id_seen,
+                    issue_data=issue_data,
                 )
                 result: ValidationResult = validator.validate_row(row, indices, ctx)
 
@@ -360,20 +361,30 @@ class ImportProcessor:
         # Check if the Issue Type is in the skip list (case-insensitive)
         return any(skip_type.strip().upper() == issuetype_str for skip_type in skip_issuetypes)
 
-    def _pre_populate_issue_ids(
-        self, rows: list[Sequence[object]], indices: ColumnIndices, issue_id_seen: dict[str, None]
-    ) -> None:
-        """Pre-populates the issue_id_seen dictionary with all existing Issue IDs from the source data.
+    def _pre_populate_issue_data(
+        self, rows: list[list[object]], indices: ColumnIndices, issue_id_seen: dict[str, None]
+    ) -> dict[str, tuple[str, int]]:
+        """Pre-populates issue_id_seen and collects issue data for parent validation.
 
-        This is necessary to avoid conflicts when auto-fixing AssignIssueIdFixer.
+        Returns:
+            dict mapping issue_id -> (issue_type, row_index)
         """
-        if indices.issue_id is None:
-            return
+        issue_data: dict[str, tuple[str, int]] = {}
 
-        for row in rows:
+        if indices.issue_id is None:
+            return issue_data
+
+        for i, row in enumerate(rows, start=2):
             issue_id_value = self._cell_str(row, indices.issue_id)
-            if issue_id_value:  # _cell_str already handles None, empty strings, etc.
+            if issue_id_value:
                 issue_id_seen[issue_id_value] = None
+
+                # Also collect issue type for parent validation
+                issue_type_value = self._cell_str(row, indices.issuetype)
+                if issue_type_value:
+                    issue_data[issue_id_value] = (issue_type_value, i)
+
+        return issue_data
 
     def _cell_str(self, row: Sequence[object], idx: int | None) -> str:
         """Helper function to safely extract string values from cells."""

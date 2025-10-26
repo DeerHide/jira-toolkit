@@ -168,6 +168,8 @@ def _sev_label(sev: ProblemSeverity) -> str:
         return f"{EMO_ERROR} error"
     if sev == ProblemSeverity.WARNING:
         return f"{EMO_WARN} warning"
+    if sev == ProblemSeverity.CRITICAL:
+        return f"{EMO_ERROR} critical"
     return f"{EMO_FIX} fix"
 
 

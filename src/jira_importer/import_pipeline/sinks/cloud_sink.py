@@ -517,7 +517,7 @@ def _try_fix_parent_reference(
     indices: ColumnIndices,
     config: Any,
 ) -> str | None:
-    """Try to fix incorrect parent references by finding logical parent relationships."""
+    """Try to fix incorrect parent references by finding logical parent links."""
     config_view = ConfigView(config)
 
     if not parent_key or not child_summary:

@@ -63,7 +63,13 @@ class ProcessingReport:
             w = sum(1 for p in problems if p.severity == ProblemSeverity.WARNING)
             f = sum(1 for p in problems if p.severity == ProblemSeverity.FIX)
         else:
-            e = sum(1 for p in problems if p.severity == ProblemSeverity.ERROR or p.severity == ProblemSeverity.FIX)
+            e = sum(
+                1
+                for p in problems
+                if p.severity == ProblemSeverity.ERROR
+                or p.severity == ProblemSeverity.FIX
+                or p.severity == ProblemSeverity.CRITICAL
+            )
             w = sum(1 for p in problems if p.severity == ProblemSeverity.WARNING)
             f = 0
 
@@ -272,6 +278,8 @@ class ValidationContext:
     issue_id_seen: MutableMapping[str, None] = field(default_factory=dict)
     # Tracks first-time encounter during validation pass (not pre-populated)
     validation_issue_id_seen: MutableMapping[str, None] = field(default_factory=dict)
+    # Maps issue_id -> (issue_type, row_index) for parent validation
+    issue_data: MutableMapping[str, tuple[str, int]] = field(default_factory=dict)
 
     def seen_issue_id(self, value: str) -> bool:
         """Returns True if value was seen before; otherwise records it and returns False.

@@ -14,6 +14,7 @@ from .builtin_rules import (
     EstimateFormatRule,
     IssueIdPresenceRule,
     IssueTypeAllowedRule,
+    ParentLinkValidationRule,
     PriorityAllowedRule,
     ProjectKeyConsistencyRule,
     SummaryRequiredRule,
@@ -45,6 +46,7 @@ def build_registry(config_view, excel_ctx: object | None) -> RuleRegistry:  # py
     rules.append(PriorityAllowedRule())
     rules.append(IssueIdPresenceRule())
     rules.append(EstimateFormatRule())
+    rules.append(ParentLinkValidationRule())  # Add parent link validation rule
     rules.append(AssigneeResolverRule())  # Add assignee resolution rule
 
     # TODO: if excel_ctx provided, extend with excel_rule_loader.compile(excel_ctx)

@@ -11,7 +11,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from ...config.issuetypes import get_allowed_issue_types
+from ...config.constants import LEVEL_4_SUBTASK
+from ...config.issuetypes import get_allowed_issue_types, get_issue_type_level
 from ..models import ColumnIndices, IRowRule, Problem, ProblemSeverity, ValidationContext, ValidationResult
 
 # helpers functions
@@ -357,3 +358,75 @@ def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> boo
         matched = True
         pos = m.end()
     return matched
+
+
+@dataclass(slots=True)
+class ParentLinkValidationRule(IRowRule):
+    """Validate parent-child links based on issue type hierarchy.
+
+    Rules:
+    - Level 1 (Initiative) can parent levels 2, 3, 4
+    - Level 2 (Epic) can parent levels 3, 4
+    - Level 3 (Story/Task/Bug) can parent level 4 only
+    - Level 4 (Sub-Task) cannot parent anything
+    - Level 4 (Sub-Task) must have a parent
+    """
+
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to validate parent-child links based on issue type hierarchy."""
+        problems = []
+
+        # Get current issue info
+        issue_type = _cell_str(row, indices.issuetype)
+        parent_value = _cell_str(row, indices.parent) if indices.parent else ""
+
+        if not issue_type:
+            return ValidationResult.empty()
+
+        cfg_get = getattr(ctx.config, "get", None)
+        if not callable(cfg_get):
+            return ValidationResult.empty()
+
+        child_level = get_issue_type_level(cfg_get, issue_type)
+
+        # Check if sub-task has no parent
+        if child_level == LEVEL_4_SUBTASK and _is_empty(parent_value):
+            problems.append(
+                Problem(
+                    code="parent_link.missing",
+                    message="Sub-Task must have a parent",
+                    severity=ProblemSeverity.CRITICAL,
+                    row_index=ctx.row_index,
+                    col_key="parent",
+                )
+            )
+
+        # Check parent-child links if parent exists
+        if not _is_empty(parent_value):
+            # Skip external Jira keys (PROJ-123 format)
+            if self._is_jira_key(parent_value):
+                return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
+
+            # Try to resolve parent from issue_data
+            issue_data = getattr(ctx, "issue_data", {})
+            if parent_value in issue_data:
+                parent_type, _ = issue_data[parent_value]
+                parent_level = get_issue_type_level(cfg_get, parent_type)
+
+                # Validate hierarchy: parent level must be < child level
+                if parent_level is not None and child_level is not None and parent_level >= child_level:
+                    problems.append(
+                        Problem(
+                            code="parent_link.unsupported",
+                            message=f"Invalid parent-child links: {issue_type} (level {child_level}) cannot have {parent_type} (level {parent_level}) as parent. Parent must be at a higher level in the hierarchy.",
+                            severity=ProblemSeverity.CRITICAL,
+                            row_index=ctx.row_index,
+                            col_key="parent",
+                        )
+                    )
+
+        return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
+
+    def _is_jira_key(self, value: str) -> bool:
+        """Check if value looks like external Jira key (PROJ-123)."""
+        return bool(re.match(r"^[A-Z][A-Z0-9]+-\d+$", value))

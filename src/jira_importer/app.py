@@ -229,7 +229,7 @@ class App:
         )
         auto_yes_group = confirmation_group.add_mutually_exclusive_group()
         auto_yes_group.add_argument(
-            "-y", "--force", "--auto-yes", default=None, action="store_true", help="Auto-yes all prompts"
+            "-y", "--auto-yes", "--force", default=None, action="store_true", help="Auto-yes all prompts"
         )
         auto_yes_group.add_argument("-n", "--auto-no", default=None, action="store_true", help="Auto-no all prompts")
 

@@ -319,6 +319,24 @@ def main() -> int:
                 "You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag."
             )
 
+        # Check for CRITICAL problems and handle user interaction
+        critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]
+        if critical_problems:
+            # If --auto-yes and --cloud, terminate immediately
+            if autoreply is True and output_target == "cloud":
+                ui.error("Cannot proceed with --auto-yes and --cloud when critical issues are present.")
+                app.event_abort(exit_code=1, message="Critical validation issues with --auto-yes and --cloud")
+
+            # Skip critical validation prompt for dry-run mode since we never reach sinks
+            if not args.dry_run:
+                # For all other cases, ask user whether to continue
+                if not ui.prompt_yes_no(
+                    "Critical validation issues found. Do you want to continue?", default=False, auto_reply=autoreply
+                ):
+                    app.event_abort(exit_code=1, message="User cancelled due to critical issues.")
+                else:
+                    ui.success("Continuing despite critical issues...")
+
         if result.report.errors > 0:
             if not ui.prompt_yes_no("Do you want to continue?", default=False, auto_reply=autoreply):
                 app.event_abort(exit_code=1, message="User cancelled the Execution.")

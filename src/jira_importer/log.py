@@ -255,9 +255,6 @@ def add_file_logging(config: Any):
     """Add file handler to existing root logger if enabled in config."""
     logging_config = LoggingConfig(config=config)
 
-    if not logging_config.file_logging_enabled:
-        return
-
     try:
         root_logger = logging.getLogger()
         file_handler = _create_file_handler(logging_config, root_logger.level)
@@ -268,4 +265,4 @@ def add_file_logging(config: Any):
         root_logger.info(f"File logging enabled: {log_file}")
 
     except Exception as e:
-        logging.getLogger().warning(f"File logging setup failed: {e}")
+        logging.getLogger().error(f"File logging setup failed: {e}")

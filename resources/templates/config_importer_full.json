@@ -10,8 +10,7 @@
       "console_output": true,
       "log_level": "INFO",
       "max_log_files": 5,
-      "max_log_size_mb": 10,
-      "write_to_file": true
+      "max_log_size_mb": 10
     },
     "version": "2.0.0"
   },

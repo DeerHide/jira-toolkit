@@ -28,7 +28,13 @@ from jira_importer.import_pipeline.reporting import CloudReportReporter, Problem
 from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud
 from jira_importer.import_pipeline.sinks.csv_sink import write_csv
 from jira_importer.log import add_file_logging, setup_logger
-from jira_importer.utils import load_config_for_input, open_browser, open_jira_filter
+from jira_importer.utils import (
+    get_executable_dir,
+    get_logs_directory,
+    load_config_for_input,
+    open_browser,
+    open_jira_filter,
+)
 
 # Global variables
 # Warning = Critical = False
@@ -166,6 +172,8 @@ def main() -> int:
 
     # Add file logging if enabled in config
     add_file_logging(config)
+    logger.debug(f"Logs directory: {get_logs_directory()}")
+    logger.debug(f"Executable directory: {get_executable_dir()}")
 
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")

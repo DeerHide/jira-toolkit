@@ -1,69 +1,88 @@
 # Jira Importer Toolkit
 
-A simple utility for batch-importing tasks from Excel into Jira Cloud. Prepare your spreadsheet in the required format, run the import, and your tasks are ready to use.
+A powerful utility for batch-importing tasks from Excel into Jira. Transform your Excel planning data into properly structured Jira issues with hierarchical relationships, automatic validation, and direct cloud integration (Jira Cloud only for API integration, CSV export works with any Jira deployment).
 
-## Why we built it
+## ⚠️ Important Notice
 
-Many teams continue to do their planning in Excel, even when their task execution lives in Jira. This tool provides a direct way to transfer those plans into Jira without manual data entry.
+**This tool currently supports Jira Cloud only for direct API integration.**
+
+**CSV Export**: The CSV export functionality works with any Jira deployment type (Cloud, Server, Data Center) since it generates CSV files for manual import.
+
+**Direct Cloud Import**: The `--cloud` flag only works with Jira Cloud instances using REST API v3. It does not work with:
+
+- Jira Server (on-premises)
+- Jira Data Center
+- Legacy Jira instances
+
+**Need Server/Data Center support?** We're happy to help adapt the tool for your specific Jira setup constraints. Please reach out via [GitHub Issues](https://github.com/DeerHide/jira-toolkit/issues) or via our website [deerhide.run](https://deerhide.run) with details about your Jira configuration.
+
+## Why We Built It
+
+Many teams continue to do their planning in Excel, even when their task execution lives in Jira. This tool provides a direct way to transfer those plans into Jira without manual data entry, supporting:
+
+- **Hierarchical issue structures** (Initiatives → Epics → Stories → Sub-tasks)
+- **Automatic validation** and error fixing
+- **Direct Jira Cloud integration** with batch processing
+- **Excel-based configuration** for easy setup
+- **Rich console interface** with detailed reporting
 
 ## Quick Start
 
-1. **Download** the `jira-importer.exe` file
-2. **Prepare** your Excel file using the provided template
-3. **Test your setup** (optional but recommended):
+1. **Download** the `jira-importer.exe` file from the [releases page](https://github.com/DeerHide/jira-toolkit/releases)
+2. **Prepare** your Excel file using the provided `ImportTemplate.xlsx`
+3. **Test your setup** (recommended):
 
    ```bash
    jira-importer.exe --show-config
    jira-importer.exe your-data.xlsx --dry-run
    ```
 
-4. **Run** the executable with your Excel file
+4. **Run** the import:
+
+   ```bash
+   # For CSV export (manual import)
+   jira-importer.exe your-data.xlsx
+
+   # For direct Jira Cloud import
+   jira-importer.exe your-data.xlsx --cloud
+   ```
 
 ## Usage
 
 ### Easy Mode
 
-Drag and drop your excel file on the exe
-
-### Basic Usage
-
-```bash
-jira-importer.exe your-data.xlsx
-```
-
-### With Custom Configuration
-
-```bash
-jira-importer.exe your-data.xlsx -c config.json
-```
+Drag and drop your Excel file on the `jira-importer.exe` file for quick CSV export.
 
 ### Command Line Options
 
-- `your-data.xlsx` - Your Excel file to import
-- `-c, --config` - Use a specific configuration file
-- `-ce, --config-excel` - Use settings from your Excel file's Config sheet
-- `-cd, --config-default` - Use the default configuration
-- `-ci, --config-input` - Use config file next to your Excel file (recommended)
-- `--cloud` - Import directly to Jira Cloud (requires configuration)
-- `--auto-fix` - Enable automatic fixing of validation issues
-- `--credentials [ACTION]` - Manage Jira API credentials (run/show/clear)
-- `--data-sheet NAME` - Specify custom data sheet name
-- `--dry-run` - Process data without writing output (new)
-- `--show-config` - Show configuration without requiring input file (new)
-- `-d, --debug` - Show detailed information for troubleshooting
-- `-v, --version` - Show version information
+| Option | Description |
+|--------|-------------|
+| `your-data.xlsx` | Your Excel file to import |
+| `-c, --config` | Use a specific configuration file |
+| `-ce, --config-excel` | Use settings from your Excel file's Config sheet |
+| `-cd, --config-default` | Use the default configuration |
+| `-ci, --config-input` | Use config file next to your Excel file (recommended) |
+| `--cloud` | Import directly to Jira Cloud (requires configuration) |
+| `--auto-fix` | Enable automatic fixing of validation issues |
+| `--credentials [ACTION]` | Manage Jira API credentials (run/show/clear) |
+| `--data-sheet NAME` | Specify custom data sheet name |
+| `--dry-run` | Process data without writing output |
+| `--show-config` | Show configuration without requiring input file |
+| `-d, --debug` | Show detailed information for troubleshooting |
+| `-v, --version` | Show version information |
 
-Note: `--cloud` requires `--config-input` or `--config myconfig.json`
+**Note**: `--cloud` requires `--config-input` or `--config myconfig.json`
 
 ## Input Format
 
-Use the provided `ImportTemplate.xlsx` as a starting point for your data. The tool will:
+Use the provided `ImportTemplate.xlsx` as a starting point for your data. The tool supports:
 
 - **Direct Jira Cloud Import**: Import directly to Jira Cloud (with `--cloud` flag)
 - **CSV Export**: Convert your Excel file to CSV format for manual import
 - **Smart Validation**: Validate and format data for Jira import
 - **Auto-fixing**: Automatically fix common issues (with `--auto-fix` flag)
 - **Hierarchical Support**: Handle Initiatives, Epics, Stories, and Sub-tasks with proper relationships
+  - Custom types and their levels can be configured in the configuration files (JSON recommended)
 
 ### Row Skipping
 
@@ -97,7 +116,7 @@ Update docs,Medium,Task,PROCESS
 }
 ```
 
-## Output
+## Output Formats
 
 The tool can generate output in multiple formats:
 
@@ -107,37 +126,26 @@ The tool can generate output in multiple formats:
 
 ## Configuration
 
-There are two simple ways to configure the importer. Pick the one that fits you best.
+Choose the configuration method that works best for your workflow:
 
-### Option A: Use your Excel file (easiest)
+### Option A: Excel Configuration (Recommended)
 
 - Put your settings in the `Config` sheet of your Excel file
 - Use our template as a starting point: `resources/templates/ImportTemplate_with_config.xlsx`
-- Then just run the importer with your Excel file (no extra config file needed)
+- Run: `jira-importer.exe your-data.xlsx -ce`
 
-Tips:
+**Benefits:**
+- Everything in one file
+- Helpful lookup tables (assignees, sprints, components) in the same Excel
+- **Excel Table Configuration**: Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents`
 
-- You can also keep helpful lookup tables (assignees, sprints, components, etc.) in the same Excel, on the `Config` sheet. The tool will read them automatically if present.
-- To force using the Excel file as config, add `-ce` when running.
-- **Excel Table Configuration**: Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents` for advanced configuration.
-
-### Option B: Use a JSON file
+### Option B: JSON Configuration
 
 - Copy `resources/templates/config_importer.json` next to your Excel file
 - Fill in your Jira details (site address, API token, project key/id)
-- Run:
+- Run: `jira-importer.exe your-data.xlsx -ci`
 
-```bash
-jira-importer.exe your-data.xlsx -ci
-```
-
-Notes:
-
-- `-ci` tells the tool to look for `config_importer.json` next to your Excel file
-- You can also specify a path with `-c path/to/config.json`
-
-### Choosing the config source
-
+**Configuration Sources:**
 - **Excel file** (`-ce`): Put your settings in the Excel file's Config sheet
 - **JSON file** (`-ci`): Place `config_importer.json` next to your Excel file
 - **Default** (`-cd`): Use the built-in configuration
@@ -145,17 +153,17 @@ Notes:
 
 **Recommendation**: Use the Excel Config sheet (`-ce`) for simplicity, or place a JSON config file next to your Excel file and use `-ci`.
 
-### Logging (optional)
+### Logging
 
 - File logging can be enabled/disabled with `write_to_file` (on by default)
 - Logs are saved next to the app in `jira_importer_logs/`
 - For extra details, run with `-d` (debug mode)
 
-## Recent Improvements
+## Key Features
 
 ### Enhanced Security & Error Handling ✅
 
-The toolkit now includes comprehensive security improvements:
+The toolkit includes comprehensive security improvements:
 
 - **Path validation** - Automatic validation of file paths to prevent security issues
 - **Sensitive data protection** - Automatic redaction of passwords, tokens, and secrets from logs
@@ -164,13 +172,13 @@ The toolkit now includes comprehensive security improvements:
 
 ### Better Error Messages ✅
 
-The importer now tells you exactly what's wrong and how to fix it:
+The importer provides clear, actionable error messages:
 
 - **Clear authentication errors** - Know immediately if your token expired or if there's a connection problem
 - **Helpful guidance** - Get specific instructions like "Refresh your token at [URL]" instead of cryptic error codes
 - **Configuration help** - Better messages when config files are missing or incorrect
 
-### New Debug Features ✅
+### Debug Features ✅
 
 - **Dry-run mode** - Test your configuration and data processing without writing output files
 - **Configuration display** - Show your current configuration without requiring an input file
@@ -189,19 +197,16 @@ The importer now tells you exactly what's wrong and how to fix it:
 ### Quick Start with Cloud Import
 
 1. **Set up credentials**:
-
    ```bash
    jira-importer.exe --credentials run
    ```
 
 2. **Import directly to Jira**:
-
    ```bash
    jira-importer.exe your-data.xlsx --cloud
    ```
 
 3. **With auto-fix enabled**:
-
    ```bash
    jira-importer.exe your-data.xlsx --cloud --auto-fix
    ```
@@ -224,7 +229,7 @@ The tool supports proper parent-child relationships:
 
 ### Testing Your Setup
 
-Before importing your data, you can test your configuration:
+Before importing your data, test your configuration:
 
 ```bash
 # Test your configuration without processing data
@@ -238,11 +243,15 @@ jira-importer.exe your-data.xlsx --dry-run
 jira-importer.exe your-data.xlsx --debug
 ```
 
-## Future Features
+## Roadmap
+
+### Planned Features
 
 - **Mac and Linux support** - Native builds for other operating systems
 - **Multiple file imports** - Process several Excel files at once
 - **Project templates** - Ready-made templates for common project types
+- **Jira Server/Data Center support** - Support for on-premises Jira instances
+- **Advanced reporting** - More detailed import reports and analytics
 
 ## Troubleshooting
 
@@ -261,19 +270,14 @@ jira-importer.exe your-data.xlsx --debug
 
 ## Support
 
-For issues or questions, check the debug logs or contact support.
+### Getting Help
 
-## Disclaimer
+- **Documentation**: Check the [docs](docs/) folder for detailed guides
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/DeerHide/jira-toolkit/issues)
+- **Discussions**: Ask questions on [GitHub Discussions](https://github.com/DeerHide/jira-toolkit/discussions)
+- **Debug logs**: Use `--debug` flag for detailed error information
 
-This tool is provided as-is and may not work out of the box for all environments or use cases. Some configuration and adjustments may be required based on your specific Jira setup and data format.
+### Community
 
-**Feedback and suggestions are welcome!** If you encounter issues or need assistance, please reach out. We're happy to help troubleshoot and improve the tool based on user needs.
-
-## Authors
-
-**Jira Importer Toolkit** is developed by:
-
-- @tom4897
-- @nakool
-
-This project is licensed under the [MIT License](LICENSE), don't hesitate to contribute or fork!
+- **GitHub Repository**: https://github.com/DeerHide/jira-toolkit
+- **License**: MIT License - feel free to contribute or fork!

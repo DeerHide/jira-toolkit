@@ -1,6 +1,6 @@
 # Architecture Guide
 
-This doc gives you the lowdown on how the Jira Importer Toolkit is put together, including visual diagrams and component breakdowns.
+This document provides a comprehensive overview of the Jira Importer Toolkit's architecture, including visual diagrams and detailed component breakdowns.
 
 ## 📁 Repository Structure
 

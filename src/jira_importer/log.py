@@ -41,6 +41,7 @@ class RedactingFilter(logging.Filter):
                     # Replace patterns like "term=..." or '"term": "..."'
                     msg = msg.replace(term, term)  # keep key as-is
                 record.msg = "[REDACTED] " + msg
+                record.args = ()
         except Exception:
             # Never block logging
             pass

@@ -396,4 +396,17 @@ class ExcelWorkbookManager:
     @staticmethod
     def _normalize_header_cell(val: Any) -> str:
         # Keep case/spacing under your control; do not lowercase by default.
-        return "" if val is None else str(val).strip()
+        if val is None:
+            return ""
+
+        # Convert to string and strip whitespace
+        header_name = str(val).strip()
+
+        # Remove Excel's automatic numbered suffixes for duplicate column names
+        # This handles Excel's behavior of adding numbers to duplicate column names
+        # Pattern matches a number at the end of the string (e.g., "1", "12", "123")
+        import re
+
+        header_name = re.sub(r"\d+$", "", header_name)
+
+        return header_name

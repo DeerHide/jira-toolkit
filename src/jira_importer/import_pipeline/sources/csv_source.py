@@ -59,5 +59,15 @@ class CsvSource:
                         rows.append([c for c in row])
 
         # Keep normalization conservative (trim only). Your ColumnIndices resolver handles names.
-        schema = HeaderSchema(original=header_raw, normalized=[c.strip() for c in header_raw])
+        # Also remove Excel-style numbered suffixes that might be present in CSV files
+        import re
+
+        normalized_headers = []
+        for header in header_raw:
+            normalized_name = header.strip()
+            # Remove numbered suffixes (e.g., "Labels1" -> "Labels", "Child-Issue2" -> "Child-Issue")
+            normalized_name = re.sub(r"\d+$", "", normalized_name)
+            normalized_headers.append(normalized_name)
+
+        schema = HeaderSchema(original=header_raw, normalized=normalized_headers)
         return schema, rows

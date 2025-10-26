@@ -82,8 +82,13 @@ class IssueMapper:
             except (ValueError, TypeError):
                 logger.warning(f"Invalid estimate value: {redact_secret(str(row[indices.estimate]))}")
 
+        # Assignee (already resolved by AssigneeResolverFixer)
+        if indices.assignee is not None and row[indices.assignee]:
+            assignee_id = str(row[indices.assignee]).strip()
+            if assignee_id:
+                fields["assignee"] = {"accountId": assignee_id}
+
         # TODO: Custom fields mapping
-        # TODO: Assignee (requires accountId resolution)
 
         return {"fields": fields}
 

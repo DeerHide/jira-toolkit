@@ -23,6 +23,7 @@ from jira_importer.config.config_factory import ConfigurationFactory
 from jira_importer.config.utils import determine_config_path, display_config
 from jira_importer.console import ConsoleIO
 from jira_importer.fileops import FileManager
+from jira_importer.import_pipeline.models import ProblemSeverity
 from jira_importer.import_pipeline.processor import ImportProcessor
 from jira_importer.import_pipeline.reporting import CloudReportReporter, ProblemReporter, ReportOptions
 from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud
@@ -352,6 +353,17 @@ def main() -> int:
 
         if output_target == "cloud":
             ui.info("Output target: Jira Cloud API")
+
+            # Check for critical assignee errors before proceeding
+            critical_assignee_errors = [
+                p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("assignee.")
+            ]
+            if critical_assignee_errors:
+                ui.error("Critical assignee errors found - cannot proceed with cloud import:")
+                for error in critical_assignee_errors:
+                    ui.error(f"  Row {error.row_index}: {error.message}")
+                App.event_fatal(exit_code=4, message="Critical assignee errors prevent cloud import")
+
             try:
                 # Write payloads if debug mode is enabled or cloud debug flag is set
                 debug_output_dir = (

@@ -21,6 +21,7 @@ class ProblemSeverity(str, Enum):
     ERROR = "error"
     WARNING = "warning"
     FIX = "fix"  # indicates we applied (or can apply) a safe auto-fix when auto-fix is enabled
+    CRITICAL = "critical"  # indicates a critical error that should stop processing
 
 
 @dataclass(slots=True, frozen=True)
@@ -100,6 +101,7 @@ class ColumnIndices:
     # Optional (keep names consistent with current CSV headers)
     project_key: int | None = None
     assignee: int | None = None
+    assignee_name: int | None = None
     description: int | None = None
     parent: int | None = None
     epic_link: int | None = None

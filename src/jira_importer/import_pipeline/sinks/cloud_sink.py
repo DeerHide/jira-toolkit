@@ -127,6 +127,15 @@ def _process_batches(
 ) -> CloudSubmitReport:
     """Process issues in batches and return submission report."""
     cfg = ConfigView(config)
+
+    # Ensure Excel table configuration is loaded for assignee mapping
+    if hasattr(config, "load_table_config"):
+        try:
+            config.load_table_config()
+            logger.debug("Excel table configuration loaded for assignee mapping")
+        except Exception as e:
+            logger.warning(f"Could not load Excel table configuration: {e}")
+
     metadata = MetadataCache(client)
     mapper = IssueMapper(cfg, metadata)
 

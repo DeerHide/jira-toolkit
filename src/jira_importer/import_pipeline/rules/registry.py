@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..fixes.assignee_resolver import AssigneeResolverRule
 from ..models import IRowRule
 from .builtin_rules import (
     EstimateFormatRule,
@@ -44,6 +45,7 @@ def build_registry(config_view, excel_ctx: object | None) -> RuleRegistry:  # py
     rules.append(PriorityAllowedRule())
     rules.append(IssueIdPresenceRule())
     rules.append(EstimateFormatRule())
+    rules.append(AssigneeResolverRule())  # Add assignee resolution rule
 
     # TODO: if excel_ctx provided, extend with excel_rule_loader.compile(excel_ctx)
     # and insert with explicit 'order' fields.

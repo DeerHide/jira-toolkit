@@ -1,5 +1,4 @@
 # Core logging
-logging # stdlib shim
 structlog
 
 # Console / UI
@@ -12,6 +11,12 @@ colorama; platform_system == "Windows"
 # Data handling
 pandas
 openpyxl
+
+# HTTP and API
+requests
+
+# Security and credentials
+keyring
 
 # Dev tooling
 pre-commit

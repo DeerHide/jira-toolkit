@@ -1,45 +1,40 @@
-"""
-Script Name: registry.py
-Description: This script contains the registry for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+"""Description: This script contains the registry for the Jira Importer.
+
+Author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Dict, Mapping, MutableMapping, Optional, Sequence
 
-from ..models import (
-    IFixer,
-    FixOutcome,
-    Problem,
-    ColumnIndices,
-    ValidationContext,
-)
+from ..models import ColumnIndices, FixOutcome, IFixer, Problem, ValidationContext
 from .builtin_fixes import get_builtin_fixers
 
 
 @dataclass(slots=True)
 class FixRegistry:
-    """
-    Registry of fixers keyed by problem.code.
+    """Registry of fixers keyed by problem.code.
 
     Usage:
         registry = FixRegistry()
         registry.register("priority.invalid", PriorityNormalizeFixer())
         outcome = registry.apply(problem, row, indices, ctx)
     """
-    _fixers: Dict[str, IFixer]
+
+    _fixers: dict[str, IFixer]
 
     def register(self, problem_code: str, fixer: IFixer) -> None:
+        """Register a fixer for a problem code."""
         self._fixers[str(problem_code)] = fixer
 
     def unregister(self, problem_code: str) -> None:
+        """Unregister a fixer for a problem code."""
         self._fixers.pop(str(problem_code), None)
 
     def has(self, problem_code: str) -> bool:
+        """Check if a fixer is registered for a problem code."""
         return str(problem_code) in self._fixers
 
     def apply(
@@ -49,6 +44,7 @@ class FixRegistry:
         indices: ColumnIndices,
         ctx: ValidationContext,
     ) -> FixOutcome:
+        """Apply a fixer for a problem."""
         fixer = self._fixers.get(problem.code)
         if fixer is None:
             return FixOutcome(applied=False)
@@ -60,15 +56,14 @@ class FixRegistry:
 
 
 def build_fix_registry(config_view) -> FixRegistry:
-    """
-    Build a registry populated with built-in fixers, honoring optional config:
+    """Build a registry populated with built-in fixers, honoring optional config.
 
     - validation.fixers.disabled : list[str] of problem codes to disable
       e.g., ["project_key.mismatch", "priority.missing"]
 
     You can extend this later to register custom fixers based on config.
     """
-    fixers = get_builtin_fixers()  # type: Dict[str, IFixer]
+    fixers = get_builtin_fixers()
 
     # Read optional disable list from config (duck-typed .get).
     disabled = set()

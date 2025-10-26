@@ -1,0 +1,114 @@
+{
+  "app": {
+    "sheet_name": "dataset",
+    "artifacts": {
+      "delete_enabled": false
+    },
+    "import": {
+      "auto_open_page": false
+    },
+    "validation": {
+      "skip_all": false,
+      "skip_checks": {
+        "description": true,
+        "fixversion": true,
+        "component": true,
+        "child_issue_id": false,
+        "story_for_parent_link": false,
+        "sprint": true,
+        "assignee": false
+      }
+    },
+    "reporting": {
+      "skip_report": false
+    },
+    "logging": {
+      "write_to_file": true,
+      "log_level": "INFO",
+      "max_log_size_mb": 10,
+      "max_log_files": 5
+    }
+  },
+  "jira": {
+    "connection": {
+      "site_address": "https://test.atlassian.net",
+      "api_token": ""
+    },
+    "project": {
+      "key": "TEST",
+      "id": 0
+    },
+    "validation": {
+      "components": [
+        "design",
+        "development",
+        "production",
+        "quality assurance",
+        "quality control",
+        "devops",
+        "sysops",
+        "testing",
+        "documentation"
+      ],
+      "priorities": [
+        "highest",
+        "high",
+        "medium",
+        "low",
+        "lowest"
+      ],
+      "issue_types": [
+        "epic",
+        "story",
+        "task",
+        "sub-task",
+        "bug",
+        "improvement",
+        "new feature"
+      ],
+      "statuses": [
+        "Backlog",
+        "In Progress",
+        "Done",
+        "To Do",
+        "In Review",
+        "Testing",
+        "Deployed"
+      ],
+      "fix_versions": [
+        "Version 1.0",
+        "Version 1.1",
+        "Version 2.0",
+        "Sprint 1",
+        "Sprint 2"
+      ],
+      "min_sprint_value": 1
+    }
+  },
+  "metadata": {
+    "version": 5,
+    "description": "Full Test Configuration with All Validation Rules",
+    "last_updated": "2025-01-27"
+  },
+  "documentation": {
+    "description": "Full Test Configuration for Jira Importer",
+    "usage": {
+      "metadata": "Configuration file information (version, description, last_updated)",
+      "app": "Application behavior settings",
+      "jira": "Jira-specific settings and validation rules"
+    },
+    "active_fields": [
+      "jira.connection.site_address - Test Jira instance URL",
+      "jira.project.key - Test Jira project key",
+      "jira.validation.components - Valid component names",
+      "jira.validation.priorities - Valid priority levels",
+      "jira.validation.issue_types - Valid issue types",
+      "jira.validation.statuses - Valid workflow statuses",
+      "jira.validation.fix_versions - Valid release versions"
+    ],
+    "notes": [
+      "This is a test configuration file for development and testing purposes",
+      "All validation rules are enabled for comprehensive testing"
+    ]
+  }
+}

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Cleanup utility for the repository.
+"""Cleanup utility for the repository.
 
 Note:
 - You need to run this script with --just-do-it or -y to actually remove the files.
@@ -19,22 +18,24 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 cache_dir_list: tuple[str, ...] = ("__pycache__",)
 cache_file_suffixes: tuple[str, ...] = (".pyc", ".pyo")
 log_file_suffixes: tuple[str, ...] = (".log",)
 
+
 def iter_dirs_by_name(root: Path, name: str) -> Iterable[Path]:
+    """Iterate over directories by name."""
     for path in root.rglob(name):
         if path.is_dir() and path.name == name:
             yield path
 
 
 def iter_files_by_suffixes(root: Path, suffixes: tuple[str, ...]) -> Iterable[Path]:
+    """Iterate over files by suffixes."""
     for suffix in suffixes:
         for path in root.rglob(f"*{suffix}"):
             if path.is_file():
@@ -42,6 +43,7 @@ def iter_files_by_suffixes(root: Path, suffixes: tuple[str, ...]) -> Iterable[Pa
 
 
 def remove_path(path: Path, dry_run: bool, verbose: bool, vverbose: bool) -> None:
+    """Remove a path."""
     if not path.exists():
         return
     if verbose:
@@ -56,11 +58,12 @@ def remove_path(path: Path, dry_run: bool, verbose: bool, vverbose: bool) -> Non
             shutil.rmtree(path)
         else:
             path.unlink(missing_ok=True)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"Failed to remove {path}: {exc}")
 
 
 def empty_directory_contents(dir_path: Path, dry_run: bool, vverbose: bool, verbose: bool) -> None:
+    """Empty the contents of a directory."""
     if vverbose:
         print(f"Emptying directory contents: {dir_path}")
     if not dir_path.exists() or not dir_path.is_dir():
@@ -72,11 +75,19 @@ def empty_directory_contents(dir_path: Path, dry_run: bool, vverbose: bool, verb
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Cleanup __pycache__, *.pyc, *.pyo, *.log files and logs directory contents.\nYou need to run this script with --just-do-it to actually remove the files.")
+    """Parse arguments."""
+    parser = argparse.ArgumentParser(
+        description="Cleanup __pycache__, *.pyc, *.pyo, *.log files and logs directory contents.\n"
+        "You need to run this script with --just-do-it to actually remove the files."
+    )
     parser.add_argument("--just-do-it", "-y", action="store_true", default=False, help="Runs the cleanup")
-    parser.add_argument("--dry-run", "-d", action="store_true", help="Show what would be removed without deleting anything")
+    parser.add_argument(
+        "--dry-run", "-d", action="store_true", help="Show what would be removed without deleting anything"
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Print each path as it's processed")
-    parser.add_argument("--vverbose", "-vv", action="store_true", default=False, help="Print each path as it's processed")
+    parser.add_argument(
+        "--vverbose", "-vv", action="store_true", default=False, help="Print each path as it's processed"
+    )
     parser.add_argument(
         "--root",
         type=Path,
@@ -87,6 +98,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Main function."""
     args = parse_args()
     root: Path = args.root
 
@@ -117,6 +129,7 @@ def main() -> int:
     if verbose:
         print("Cleanup complete.")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

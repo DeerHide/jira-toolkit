@@ -1,0 +1,19 @@
+[MASTER]
+ignore=build,dist,.venv
+jobs=4
+
+[MESSAGES CONTROL]
+# Disable missing-module/class/function docstring for now; rely on Ruff D rules
+disable=
+    C0114,
+    C0115,
+    C0116,
+    W0511,
+    W0718,
+    W1203
+
+[FORMAT]
+max-line-length=150
+
+[TYPECHECK]
+# Keep default behavior; project uses type-checkers externally

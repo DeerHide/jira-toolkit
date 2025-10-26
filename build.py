@@ -1,29 +1,22 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Build script for the Jira Importer application.
+"""Build script for the Jira Importer application.
 
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
 import argparse
-import subprocess
-import shutil
-import os
-import sys
-import json
-import time
 import logging
-from datetime import datetime
+import os
+import subprocess
+import sys
+import zipfile
 from pathlib import Path
-from typing import Optional, Union
-from scripts.build_utils.logger_manager import LoggerManager
-from scripts.build_utils.safe_file_operations import SafeFileOperations
+
 from scripts.build_utils.build_context import BuildContext
 from scripts.build_utils.build_utils import BuildUtils
-
+from scripts.build_utils.logger_manager import LoggerManager
+from scripts.build_utils.safe_file_operations import SafeFileOperations
 
 BASE_LOG_DIR = "build/logs"
 LOG_LEVEL = logging.DEBUG
@@ -32,6 +25,7 @@ _logger = LoggerManager(BASE_LOG_DIR).get_logger()
 
 # Create a global instance for file operations
 _safe_ops = SafeFileOperations()
+
 
 def check_dependencies(config) -> None:
     """Check if required dependencies are available."""
@@ -42,10 +36,11 @@ def check_dependencies(config) -> None:
     for dependency in config["dependencies"]["required"]:
         try:
             __import__(dependency.lower())
-            _logger.info(f"✅ {dependency} is available")
+            _logger.info("✅ %s is available", dependency)
         except ImportError:
-            _logger.warning(f"❌ {dependency} not found. Installing...")
+            _logger.warning("❌ %s not found. Installing...", dependency)
             subprocess.check_call([sys.executable, "-m", "pip", "install", dependency.lower()])
+
 
 def clean_directories(config, config_name) -> bool:
     """Clean dist directory and prepare temp directory."""
@@ -55,21 +50,21 @@ def clean_directories(config, config_name) -> bool:
     # Clean config-specific dist subdirectory if specified
     config_dist_dir = Path(dist_dir) / config_name
     if not _safe_ops.create_directory(config_dist_dir, "config dist directory", clean_if_exists=True):
-        _logger.warning(f"❌ Failed to prepare config dist directory: {config_dist_dir}")
+        _logger.warning("❌ Failed to prepare config dist directory: %s", config_dist_dir)
         return False
 
     # Clean temp directory only if clean_temp is enabled
     if config["build_options"]["clean_temp"]:
         if not _safe_ops.create_directory(temp_dir, "temp directory", clean_if_exists=True):
-            _logger.warning(f"❌ Failed to prepare temp directory: {temp_dir}")
+            _logger.warning("❌ Failed to prepare temp directory: %s", temp_dir)
             return False
-    else:
-        # Just ensure temp directory exists
-        if not _safe_ops.create_directory(temp_dir, "temp directory"):
-            _logger.warning(f"❌ Failed to ensure temp directory exists: {temp_dir}")
-            return False
+    # Just ensure temp directory exists
+    elif not _safe_ops.create_directory(temp_dir, "temp directory"):
+        _logger.warning("❌ Failed to ensure temp directory exists: %s", temp_dir)
+        return False
 
     return True
+
 
 def copy_build_files(config) -> bool:
     """Copy necessary files to temp directory."""
@@ -83,7 +78,7 @@ def copy_build_files(config) -> bool:
 
     # Ensure temp directory exists (in case clean_directories wasn't called)
     if not _safe_ops.create_directory(temp_dir, "temp directory"):
-        _logger.warning(f"❌ Failed to ensure temp directory exists: {temp_dir}")
+        _logger.warning("❌ Failed to ensure temp directory exists: %s", temp_dir)
         return False
 
     # Copy icon file if it exists
@@ -115,10 +110,11 @@ def copy_build_files(config) -> bool:
         if not _safe_ops.copy_directory(resources_dir, temp_resources_dir, "resources directory"):
             return False
     else:
-        _logger.warning(f"⚠️  Resources directory not found: {resources_dir}")
+        _logger.warning("⚠️  Resources directory not found: %s", resources_dir)
 
     _logger.info("✅ Build files copied to temp directory successfully")
     return True
+
 
 def build_executable(config, config_name) -> bool:
     """Build the executable using PyInstaller."""
@@ -138,7 +134,7 @@ def build_executable(config, config_name) -> bool:
             else:
                 raise FileNotFoundError(f"No entry point script found in {src_dir} for PyInstaller compilation.")
 
-    _logger.info(f"🔨 Building executable from: {main_script}")
+    _logger.info("🔨 Building executable from: %s", main_script)
 
     # Get absolute paths for better reliability
     temp_dir = Path(config["directories"]["temp"]).resolve()
@@ -151,9 +147,12 @@ def build_executable(config, config_name) -> bool:
     original_cwd = Path.cwd()
     os.chdir(str(temp_dir))
 
+
     try:
         pyinstaller_cmd = [
-            "pyinstaller",
+            sys.executable,  # Use the current Python interpreter (from venv)
+            "-m",
+            "PyInstaller",
         ]
 
         # Choose onefile/onedir based on configuration (default: onefile)
@@ -162,14 +161,21 @@ def build_executable(config, config_name) -> bool:
         else:
             pyinstaller_cmd.append("--onedir")
 
-        pyinstaller_cmd.extend([
-            "--console" if config["pyinstaller"]["console"] else "--windowed",
-            "--distpath", dist_dir,  # Use config-specific dist directory
-            "--workpath", work_dir,  # Use absolute path
-            "--specpath", spec_dir,  # Use absolute path
-            "--paths", "src",  # Use local src directory
-            "--name", config["pyinstaller"]["name"],
-        ])
+        pyinstaller_cmd.extend(
+            [
+                "--console" if config["pyinstaller"]["console"] else "--windowed",
+                "--distpath",
+                dist_dir,  # Use config-specific dist directory
+                "--workpath",
+                str(work_dir),  # Use absolute path
+                "--specpath",
+                str(spec_dir),  # Use absolute path
+                "--paths",
+                "src",  # Use local src directory
+                "--name",
+                config["pyinstaller"]["name"],
+            ]
+        )
 
         # Add icon if specified
         if config["files"].get("icon"):
@@ -181,21 +187,30 @@ def build_executable(config, config_name) -> bool:
             version_filename = Path(config["files"]["version"]).name
             pyinstaller_cmd.extend(["--version-file", version_filename])
 
-        # Add hidden imports
-        pyinstaller_cmd.extend([
-            "--hidden-import", "jira_importer",
-            "--hidden-import", "jira_importer.console",
-            "--hidden-import", "jira_importer.excel_io",
-            "--hidden-import", "jira_importer.app",
-            "--hidden-import", "jira_importer.config",
-            "--hidden-import", "jira_importer.artifacts",
-            "--hidden-import", "jira_importer.fileops",
-            "--hidden-import", "jira_importer.log",
-            "--hidden-import", "jira_importer.utils",
-            "--hidden-import", "jira_importer.import_pipeline.processor",
-            "--hidden-import", "jira_importer.import_pipeline.reporting",
-            "--hidden-import", "jira_importer.import_pipeline.sinks.csv_sink"
-        ])
+        # Add hidden imports - simplified to only essential third-party dependencies
+        pyinstaller_cmd.extend(
+            [
+                # Core package
+                "--hidden-import",
+                "jira_importer",
+
+                # Third-party dependencies that PyInstaller might miss
+                "--hidden-import",
+                "requests",
+                "--hidden-import",
+                "urllib3",
+                "--hidden-import",
+                "certifi",
+                "--hidden-import",
+                "charset_normalizer",
+                "--hidden-import",
+                "idna",
+                "--hidden-import",
+                "keyring",
+                "--hidden-import",
+                "colorama",
+            ]
+        )
 
         # Add data files
         for data_file in config["pyinstaller"]["add_data"]:
@@ -207,11 +222,71 @@ def build_executable(config, config_name) -> bool:
         subprocess.check_call(pyinstaller_cmd)
         _logger.info("✅ Executable built successfully!")
     except subprocess.CalledProcessError as e:
-        _logger.error(f"❌ PyInstaller build failed: {e}")
+        _logger.error("❌ PyInstaller build failed: %s", e)
         sys.exit(1)
     finally:
         # Always restore original working directory
         os.chdir(str(original_cwd))
+
+    return True
+
+
+def get_version_string() -> str:
+    """Extract version string from src/jira_importer/version.py."""
+    try:
+        # Import the version module to get version info
+        version_path = Path("src/jira_importer/version.py")
+        if not version_path.exists():
+            _logger.warning("⚠️  Version file not found: %s", version_path)
+            return "1.0.0"
+
+        # Read and execute the version file to get __version_info__
+        with open(version_path, encoding="utf-8") as f:
+            version_content = f.read()
+
+        # Create a temporary namespace to execute the version file
+        version_namespace: dict[str, object] = {}
+        exec(version_content, version_namespace)  # pylint: disable=exec-used
+
+        # Extract version tuple
+        version_info = version_namespace.get("__version_info__", (1, 0, 0, 0))
+        MIN_VERSION_TUPLE_LENGTH = 3
+        if isinstance(version_info, tuple) and len(version_info) >= MIN_VERSION_TUPLE_LENGTH:
+            major, minor, patch = version_info[0], version_info[1], version_info[2]
+        else:
+            major, minor, patch = 1, 0, 0
+
+        return f"{major}.{minor}.{patch}"
+    except Exception as e:
+        _logger.warning("⚠️  Could not extract version info: %s", e)
+        return "1.0.0"
+
+
+def copy_resources_to_dist(config, config_name) -> bool:
+    """Copy resources folder to dist directory."""
+    if not config["build_options"].get("copy_resources_to_dist", True):
+        _logger.info("⏭️  Resources copying disabled in config")
+        return True
+
+    resources_dir = config["directories"]["resources"]
+    dist_dir = config["directories"]["dist"]
+    config_dist_dir = Path(dist_dir) / config_name
+
+    if not Path(resources_dir).exists():
+        _logger.warning("⚠️  Resources directory not found: %s", resources_dir)
+        return False
+
+    if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
+        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
+        return False
+
+    resources_dest = config_dist_dir / "resources"
+    if not _safe_ops.copy_directory(resources_dir, resources_dest, "resources directory"):
+        return False
+
+    _logger.info("✅ Resources copied to dist successfully")
+    return True
+
 
 def copy_documentation(config, config_name) -> bool:
     """Copy documentation files to dist directory."""
@@ -227,7 +302,7 @@ def copy_documentation(config, config_name) -> bool:
     config_dist_dir = Path(dist_dir) / config_name
 
     if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
-        _logger.warning(f"⚠️  Warning: Could not find dist directory at {config_dist_dir}")
+        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
         return False
 
     license_dest = config_dist_dir / f"{config['pyinstaller']['name']}_LICENSE.md"
@@ -245,6 +320,43 @@ def copy_documentation(config, config_name) -> bool:
 
     return success
 
+
+def create_zip_archive(config, config_name, platform_tag) -> bool:
+    """Create ZIP archive of the build output."""
+    if not config["build_options"].get("create_zip", True):
+        _logger.info("⏭️  ZIP creation disabled in config")
+        return True
+
+    dist_dir = config["directories"]["dist"]
+    config_dist_dir = Path(dist_dir) / config_name
+
+    if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
+        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
+        return False
+
+    # Get version string
+    version = get_version_string()
+    zip_filename = f"jira-importer-{config_name}-{platform_tag}-{version}.zip"
+    zip_path = Path(dist_dir) / zip_filename
+
+    try:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through the config dist directory and add all files
+            for root, _, files in os.walk(config_dist_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    # Calculate relative path from config_dist_dir
+                    arcname = file_path.relative_to(config_dist_dir)
+                    zipf.write(file_path, arcname)
+                    _logger.debug("📦 Added to ZIP: %s", arcname)
+
+        _logger.info("✅ ZIP archive created successfully: %s", zip_path)
+        return True
+    except Exception as e:
+        _logger.error("❌ Failed to create ZIP archive: %s", e)
+        return False
+
+
 def cleanup_temp_files(config) -> bool:
     """Clean up temporary files after build completion."""
     temp_dir = config["directories"]["temp"]
@@ -259,14 +371,16 @@ def cleanup_temp_files(config) -> bool:
 
     return True
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("-c", "--config",
-                       help="Build configuration name (default: dev)",
-                       default="dev")
-    parser.add_argument("-p", "--build-poetry",
-                       help="Build the solution using Poetry",
-                       default=False, action="store_true")
+    """Main function for the build script."""
+    parser = argparse.ArgumentParser(
+        description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument("-c", "--config", help="Build configuration name (default: dev)", default="dev")
+    parser.add_argument(
+        "-p", "--build-poetry", help="Build the solution using Poetry", default=False, action="store_true"
+    )
     args = parser.parse_args()
 
     if args.build_poetry:
@@ -276,19 +390,19 @@ def main() -> None:
         sys.exit(0)
 
     # Load configuration based on argument
-    #CONFIG = load_config(args.config)
+    # CONFIG = load_config(args.config)
     build_context = BuildContext(None, args.config)
     build_utils = BuildUtils(build_context)
 
-    CONFIG = build_context.cfg
-    CONFIG_FILES = build_context.files_cfg
-    CONFIG_PYI = build_context.pyinstaller_cfg
-    CONFIG_BUILD_OPTIONS = build_context.cfg["build_options"]
+    CONFIG = build_context.cfg  # pylint: disable=invalid-name
+    CONFIG_FILES = build_context.files_cfg  # pylint: disable=invalid-name
+    CONFIG_PYI = build_context.pyinstaller_cfg  # pylint: disable=invalid-name
+    CONFIG_BUILD_OPTIONS = build_context.cfg["build_options"]  # pylint: disable=invalid-name
 
-    _logger.info(f"🖥️  Detected platform: {build_context.platform_tag}")
+    _logger.info("🖥️  Detected platform: %s", build_context.platform_tag)
     _logger.info("🚀 Starting Jira Importer build process...")
     print("=" * 20)
-    _logger.info(f"📋 Using configuration: {args.config}")
+    _logger.info("📋 Using configuration: %s", args.config)
     print("=" * 20)
 
     _logger.info("📋 Checking dependencies...")
@@ -301,9 +415,9 @@ def main() -> None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_file])
             _logger.info("✅ Requirements installed successfully")
         except subprocess.CalledProcessError as e:
-            _logger.error(f"❌ Failed to install requirements: {e}")
+            _logger.error("❌ Failed to install requirements: %s", e)
         except Exception as e:
-            _logger.error(f"❌ Failed to install requirements: {e}")
+            _logger.error("❌ Failed to install requirements: %s", e)
     else:
         _logger.info("⏭️  Requirements installation disabled in config")
 
@@ -319,14 +433,14 @@ def main() -> None:
     try:
         build_utils.create_version_file()
     except Exception as e:
-        _logger.error(f"❌ Failed to build version file: {e}")
+        _logger.error("❌ Failed to build version file: %s", e)
 
     _logger.info("📁 Copying build files...")
     if not copy_build_files(CONFIG):
         _logger.warning("❌ Failed to copy build files")
 
     _logger.info("🔨 Building executable...")
-    build_executable(CONFIG, args.config) # Pass config_name as an argument
+    build_executable(CONFIG, args.config)  # Pass config_name as an argument
 
     dist_dir = CONFIG["directories"]["dist"]
     config_dist_dir = Path(dist_dir) / args.config  # Use config-specific dist directory
@@ -335,24 +449,32 @@ def main() -> None:
     executable_path = config_dist_dir / f"{CONFIG_PYI['name']}{executable_ext}"
 
     if _safe_ops.file_exists(executable_path, "executable"):
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         _logger.info("🔐 CODE SIGNING")
-        print("="*50)
+        print("=" * 50)
         build_utils = BuildUtils(build_context)
         build_utils.sign_executable(executable_path)
     else:
-        _logger.warning(f"⚠️  Warning: Expected executable not found at {executable_path}")
+        _logger.warning("⚠️  Warning: Expected executable not found at %s", executable_path)
         _logger.debug("Checking for executable in dist directory...")
         # List contents of dist directory to help debug
         if _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
-            for root, dirs, files in os.walk(str(config_dist_dir)):
+            for root, _, files in os.walk(str(config_dist_dir)):
                 for file in files:
-                    if file.endswith('.exe'):
-                        _logger.debug(f"Found executable: {Path(root) / file}")
+                    if file.endswith(".exe"):
+                        _logger.debug("Found executable: %s", Path(root) / file)
+
+    _logger.info("📁 Copying resources to dist...")
+    if not copy_resources_to_dist(CONFIG, args.config):
+        _logger.warning("⚠️  Warning: Failed to copy resources to dist")
 
     _logger.info("📚 Copying documentation...")
     if not copy_documentation(CONFIG, args.config):  # Pass config_name
         _logger.warning("⚠️  Warning: Failed to copy documentation")
+
+    _logger.info("📦 Creating ZIP archive...")
+    if not create_zip_archive(CONFIG, args.config, build_context.platform_tag):
+        _logger.warning("⚠️  Warning: Failed to create ZIP archive")
 
     if CONFIG["build_options"]["clean_temp"]:
         if not cleanup_temp_files(CONFIG):
@@ -360,12 +482,13 @@ def main() -> None:
     else:
         _logger.info("💾 Keeping temporary files (clean_temp disabled in config)")
         temp_dir = CONFIG["directories"]["temp"]
-        _logger.info(f"📁 Temp files location: {temp_dir}")
+        _logger.info("📁 Temp files location: %s", temp_dir)
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     _logger.info("🎉 Build completed successfully!")
-    _logger.info(f"📦 Executable location: {config_dist_dir}")
-    print("="*50)
+    _logger.info("📦 Executable location: %s", config_dist_dir)
+    print("=" * 50)
+
 
 if __name__ == "__main__":
     main()

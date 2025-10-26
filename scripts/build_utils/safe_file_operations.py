@@ -1,25 +1,20 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Safe file operations for the Jira Importer build system.
+"""Safe file operations for the Jira Importer build system.
 
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
-import os
+import logging
 import shutil
 import time
-import logging
 from pathlib import Path
-from typing import Union
 
 
 class SafeFileOperations:
     """Generic file operations handler with consistent error handling and retry logic."""
 
-    def __init__(self, max_retries: int = 3, retry_delay: int = 1):
+    def __init__(self, max_retries: int = 3, retry_delay: int = 1) -> None:
+        """Initialize the SafeFileOperations class."""
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
@@ -33,45 +28,59 @@ class SafeFileOperations:
                 return operation_func(*args, **kwargs)
             except PermissionError as e:
                 if attempt < self.max_retries - 1:
-                    logger.warning(f"⚠️  Permission error during {operation_name} (attempt {attempt + 1}/{self.max_retries}): {e}")
-                    logger.warning(f"⏳ Waiting {self.retry_delay} seconds before retry...")
+                    logger.warning(
+                        "⚠️  Permission error during %s (attempt %d/%d): %s",
+                        operation_name,
+                        attempt + 1,
+                        self.max_retries,
+                        e,
+                    )
+                    logger.warning("⏳ Waiting %d seconds before retry...", self.retry_delay)
                     time.sleep(self.retry_delay)
                     self.retry_delay *= 2  # Exponential backoff
                 else:
-                    logger.error(f"❌ Failed {operation_name} after {self.max_retries} attempts: {e}")
+                    logger.error("❌ Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
                     return False
             except OSError as e:
                 if attempt < self.max_retries - 1:
-                    logger.warning(f"⚠️  OS error during {operation_name} (attempt {attempt + 1}/{self.max_retries}): {e}")
-                    logger.warning(f"⏳ Waiting {self.retry_delay} seconds before retry...")
+                    logger.warning(
+                        "⚠️  OS error during %s (attempt %d/%d): %s",
+                        operation_name,
+                        attempt + 1,
+                        self.max_retries,
+                        e,
+                    )
+                    logger.warning("⏳ Waiting %d seconds before retry...", self.retry_delay)
                     time.sleep(self.retry_delay)
                     self.retry_delay *= 2
                 else:
-                    logger.error(f"❌ Failed {operation_name} after {self.max_retries} attempts: {e}")
+                    logger.error("❌ Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
                     return False
             except Exception as e:
-                logger.error(f"❌ Unexpected error during {operation_name}: {e}")
+                logger.error("❌ Unexpected error during %s: %s", operation_name, e)
                 return False
         return False
 
-    def remove_directory(self, directory_path: Union[str, Path], description: str = "directory") -> bool:
+    def remove_directory(self, directory_path: str | Path, description: str = "directory") -> bool:
         """Safely remove a directory with retry logic and proper error handling."""
         directory_path = Path(directory_path)
         logger = logging.getLogger(__name__)
 
         if not directory_path.exists():
-            logger.info(f"⏭️  {description.capitalize()} does not exist: {directory_path}")
+            logger.info("⏭️  %s does not exist: %s", description.capitalize(), directory_path)
             return True
 
         def _remove_operation():
-            logger.info(f"🧹 Removing {description}: {directory_path}")
+            logger.info("🧹 Removing %s: %s", description, directory_path)
             shutil.rmtree(directory_path)
-            logger.info(f"✅ Successfully removed {description}: {directory_path}")
+            logger.info("✅ Successfully removed %s: %s", description, directory_path)
             return True
 
         return self._handle_operation_with_retry(f"removing {description}", _remove_operation)
 
-    def create_directory(self, directory_path: Union[str, Path], description: str = "directory", clean_if_exists: bool = False) -> bool:
+    def create_directory(
+        self, directory_path: str | Path, description: str = "directory", clean_if_exists: bool = False
+    ) -> bool:
         """Safely create a directory with optional cleaning and proper error handling."""
         directory_path = Path(directory_path)
         logger = logging.getLogger(__name__)
@@ -82,12 +91,12 @@ class SafeFileOperations:
                     return False
 
             directory_path.mkdir(parents=True, exist_ok=True)
-            logger.info(f"✅ Created/ensured {description}: {directory_path}")
+            logger.info("✅ Created/ensured %s: %s", description, directory_path)
             return True
 
         return self._handle_operation_with_retry(f"creating {description}", _create_operation)
 
-    def copy_file(self, source_path: Union[str, Path], dest_path: Union[str, Path], description: str = "file") -> bool:
+    def copy_file(self, source_path: str | Path, dest_path: str | Path, description: str = "file") -> bool:
         """Safely copy a file with proper error handling."""
         source_path = Path(source_path)
         dest_path = Path(dest_path)
@@ -98,20 +107,20 @@ class SafeFileOperations:
             dest_path.parent.mkdir(parents=True, exist_ok=True)
 
             shutil.copy2(source_path, dest_path)
-            logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
+            logger.info("✅ Successfully copied %s: %s → %s", description, source_path, dest_path)
             return True
 
         try:
             if not source_path.exists():
-                logger.error(f"❌ Source {description} not found: {source_path}")
+                logger.error("❌ Source %s not found: %s", description, source_path)
                 return False
 
             return self._handle_operation_with_retry(f"copying {description}", _copy_operation)
         except Exception as e:
-            logger.error(f"❌ Unexpected error copying {description}: {e}")
+            logger.error("❌ Unexpected error copying %s: %s", description, e)
             return False
 
-    def copy_directory(self, source_path: Union[str, Path], dest_path: Union[str, Path], description: str = "directory") -> bool:
+    def copy_directory(self, source_path: str | Path, dest_path: str | Path, description: str = "directory") -> bool:
         """Safely copy a directory with proper error handling."""
         source_path = Path(source_path)
         dest_path = Path(dest_path)
@@ -120,25 +129,25 @@ class SafeFileOperations:
         def _copy_operation():
             # Remove destination if it exists
             if dest_path.exists():
-                logger.info(f"🗑️  Removing existing {description}: {dest_path}")
+                logger.info("🗑️  Removing existing %s: %s", description, dest_path)
                 if not self.remove_directory(dest_path, description):
                     return False
 
             shutil.copytree(source_path, dest_path)
-            logger.info(f"✅ Successfully copied {description}: {source_path} → {dest_path}")
+            logger.info("✅ Successfully copied %s: %s → %s", description, source_path, dest_path)
             return True
 
         try:
             if not source_path.exists():
-                logger.error(f"❌ Source {description} not found: {source_path}")
+                logger.error("❌ Source %s not found: %s", description, source_path)
                 return False
 
             return self._handle_operation_with_retry(f"copying {description}", _copy_operation)
         except Exception as e:
-            logger.error(f"❌ Unexpected error copying {description}: {e}")
+            logger.error("❌ Unexpected error copying %s: %s", description, e)
             return False
 
-    def file_exists(self, file_path: Union[str, Path], description: str = "file") -> bool:
+    def file_exists(self, file_path: str | Path, description: str = "file") -> bool:
         """Safely check if a file exists with proper error handling."""
         file_path = Path(file_path)
         logger = logging.getLogger(__name__)
@@ -146,13 +155,13 @@ class SafeFileOperations:
         try:
             exists = file_path.is_file()
             if not exists:
-                logger.warning(f"⚠️  {description.capitalize()} not found: {file_path}")
+                logger.warning("⚠️  %s not found: %s", description.capitalize(), file_path)
             return exists
         except Exception as e:
-            logger.debug(f"❌ Error checking {description}: {e}")
+            logger.debug("❌ Error checking %s: %s", description, e)
             return False
 
-    def directory_exists(self, directory_path: Union[str, Path], description: str = "directory") -> bool:
+    def directory_exists(self, directory_path: str | Path, description: str = "directory") -> bool:
         """Safely check if a directory exists with proper error handling."""
         directory_path = Path(directory_path)
         logger = logging.getLogger(__name__)
@@ -160,8 +169,8 @@ class SafeFileOperations:
         try:
             exists = directory_path.is_dir()
             if not exists:
-                logger.debug(f"⚠️  {description.capitalize()} not found: {directory_path}")
+                logger.debug("⚠️  %s not found: %s", description.capitalize(), directory_path)
             return exists
         except Exception as e:
-            logger.debug(f"❌ Error checking {description}: {e}")
+            logger.debug("❌ Error checking %s: %s", description, e)
             return False

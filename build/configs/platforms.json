@@ -7,7 +7,7 @@
     "pyinstaller": {
       "onefile": true,
       "console": true,
-      "name": "jira_importer",
+      "name": "jira-importer",
       "add_data": [
         "deerhide_default.ico;.",
         "VSVersionInfo;.",
@@ -30,7 +30,7 @@
     "pyinstaller": {
       "onefile": true,
       "console": true,
-      "name": "jira_importer",
+      "name": "jira-importer",
       "add_data": [
         "resources:resources"
       ]
@@ -48,7 +48,7 @@
     "pyinstaller": {
       "onefile": true,
       "console": true,
-      "name": "jira_importer",
+      "name": "jira-importer",
       "add_data": [
         "deerhide_default.png:.",
         "resources:resources"

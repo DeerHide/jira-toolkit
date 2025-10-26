@@ -1,22 +1,18 @@
-"""
-script name: config_view.py
-description: ConfigView: typed accessor for config (validation lists, skip flags, toggles).
-author: Julien (@tom4897)
-license: MIT
-date: 2025
-"""
+"""description: ConfigView: typed accessor for config (validation lists, skip flags, toggles).
 
-# TODO: Create a config view for the excel file
-# TODO: Check potential duplicates and conflicts between all the config sources (importer, excel, import pipeline)
+author:
+    Julien (@tom4897)
+"""
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 
 class ConfigView:
-    """
-    Small duck-typed wrapper that supports .get("a.b.c", default).
+    """Small duck-typed wrapper that supports .get("a.b.c", default).
+
     Works with:
       - dict-like configs
       - objects exposing get(key, default) or get_value(key, default)
@@ -24,9 +20,11 @@ class ConfigView:
     """
 
     def __init__(self, cfg: Any) -> None:
+        """Initialize the ConfigView class."""
         self._cfg = cfg
 
     def get(self, dotted_key: str, default: Any = None) -> Any:
+        """Get a value from the configuration."""
         # 1) direct dict lookup with dotted key
         if isinstance(self._cfg, Mapping) and dotted_key in self._cfg:
             return self._cfg.get(dotted_key, default)
@@ -66,5 +64,7 @@ class ConfigView:
 
     @property
     def version(self) -> str:
+        """Get the version from the configuration."""
+        # TODO: Delete this property once the version is removed from the configuration
         v = self.get("app.version", "") or getattr(self._cfg, "version", "")
         return str(v) if v is not None else ""

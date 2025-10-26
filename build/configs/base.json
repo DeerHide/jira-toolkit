@@ -13,10 +13,10 @@
   "files": {
     "requirements": "requirements.lock",
     "license": "LICENSE",
-    "readme": "README.md"
+    "readme": "README_APP.md"
   },
   "dependencies": {
-    "required": ["pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog"]
+    "required": ["pandas", "rich", "openpyxl", "tqdm", "colorlog", "structlog", "requests", "keyring", "colorama"]
   },
   "build_options": {
     "clean_dist": true,
@@ -24,7 +24,9 @@
     "check_dependencies": true,
     "install_requirements": true,
     "copy_documentation": true,
-    "build_version_file": true
+    "build_version_file": true,
+    "copy_resources_to_dist": true,
+    "create_zip": true
   },
   "output_control": {
     "verbose": true,

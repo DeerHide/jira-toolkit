@@ -1,30 +1,24 @@
-"""
-script name: builtin_rules.py
-description: This script contains the built-in rules for the Jira Importer.
-author: Julien (@tom4897)
-license: MIT
-date: 2025
+"""description: This script contains the built-in rules for the Jira Importer.
+
+author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Optional, Sequence
-
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Any
 
-from ..models import (
-    IRowRule,
-    Problem,
-    ProblemSeverity,
-    ValidationContext,
-    ValidationResult,
-    ColumnIndices,
-)
+from ...config.constants import LEVEL_4_SUBTASK
+from ...config.issuetypes import get_allowed_issue_types, get_issue_type_level
+from ..models import ColumnIndices, IRowRule, Problem, ProblemSeverity, ValidationContext, ValidationResult
 
 # helpers functions
 
-def _cell_str(row: Sequence[Any], idx: Optional[int]) -> str:
+
+def _cell_str(row: Sequence[Any], idx: int | None) -> str:
     if idx is None:
         return ""
     if idx < 0 or idx >= len(row):
@@ -35,20 +29,24 @@ def _cell_str(row: Sequence[Any], idx: Optional[int]) -> str:
     s = str(v).strip()
     return s
 
+
 def _is_empty(s: str) -> bool:
     return s == ""
 
 
 # rules definitions
 
+
 @dataclass(slots=True)
 class SummaryRequiredRule(IRowRule):
-    """
-    Summary must not be empty.
+    """Summary must not be empty.
+
     Severity: error
     Note: Mandatory for the Jira Cloud & Jira Server
     """
+
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         summary = _cell_str(row, indices.summary)
         if _is_empty(summary):
             return ValidationResult(
@@ -67,27 +65,25 @@ class SummaryRequiredRule(IRowRule):
 
 @dataclass(slots=True)
 class IssueTypeAllowedRule(IRowRule):
-    """
-    IssueType must be one of allowed issuetypes (config override supported).
+    """IssueType must be one of allowed issuetypes (config override supported).
+
     Default: {'Story','Task','Bug','Epic','Sub-Task'}
     Severity: error
     Note: Mandatory for the Jira Cloud & Jira Server
     """
-    allowed: Optional[set[str]] = None
+
+    allowed: set[str] | None = None
 
     def _allowed(self, ctx: ValidationContext) -> set[str]:
-        # Duck-typed ConfigView: try get(), else defaults.
-        default = {"Story", "Task", "Bug", "Epic", "Sub-Task"}
-        cfg = getattr(ctx.config, "get", None)
-        if callable(cfg):
-            values = ctx.config.get("validation.allowed_issuetypes", default)
-            try:
-                return set(v if isinstance(v, str) else str(v) for v in values)
-            except Exception:
-                return default
-        return default
+        # Use unified config-driven issue types (handles both old and new formats)
+        try:
+            return get_allowed_issue_types(ctx.config.get)
+        except Exception:
+            # Final fallback to hardcoded defaults if config is completely broken
+            return {"Story", "Task", "Bug", "Epic", "Sub-Task"}
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         issuetype = _cell_str(row, indices.issuetype)
         if _is_empty(issuetype):
             return ValidationResult(
@@ -119,17 +115,18 @@ class IssueTypeAllowedRule(IRowRule):
 
 @dataclass(slots=True)
 class PriorityAllowedRule(IRowRule):
-    """
-    Priority must be one of allowed priorities (config override supported).
+    """Priority must be one of allowed priorities (config override supported).
+
     Default: {'Highest','High','Medium','Low','Lowest'}
     Severity: warning (fixable via fixer to normalize/pad if needed)
     Note: Mandatory for the Jira Cloud & Jira Server
     """
+
     def _allowed(self, ctx: ValidationContext) -> set[str]:
         default = {"Highest", "High", "Medium", "Low", "Lowest"}
         cfg = getattr(ctx.config, "get", None)
         if callable(cfg):
-            values = ctx.config.get("validation.allowed_priorities", default)
+            values = ctx.config.get("jira.priorities", default)
             try:
                 return set(v if isinstance(v, str) else str(v) for v in values)
             except Exception:
@@ -137,6 +134,7 @@ class PriorityAllowedRule(IRowRule):
         return default
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         pri = _cell_str(row, indices.priority)
         if _is_empty(pri):
             # Check if the priority is empty
@@ -169,13 +167,13 @@ class PriorityAllowedRule(IRowRule):
 
 @dataclass(slots=True)
 class IssueIdPresenceRule(IRowRule):
-    """
-    IssueId may be missing; if so, we raise a 'fix' severity so a Fixer can assign one.
-    Also checks duplicates when provided (error).
-    """
+    """IssueId may be missing; if so, we raise a 'fix' severity so a Fixer can assign one. Also checks duplicates when provided (error)."""
+
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         issue_id = _cell_str(row, indices.issue_id)
 
+        # Missing issue ID
         if _is_empty(issue_id):
             # Signal a fixable condition
             return ValidationResult(
@@ -190,6 +188,7 @@ class IssueIdPresenceRule(IRowRule):
                 )
             )
 
+        # Invalid issue ID
         if ctx.invalid_issue_id(issue_id):
             return ValidationResult(
                 problems=(
@@ -203,8 +202,8 @@ class IssueIdPresenceRule(IRowRule):
                 )
             )
 
-        # duplicate detection
-        if ctx.seen_issue_id(issue_id):
+        # Duplicate detection
+        if ctx.seen_issue_id_in_validation(issue_id):
             return ValidationResult(
                 problems=(
                     Problem(
@@ -222,8 +221,8 @@ class IssueIdPresenceRule(IRowRule):
 
 @dataclass(slots=True)
 class EstimateFormatRule(IRowRule):
-    """
-    Validate 'estimate' or 'origest' fields format.
+    """Validate 'estimate' or 'origest' fields format.
+
     Accepts patterns like: '1w 2d 3h 30m', '2h', '45m', or plain integers (minutes or seconds per config).
     - If unparsable → error.
     - If parsable → no problem; a Fixer may normalize to seconds/minutes for target sink.
@@ -232,6 +231,7 @@ class EstimateFormatRule(IRowRule):
       - validation.estimate.accept_integers_as: 'seconds' | 'minutes' (default 'seconds')
       - validation.estimate.fields: ['estimate','origest'] (defaults to both when present)
     """
+
     def _integer_unit(self, ctx: ValidationContext) -> str:
         cfg_get = getattr(ctx.config, "get", None)
         if callable(cfg_get):
@@ -239,7 +239,7 @@ class EstimateFormatRule(IRowRule):
             return unit if unit in {"seconds", "minutes"} else "seconds"
         return "seconds"
 
-    def _fields(self, indices: ColumnIndices, ctx: ValidationContext) -> list[tuple[str, Optional[int]]]:
+    def _fields(self, indices: ColumnIndices, ctx: ValidationContext) -> list[tuple[str, int | None]]:
         # Decide which columns to validate
         cfg_get = getattr(ctx.config, "get", None)
         wanted = None
@@ -257,6 +257,7 @@ class EstimateFormatRule(IRowRule):
         return keys
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         problems: list[Problem] = []
         for key, idx in self._fields(indices, ctx):
             raw = _cell_str(row, idx)
@@ -279,11 +280,10 @@ class EstimateFormatRule(IRowRule):
 
 @dataclass(slots=True)
 class ProjectKeyConsistencyRule(IRowRule):
-    """
-    If a Project Key column exists, it should match the configured one (warning/fix).
-    Config key: jira.project.key
-    """
+    """If a Project Key column exists, it should match the configured one (warning/fix). Config key: jira.project.key."""
+
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
         if indices.project_key is None:
             return ValidationResult.empty()
 
@@ -328,9 +328,10 @@ class ProjectKeyConsistencyRule(IRowRule):
 
 _EST_TOKEN_RE = re.compile(r"(?P<num>\d+)\s*(?P<unit>[wdhms])", re.IGNORECASE)
 
-def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> bool:
-    """
-    True if 'value' looks like a valid estimate.
+
+def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> bool:  # pylint: disable=unused-argument
+    """True if 'value' looks like a valid estimate.
+
     Accepts:
       - tokenized: '1w 2d 3h 30m', '2h', '45m', '30s'
       - chained:   '1w2d3h30m', '2h30m'
@@ -357,3 +358,75 @@ def _is_parseable_estimate(value: str, *, accept_int_as: str = "seconds") -> boo
         matched = True
         pos = m.end()
     return matched
+
+
+@dataclass(slots=True)
+class ParentLinkValidationRule(IRowRule):
+    """Validate parent-child links based on issue type hierarchy.
+
+    Rules:
+    - Level 1 (Initiative) can parent levels 2, 3, 4
+    - Level 2 (Epic) can parent levels 3, 4
+    - Level 3 (Story/Task/Bug) can parent level 4 only
+    - Level 4 (Sub-Task) cannot parent anything
+    - Level 4 (Sub-Task) must have a parent
+    """
+
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to validate parent-child links based on issue type hierarchy."""
+        problems = []
+
+        # Get current issue info
+        issue_type = _cell_str(row, indices.issuetype)
+        parent_value = _cell_str(row, indices.parent) if indices.parent else ""
+
+        if not issue_type:
+            return ValidationResult.empty()
+
+        cfg_get = getattr(ctx.config, "get", None)
+        if not callable(cfg_get):
+            return ValidationResult.empty()
+
+        child_level = get_issue_type_level(cfg_get, issue_type)
+
+        # Check if sub-task has no parent
+        if child_level == LEVEL_4_SUBTASK and _is_empty(parent_value):
+            problems.append(
+                Problem(
+                    code="parent_link.missing",
+                    message="Sub-Task must have a parent",
+                    severity=ProblemSeverity.CRITICAL,
+                    row_index=ctx.row_index,
+                    col_key="parent",
+                )
+            )
+
+        # Check parent-child links if parent exists
+        if not _is_empty(parent_value):
+            # Skip external Jira keys (PROJ-123 format)
+            if self._is_jira_key(parent_value):
+                return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
+
+            # Try to resolve parent from issue_data
+            issue_data = getattr(ctx, "issue_data", {})
+            if parent_value in issue_data:
+                parent_type, _ = issue_data[parent_value]
+                parent_level = get_issue_type_level(cfg_get, parent_type)
+
+                # Validate hierarchy: parent level must be < child level
+                if parent_level is not None and child_level is not None and parent_level >= child_level:
+                    problems.append(
+                        Problem(
+                            code="parent_link.unsupported",
+                            message=f"Invalid parent-child links: {issue_type} (level {child_level}) cannot have {parent_type} (level {parent_level}) as parent. Parent must be at a higher level in the hierarchy.",
+                            severity=ProblemSeverity.CRITICAL,
+                            row_index=ctx.row_index,
+                            col_key="parent",
+                        )
+                    )
+
+        return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
+
+    def _is_jira_key(self, value: str) -> bool:
+        """Check if value looks like external Jira key (PROJ-123)."""
+        return bool(re.match(r"^[A-Z][A-Z0-9]+-\d+$", value))

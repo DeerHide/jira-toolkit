@@ -1,26 +1,24 @@
+"""description: CSV sink: write Jira-ready CSV output.
+
+author:
+    Julien (@tom4897)
 """
-script name: csv_sink.py
-description: CSV sink: write Jira-ready CSV output.
-author: Julien (@tom4897)
-license: MIT
-date: 2025
-"""
+
 from __future__ import annotations
 
 # NOTE, Jira CLoud: Some Jira Cloud users are affected by the historical "divide by 60" behavior. The fix (*60) will be implemented in this sink.
 #   if config.get("jira.cloud.estimate.multiply_by_60", False):
 #       row[estimate_index] = str(int(row[estimate_index]) * 60)
-
 import csv
 from pathlib import Path
-from typing import Any
 
-from ..models import ProcessorResult
-from ..config_view import ConfigView
-from .sink_utils import times60_estimates_inplace
+from ...config.config_view import ConfigView
 from ...console import ConsoleIO
+from ..models import ProcessorResult
+from .sink_utils import times60_estimates_inplace
 
 ui = ConsoleIO.getUI()
+
 
 def write_csv(
     result: ProcessorResult,
@@ -30,12 +28,11 @@ def write_csv(
     encoding: str = "utf-8",
     newline: str = "",
 ) -> Path:
-    """
-    Write the processed rows as a CSV with the given header.
+    """Write the processed rows as a CSV with the given header.
 
     Notes:
       - Estimates are written in canonical SECONDS as produced by the pipeline.
-      - If your target (e.g., Jira Cloud CSV import) needs the historical '×60' quirk,
+      - If your target (e.g., Jira Cloud CSV import) needs the historical 'x60' quirk,
         make it config-driven here (NOT in rules/fixes):
 
             if cfg.get("jira.cloud.estimate.multiply_by_60", False):
@@ -43,7 +40,7 @@ def write_csv(
 
     """
     out_path = Path(out_path)
-    #out_path.parent.mkdir(parents=True, exist_ok=True)
+    # out_path.parent.mkdir(parents=True, exist_ok=True)
 
     cfg = ConfigView(config) if config is not None else None
 
@@ -56,7 +53,7 @@ def write_csv(
         w.writerow(result.header)
 
         # Add progress tracking if UI is available
-        if ui and hasattr(ui, 'progress'):
+        if ui and hasattr(ui, "progress"):
             with ui.progress() as progress:
                 task = progress.add_task("Writing CSV", total=len(result.rows))
                 for row in result.rows:

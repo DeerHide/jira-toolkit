@@ -1,31 +1,18 @@
-"""
-Script Name: validator.py
-Description: This script contains the validator for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+"""Description: This script contains the validator for the Jira Importer.
+
+Author:
+    Julien (@tom4897)
 """
 
 from __future__ import annotations
 
-from dataclasses import replace
-from typing import Iterable, List, Mapping, MutableMapping, Optional, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 
-from .models import (
-    IRowRule,
-    IFixer,
-    FixOutcome,
-    Problem,
-    ProblemSeverity,
-    ValidationContext,
-    ValidationResult,
-    ColumnIndices,
-)
+from .models import ColumnIndices, FixOutcome, IRowRule, Problem, ValidationContext, ValidationResult
 
 
-class JiraImportValidator:
-    """
-    Runs row-level rules and (optionally) applies safe auto-fixes via a FixRegistry.
+class JiraImportValidator:  # pylint: disable=too-few-public-methods
+    """Runs row-level rules and (optionally) applies safe auto-fixes via a FixRegistry.
 
     Contract:
       validate_row(row, indices, ctx) -> ValidationResult
@@ -41,16 +28,17 @@ class JiraImportValidator:
         self,
         *,
         rules: Sequence[IRowRule],
-        fix_registry: Optional[object] = None,
+        fix_registry: object | None = None,
     ) -> None:
-        """
+        """Initialize the JiraImportValidator class.
+
         Args:
-            rules: Ordered list of row rules to run.
-            fix_registry: Optional object exposing
-                apply(problem, row, indices, ctx) -> FixOutcome
-            (A concrete registry can dispatch to IFixer instances by problem.code.)
+        rules: Ordered list of row rules to run.
+        fix_registry: Optional object exposing
+            apply(problem, row, indices, ctx) -> FixOutcome
+        (A concrete registry can dispatch to IFixer instances by problem.code.)
         """
-        self._rules: List[IRowRule] = list(rules)
+        self._rules: list[IRowRule] = list(rules)
         self._fix_registry = fix_registry
 
     # --------------------------------------------------------------------- #
@@ -63,8 +51,7 @@ class JiraImportValidator:
         indices: ColumnIndices,
         ctx: ValidationContext,
     ) -> ValidationResult:
-        """
-        Run all rules on a single row and (optionally) apply fixes.
+        """Run all rules on a single row and (optionally) apply fixes.
 
         Returns:
             ValidationResult(problems, patch, notes)
@@ -88,7 +75,7 @@ class JiraImportValidator:
                 # Ask registry to handle this problem; registry decides if it has a fixer.
                 try:
                     outcome: FixOutcome = self._fix_registry.apply(prob, row, indices, ctx)  # type: ignore[attr-defined]
-                except AttributeError as e:
+                except AttributeError:
                     # Registry does not expose 'apply' → fail closed (no fixes)
                     outcome = FixOutcome(applied=False)
                 except Exception:
@@ -115,9 +102,10 @@ class JiraImportValidator:
 # Helpers
 # ------------------------------------------------------------------------- #
 
+
 def _merge_patch(dest: MutableMapping[int, str], src: Mapping[int, str]) -> None:
-    """
-    Merge sparse patches. Later writes win on the same column index.
+    """Merge sparse patches. Later writes win on the same column index.
+
     Values are expected to be strings (post-normalization contract).
     """
     for k, v in src.items():

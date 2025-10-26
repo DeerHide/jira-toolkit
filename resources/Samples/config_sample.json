@@ -1,0 +1,38 @@
+{
+  "app": {
+    "import": {
+      "auto_open_page": false
+    }
+  },
+  "jira": {
+    "issuetypes": [
+      { "name": "Initiative", "level": 1 },
+      { "name": "Epic", "level": 2 },
+      { "name": "Story", "level": 3 },
+      { "name": "Task", "level": 3 },
+      { "name": "Bug", "level": 3 },
+      { "name": "Sub-Task", "level": 4 }
+    ],
+    "priorities": [
+      "Highest",
+      "High",
+      "Medium",
+      "Low",
+      "Lowest"
+    ],
+    "project": {
+      "key": "JITTP2"
+    }
+  },
+  "metadata": {
+    "version": 7
+  },
+  "validation": {
+    "skip_issuetypes": [
+      "comment",
+      "note",
+      "skip"
+    ],
+    "skip_rowtype": true
+  }
+}

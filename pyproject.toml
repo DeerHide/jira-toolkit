@@ -1,6 +1,6 @@
 [project]
 name = "jira-toolkit"
-version = "0.1.0"
+version = "1.0.0"
 description = "A utility for batch-importing tasks from Excel into Jira"
 readme = "README.md"
 license = {text = "MIT"}
@@ -17,6 +17,9 @@ dependencies = [
     "structlog>=23.0.0",
     "colorlog>=6.7.0",
     "PyYAML>=6.0",
+    "requests>=2.25.0",
+    "keyring>=23.0.0",
+    "colorama>=0.4.0; platform_system == 'Windows'",
 ]
 
 [project.optional-dependencies]
@@ -26,8 +29,9 @@ dev = [
     "pytest-cov>=4.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
-    "flake8>=6.0.0",
     "mypy>=1.0.0",
+    "ruff>=0.6.0",
+    "pylint>=3.2.0",
 ]
 
 [build-system]
@@ -51,7 +55,7 @@ post-build = "scripts.pyinstaller_hooks:post_build"
 
 [tool.poetry]
 name = "jira_importer"
-version = "0.1.0"
+version = "1.0.0"
 description = "Jira Importer Application"
 packages = [{ include = "jira_importer", from = "src" }]
 
@@ -65,13 +69,57 @@ console = true
 icon = "build/icons/deerhide_default.ico"
 hiddenimport = [
   "jira_importer.console",
-  "jira_importer.excel_io",
+  "jira_importer.excel.excel_io",
+  "jira_importer.excel.excel_table_reader",
   "jira_importer.app",
   "jira_importer.config",
+  "jira_importer.config.excel_config",
+  "jira_importer.config.config_models",
+  "jira_importer.config.config_factory",
+  "jira_importer.config.config_display",
+  "jira_importer.config.config_view",
+  "jira_importer.config.constants",
+  "jira_importer.config.issuetypes",
+  "jira_importer.config.json_config",
+  "jira_importer.config.utils",
   "jira_importer.artifacts",
   "jira_importer.fileops",
   "jira_importer.log",
-  "jira_importer.utils"
+  "jira_importer.utils",
+  "jira_importer.import_pipeline.processor",
+  "jira_importer.import_pipeline.reporting",
+  "jira_importer.import_pipeline.validator",
+  "jira_importer.import_pipeline.models",
+  "jira_importer.import_pipeline.sinks.csv_sink",
+  "jira_importer.import_pipeline.sinks.cloud_sink",
+  "jira_importer.import_pipeline.sources.csv_source",
+  "jira_importer.import_pipeline.sources.xlsx_source",
+  "jira_importer.import_pipeline.cloud.client",
+  "jira_importer.import_pipeline.cloud.auth",
+  "jira_importer.import_pipeline.cloud.secrets",
+  "jira_importer.import_pipeline.cloud.credential_manager",
+  "jira_importer.import_pipeline.cloud.bulk",
+  "jira_importer.import_pipeline.cloud.mappers",
+  "jira_importer.import_pipeline.cloud.metadata",
+  # Requests and HTTP dependencies (fixes macOS build issues)
+  "requests",
+  "requests.adapters",
+  "requests.auth",
+  "requests.cookies",
+  "requests.exceptions",
+  "requests.models",
+  "requests.sessions",
+  "requests.structures",
+  "requests.utils",
+  "urllib3",
+  "urllib3.util",
+  "urllib3.util.retry",
+  "urllib3.poolmanager",
+  "certifi",
+  "charset_normalizer",
+  "idna",
+  "keyring",
+  "colorama"
 ]
 
 
@@ -87,19 +135,16 @@ hiddenimport = [
 # Removed - using poetry packages configuration instead
 
 [tool.black]
-line-length = 150
-target-version = ["py310"]
+line-length = 120
+target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
-line_length = 80
+line_length = 120
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--cov=jira_importer", "--cov-report=term-missing"]
-
-[flake8]
-max-line-length = 150
 
 [tool.ruff]
 # Same as Black.
@@ -108,12 +153,28 @@ indent-width = 4
 
 [tool.ruff.lint]
 select = ["D","F","E","W","I","UP","PL","N","RUF"]
+ignore = [
+  # Import position and long lines; will be fixed later
+  "E402", "E501",
+  # Complexity/size rules to address in refactors
+  "PLR0912", "PLR0915", "PLR0913", "PLR0911",
+  # Comparison merging suggestion
+  "PLR1714",
+  # Import-outside-top-level noise
+  "PLC0415",
+  # Naming conventions that require broader refactors
+  "N802", "N806",
+  # Globals and similar
+  "PLW0603",
+  # Allow TODO/FIXME notes without failing (Ruff's FIX002)
+  "FIX002",
+]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
-docstring-code-line-length = 120
+docstring-code-line-length = 150
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

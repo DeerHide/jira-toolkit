@@ -1,12 +1,121 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
+default_stages:
+  - "pre-push"
+  - "pre-commit"
+  - "manual"
 repos:
+  - repo: local
+    hooks:
+      - id: poetry lock and update
+        name: poetry lock and update
+        entry: "poetry"
+        args: ["update", "--with=test", "--sync"]
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages:
+          - "pre-push"
+          - "manual"
+      - id: pytest
+        name: pytest
+        entry: "python"
+        args:
+          - "-m"
+          - "pytest"
+          - "--cov=src"
+          - "--cov-report=lcov:build/coverage.lcov"
+          - "--junitxml=build/junit.xml"
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages:
+          - "pre-push"
+          - "manual"
+      - id: mypy
+        name: mypy
+        entry: "python"
+        args:
+          - "-m"
+          - "mypy"
+        language: system
+        types: [python]
+        pass_filenames: false
+        always_run: true
+        stages:
+          - "pre-push"
+          - "manual"
+      - id: ruff-format
+        name: ruff-format
+        language: system
+        entry: "python"
+        types: [python]
+        pass_filenames: false
+        args:
+          - "-m"
+          - "ruff"
+          - "format"
+          - "src"
+          - "tests"
+        stages:
+          - "pre-commit"
+          - "manual"
+      - id: ruff-check
+        name: ruff-check
+        language: system
+        entry: "python"
+        types: [python]
+        pass_filenames: false
+        args:
+          - "-m"
+          - "ruff"
+          - "check"
+          - "src"
+          - "tests"
+          - "--fix"
+        stages:
+          - "pre-commit"
+          - "manual"
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        stages:
+          - "pre-push"
+          - "pre-commit"
+          - "manual"
       - id: end-of-file-fixer
-      - id: mixed-line-ending
-        args: [--fix=lf]
-      - id: check-added-large-files
+        stages:
+          - "pre-push"
+          - "pre-commit"
+          - "manual"
       - id: check-json
+        stages:
+          - "pre-commit"
+          - "manual"
+      - id: pretty-format-json
+        args: ["--autofix"]
+        stages:
+          - "pre-commit"
+          - "manual"
+  - repo: https://github.com/pylint-dev/pylint
+    rev: v3.2.2
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: "python"
+        language: system
+        types: [python]
+        args:
+          - "-m"
+          - "pylint"
+          - "-rn"
+          - "-sn"
+          - "--rcfile=pylintrc"
+          - "--fail-on=I"
+          - "-j=4"
+        stages:
+          - "pre-push"
+          - "manual"

@@ -1,26 +1,62 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""Description: This script contains utility functions for the Jira Importer.
 
-"""
-Script Name: utils.py
-Description: This script contains utility functions for the Jira Importer.
-Author: Julien (@tom4897)
-License: MIT
-Date: 2025
+Author:
+    Julien (@tom4897)
 """
 
 import logging
-import sys
 import os
+import sys
+import urllib.parse
 import webbrowser
-import colorlog
-from typing import Optional
+from pathlib import Path
+from typing import Any
 
 from .console import ConsoleIO
+from .constants import ASCII_CONTROL_MAX, MAX_RELATIVE_PATH_LEN
+from .excel.excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
-ui = ConsoleIO.getUI()
+ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt
+
+
+def _contains_control_chars(value: str) -> bool:
+    """Return True if the string contains ASCII control characters.
+
+    Keeps validation lightweight to avoid rejecting legitimate Unicode input.
+    """
+    return any(ord(ch) <= ASCII_CONTROL_MAX for ch in value)
+
+
+def _sanitize_relative_path(relative_path: str) -> Path:
+    """Validate and sanitize a user-controlled relative path.
+
+    - Reject absolute paths
+    - Reject traversal elements (..)
+    - Reject control characters
+    - Apply lightweight length limits to avoid abuse
+    """
+    if not isinstance(relative_path, str):
+        raise ValueError("relative_path must be a string")
+
+    if _contains_control_chars(relative_path):
+        raise ValueError("path contains control characters")
+
+    # Basic length constraints (conservative defaults)
+    if len(relative_path) == 0 or len(relative_path) > MAX_RELATIVE_PATH_LEN:
+        raise ValueError("path length is invalid")
+
+    if os.path.isabs(relative_path):
+        raise ValueError("absolute paths are not allowed here")
+
+    p = Path(relative_path)
+    if any(part == ".." for part in p.parts):
+        # raise ValueError("path traversal is not allowed")
+        logger.warning("path traversal is not recommended for security reasons: %s", relative_path)
+
+    return p
+
 
 def resource_path(relative_path: str) -> str:
     """Resolve a resource path robustly across frozen and non-frozen runs.
@@ -28,61 +64,88 @@ def resource_path(relative_path: str) -> str:
     - In PyInstaller (frozen), load from the temporary extraction dir (sys._MEIPASS).
     - Otherwise, prefer the current working directory, but fall back safely if CWD is invalid.
     """
-    # PyInstaller onefile/onedir extraction directory
-    if hasattr(sys, '_MEIPASS'):
-        try:
-            return os.path.join(sys._MEIPASS, relative_path)  # type: ignore[attr-defined]
-        except Exception:
-            # As a last resort, use the executable directory
-            base_dir = os.path.dirname(sys.executable)
-            return os.path.join(base_dir, relative_path)
-
-    # Non-frozen: try current working directory first
+    # Validate provided relative path
     try:
-        cwd = os.getcwd()
-        return os.path.join(cwd, relative_path)
-    except Exception:
-        # If CWD is invalid (e.g., deleted), fall back to the module directory
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_dir, relative_path)
+        rel = _sanitize_relative_path(relative_path)
+    except Exception as exc:  # pylint: disable=broad-except
+        ui.error(f"Invalid resource path '{fmt.path(relative_path)}': {exc}")
+        logger.warning("Invalid resource path '%s': %s", relative_path, exc)
+        # Fail closed with a safe default inside the module directory
+        base_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+        return str((base_dir / "invalid").resolve())
+
+    # PyInstaller onefile/onedir extraction directory
+    if hasattr(sys, "_MEIPASS"):
+        try:
+            base = Path(sys._MEIPASS)  # type: ignore[attr-defined] # pylint: disable=protected-access
+        except Exception:  # pragma: no cover - very rare fallback
+            base = Path(os.path.dirname(sys.executable))
+        return str((base / rel).resolve())
+
+    # Non-frozen: prefer current working directory; fallback to module directory
+    try:
+        cwd = Path(os.getcwd())
+        return str((cwd / rel).resolve())
+    except Exception:  # pragma: no cover - unusual environment issue
+        base_dir = Path(os.path.dirname(os.path.abspath(__file__)))
+        return str((base_dir / rel).resolve())
+
+
 # Usage: config_path = resource_path('config_importer.json')
 
-def get_logs_directory() -> str:
-    """Get or create the logs directory in the executable's location."""
-    # Get the directory where the executable/script is located
-    if hasattr(sys, '_MEIPASS'):
-        # PyInstaller executable
-        exe_dir = sys._MEIPASS
-    else:
-        # Regular Python script - use the directory containing the script
-        exe_dir = os.path.dirname(os.path.abspath(__file__))
 
-    logs_dir = os.path.join(exe_dir, 'jira_importer_logs')
+def get_executable_dir() -> str:
+    """Return the directory where the script or compiled executable resides."""
+    if getattr(sys, "frozen", False):
+        # Running as a PyInstaller bundle
+        exe_dir = os.path.dirname(sys.executable)
+    else:
+        # Running from source
+        exe_dir = os.path.dirname(os.path.abspath(__file__))
+    return exe_dir
+
+
+def get_logs_directory() -> str:
+    """Get or create the logs directory next to the executable or script."""
+    exe_dir = get_executable_dir()
+    logs_dir = os.path.join(exe_dir, "jira_importer_logs")
+
     try:
-        logger.debug(f"Creating logs directory in executable location: {logs_dir}")
         os.makedirs(logs_dir, exist_ok=True)
         return logs_dir
-    except (PermissionError, OSError) as e:
-        # Fallback to temp directory if we can't create logs dir
+    except (PermissionError, OSError):
         import tempfile
-        ui.error(f"Could not create logs directory in executable location: {e}")
-        logger.debug(f"Could not create logs directory in executable location: {e}")
-        temp_logs_dir = os.path.join(tempfile.gettempdir(), 'jira-toolkit', 'logs')
+
+        temp_logs_dir = os.path.join(tempfile.gettempdir(), "jira-toolkit", "logs")
         os.makedirs(temp_logs_dir, exist_ok=True)
         return temp_logs_dir
 
 
-def find_config_path(config_filename: str, input_file_path: Optional[str] = None, config_default: bool = False, config_input: bool = False, config_specific: bool = False) -> str:
-    search_paths = []
+def find_config_path(
+    config_filename: str,
+    input_file_path: str | None = None,
+    config_default: bool = False,
+    config_input: bool = False,
+    config_specific: bool = False,
+) -> str:
+    """Find the configuration file path."""
+    search_paths: list[str] = []
 
     # If config_specific is True (when -c is used), only try the exact path provided
     if config_specific:
-        # Check if it's an absolute path
-        if os.path.isabs(config_filename):
-            search_paths.append(config_filename)
-        else:
-            # For relative paths, try relative to current working directory
-            search_paths.append(os.path.abspath(config_filename))
+        # Absolute path allowed, otherwise sanitize relative
+        try:
+            if os.path.isabs(config_filename):
+                candidate = Path(config_filename).resolve(strict=False)
+            else:
+                rel = _sanitize_relative_path(config_filename)
+                candidate = (Path.cwd() / rel).resolve(strict=False)
+            search_paths.append(str(candidate))
+        except Exception as exc:
+            fmt_config_filename = fmt.path(config_filename)
+            ui.error(f"Invalid configuration path '{fmt_config_filename}': {exc}")
+            logger.warning("Invalid configuration path '%s': %s", config_filename, exc)
+            return config_filename
 
         logger.debug(f"Specific config path provided, searching only in: {search_paths}")
         for path in search_paths:
@@ -96,23 +159,71 @@ def find_config_path(config_filename: str, input_file_path: Optional[str] = None
         logger.warning(f"Configuration file '{config_filename}' not found.")
         return config_filename
 
-    # Original logic for other cases (config_default, config_input, etc.)
-    # First, check if the config_filename is an absolute path or relative to current working directory
-    if os.path.isabs(config_filename) or os.path.isfile(config_filename):
-        search_paths.append(config_filename)
+    # Original logic for other cases (config_default, config_input, etc.) with sanitization
+    # First candidate: absolute path as-is; else sanitized relative to CWD
+    try:
+        if os.path.isabs(config_filename):
+            search_paths.append(str(Path(config_filename).resolve(strict=False)))
+        else:
+            rel = _sanitize_relative_path(config_filename)
+            search_paths.append(str((Path.cwd() / rel).resolve(strict=False)))
+    except Exception as exc:
+        logger.warning("Skipping invalid config filename '%s': %s", config_filename, exc)
 
     if config_input:
         if input_file_path:
-            search_paths.append(os.path.join(os.path.dirname(os.path.abspath(input_file_path)), config_filename))
+            try:
+                base = Path(input_file_path).resolve(strict=False).parent
+                # Only allow file directly under the input file's directory (no traversal)
+                rel = (
+                    _sanitize_relative_path(config_filename)
+                    if not os.path.isabs(config_filename)
+                    else Path(config_filename)
+                )
+                candidate = (base / rel).resolve(strict=False)
+                if candidate.parent == base or os.path.isabs(config_filename):
+                    search_paths.append(str(candidate))
+            except Exception as exc:
+                logger.warning("config-input: invalid path computation: %s", exc)
         else:
             logger.warning("config-input: wrong usage")
             return config_filename
     elif config_default:
-        search_paths.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), config_filename))
+        try:
+            base = Path(os.path.abspath(__file__)).resolve(strict=False).parent
+            rel = (
+                _sanitize_relative_path(config_filename)
+                if not os.path.isabs(config_filename)
+                else Path(config_filename)
+            )
+            candidate = (base / rel).resolve(strict=False)
+            search_paths.append(str(candidate))
+        except Exception as exc:
+            logger.warning("config-default: invalid path computation: %s", exc)
     else:
-        if input_file_path:
-            search_paths.append(os.path.join(os.path.dirname(os.path.abspath(input_file_path)), config_filename))
-        search_paths.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), config_filename))
+        try:
+            if input_file_path:
+                base = Path(input_file_path).resolve(strict=False).parent
+                rel = (
+                    _sanitize_relative_path(config_filename)
+                    if not os.path.isabs(config_filename)
+                    else Path(config_filename)
+                )
+                candidate = (base / rel).resolve(strict=False)
+                search_paths.append(str(candidate))
+        except Exception as exc:
+            logger.warning("config: invalid input-relative path: %s", exc)
+        try:
+            base = Path(os.path.abspath(__file__)).resolve(strict=False).parent
+            rel = (
+                _sanitize_relative_path(config_filename)
+                if not os.path.isabs(config_filename)
+                else Path(config_filename)
+            )
+            candidate = (base / rel).resolve(strict=False)
+            search_paths.append(str(candidate))
+        except Exception as exc:
+            logger.warning("config: invalid module-relative path: %s", exc)
 
     logger.debug(f"Searching for configuration file in: {search_paths}")
     for path in search_paths:
@@ -128,17 +239,92 @@ def find_config_path(config_filename: str, input_file_path: Optional[str] = None
     return config_filename
 
 
-def open_browser(url: str, logger_ref: Optional[logging.Logger] = None) -> bool:
+def default_out_path(in_path: Path) -> Path:
+    """Generate default output path for CSV file based on input path.
+
+    Args:
+        in_path: Input file path
+
+    Returns:
+        Output path with '_jira_ready.csv' suffix
+    """
+    return Path(f"{in_path.stem}_jira_ready.csv")
+
+
+def load_config_for_input(in_path: Path, data_sheet: str) -> tuple[Any, ExcelWorkbookManager | None]:  # pylint: disable=unused-argument
+    """Return (config_like, excel_manager_or_None).
+
+    - For XLSX input, read 'Config' via ExcelWorkbookManager (keeps things generic).
+    - For CSV input, return {} (you can replace this with your own config loader).
+
+    Args:
+        in_path: Input file path
+        data_sheet: Data sheet name (unused parameter for compatibility)
+
+    Returns:
+        Tuple of (config_dict, excel_manager_or_None)
+    """
+    if in_path.suffix.lower() in {".xlsx", ".xlsm"}:
+        mgr = ExcelWorkbookManager(in_path)
+        mgr.load()
+        cfg = mgr.read_config(sheet="Config")
+        # ImportProcessor will also create/use a manager for meta/report writing.
+        return cfg, mgr
+    return {}, None
+
+
+def open_jira_filter(config: Any, created_issue_keys: list[str], ui_instance: Any, logger_ref: logging.Logger) -> None:
+    """Open Jira filter page showing the newly created issues.
+
+    Args:
+        config: Configuration object with get_value method
+        created_issue_keys: List of created issue keys
+        ui_instance: UI instance for displaying messages
+        logger_ref: Logger instance for logging
+    """
+    if not created_issue_keys:
+        return
+
+    # Get project key and site address from config
+    project_key = config.get_value("jira.project.key", default="", expected_type=str)
+    site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
+
+    if not project_key or not site_address:
+        ui_instance.warning("Cannot open Jira filter: missing project key or site address")
+        return
+
+    # Sort issue keys to get min and max for range query
+    sorted_keys = sorted(created_issue_keys)
+    min_key = sorted_keys[0]
+    max_key = sorted_keys[-1]
+
+    # Build JQL query
+    jql_query = f'project = "{project_key}" AND issuekey >= {min_key} AND issuekey <= {max_key} ORDER BY created DESC'
+
+    # URL encode the JQL query
+    encoded_jql = urllib.parse.quote(jql_query)
+
+    # Build Jira filter URL
+    filter_url = f"{site_address.rstrip('/')}/jira/software/c/projects/{project_key}/issues/?jql={encoded_jql}&selectedIssue={max_key}"
+
+    ui_instance.info(f"Opening Jira filter: {filter_url}")
+    logger_ref.info(f"Opening Jira filter for created issues: {jql_query}")
+
+    # Use the existing open_browser function from utils
+    open_browser(filter_url, logger_ref)
+
+
+def open_browser(url: str, logger_ref: logging.Logger | None = None) -> bool:
     """Open a URL in the user's default browser. Returns True on success."""
-    logger = logger_ref or logging.getLogger(__name__)
+    log = logger_ref or logging.getLogger(__name__)
     try:
-        logger.debug("Opening URL in browser: %s", url)
+        log.debug("Opening URL in browser: %s", url)
         result = webbrowser.open(url, new=2)
         if not result:
-            logger.warning("Failed to open URL in browser: %s", url)
+            log.warning("Failed to open URL in browser: %s", url)
         return bool(result)
     except Exception as e:  # pylint: disable=broad-except
         # Keep broad except here to prevent UI crash due to platform/browser issues
         ui.error(f"Failed to open URL in browser: {url}")
-        logger.exception("Exception while opening URL %s: %s", url, e)
+        log.exception("Exception while opening URL %s: %s", url, e)
         return False

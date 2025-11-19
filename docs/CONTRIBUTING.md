@@ -42,6 +42,7 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 3. **Install dependencies**
 
    **Option A: Using pip-tools (recommended)**
+
    ```bash
    # Install pip-tools for dependency management
    pip install pip-tools
@@ -52,6 +53,7 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
    ```
 
    **Option B: Using Poetry**
+
    ```bash
    poetry install --with dev
    ```
@@ -68,6 +70,7 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 ### Making Changes
 
 1. **Create a feature branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    # or
@@ -80,6 +83,7 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
    - Update documentation as needed
 
 3. **Test your changes**
+
    ```bash
    # Run tests
    pytest
@@ -90,12 +94,14 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
    ```
 
 4. **Commit your changes**
+
    ```bash
    git add .
    git commit -m "Add: brief description of your changes"
    ```
 
 5. **Push and create a pull request**
+
    ```bash
    git push origin feature/your-feature-name
    # Then create a PR on GitHub
@@ -104,26 +110,31 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 ### Running the Application
 
 1. **Basic usage**
+
    ```bash
    python -m jira_importer path/to/your/file.xlsx
    ```
 
 2. **Debug mode** (detailed logging)
+
    ```bash
    python -m jira_importer path/to/your/file.xlsx --debug
    ```
 
 3. **Auto-fix enabled** (automatic issue resolution)
+
    ```bash
    python -m jira_importer path/to/your/file.xlsx --auto-fix
    ```
 
 4. **Cloud import** (direct to Jira Cloud)
+
    ```bash
    python -m jira_importer path/to/your/file.xlsx --cloud
    ```
 
 5. **Credential management**
+
    ```bash
    python -m jira_importer --credentials run    # Set up credentials
    python -m jira_importer --credentials show   # View stored credentials
@@ -149,16 +160,19 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 ### Building
 
 1. **Development build** (for testing)
+
    ```bash
    python build.py -c dev
    ```
 
 2. **Production build** (for distribution)
+
    ```bash
    python build.py -c shipping
    ```
 
 3. **Using Poetry** (alternative build method)
+
    ```bash
    poetry build --format pyinstaller
    ```
@@ -260,6 +274,7 @@ python -m jira_importer path/to/test.xlsx --debug
 The project uses **37 dependencies** (9 direct + 28 transitive) for comprehensive functionality:
 
 **Direct Dependencies:**
+
 - **Data processing**: pandas, openpyxl, numpy
 - **UI/Console**: rich, rich-argparse, tqdm, colorlog, colorama
 - **HTTP/API**: requests, urllib3, certifi
@@ -267,6 +282,7 @@ The project uses **37 dependencies** (9 direct + 28 transitive) for comprehensiv
 - **Logging**: structlog, colorlog
 
 **Development Dependencies:**
+
 - **Testing**: pytest, pytest-cov
 - **Code quality**: black, isort, mypy, ruff, pylint
 - **Build tools**: pip-tools, poetry, pyinstaller
@@ -274,6 +290,7 @@ The project uses **37 dependencies** (9 direct + 28 transitive) for comprehensiv
 ### Managing Dependencies
 
 **Using pip-tools (recommended):**
+
 ```bash
 # Update to latest versions
 pip-compile --upgrade requirements.in
@@ -286,6 +303,7 @@ pip install -r requirements.lock
 ```
 
 **Using Poetry:**
+
 ```bash
 # Install dependencies
 poetry install --with dev
@@ -351,7 +369,7 @@ poetry update
 
 ### Community
 
-- **GitHub Repository**: https://github.com/DeerHide/jira-toolkit
+- **GitHub Repository**: <https://github.com/DeerHide/jira-toolkit>
 - **Issues**: Use GitHub Issues for bug reports and feature requests
 - **Discussions**: Use GitHub Discussions for questions and community support
 

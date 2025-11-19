@@ -1,6 +1,6 @@
 # Jira Importer Toolkit - Quick Start Guide
 
-**Convert Excel data for Jira import** 🚀
+**Excel → Jira importer with automatic validation, auto-fixes, and Jira-ready CSV generation.** 🚀
 
 ## ⚠️ Important Notice
 
@@ -9,6 +9,7 @@
 **CSV Export**: The CSV export functionality works with any Jira deployment type (Cloud, Server, Data Center) since it generates CSV files for manual import.
 
 **Direct Cloud Import**: The `--cloud` flag only works with Jira Cloud instances using REST API v3. It does not work with:
+
 - Jira Server (on-premises)
 - Jira Data Center
 - Legacy Jira instances
@@ -22,13 +23,21 @@ A powerful tool that takes your Excel planning data and prepares it for Jira imp
 - **Import directly to Jira Cloud** (with credentials)
 - **Generate CSV files** for manual Jira import (works with any Jira deployment)
 
-Perfect for teams who plan in Excel but execute in Jira.
+Perfect for **project managers**, **team leads**, **producers**, and anyone who plans in Excel but later needs to import into Jira.
+
+## Platform Support
+
+- **Windows**: Standalone EXE available (no installation required)
+- **macOS**: Native build available (no installation required)
+- **Source**: Python 3.12+ required for running from source
 
 ## Quick Start (3 steps)
 
 ### 1. Prepare Your Data
 
 - Use the included `ImportTemplate.xlsx` as your starting point
+- **Important**: Do not change the column headers — the tool expects specific column names
+- Place your tasks in the "dataset" sheet (or specify custom sheet with `--data-sheet`)
 - Fill in your tasks, stories, epics, etc.
 - Save your Excel file
 
@@ -42,12 +51,17 @@ jira-importer.exe --credentials run
 
 # Import directly to Jira Cloud
 jira-importer.exe your-data.xlsx --cloud
+
+# With auto-fix enabled
+jira-importer.exe your-data.xlsx --cloud --auto-fix
 ```
 
 #### Option B: Generate CSV for Manual Import
 
 ```bash
 # Generate CSV file for manual Jira import
+# On Windows: drag & drop your Excel file onto jira-importer.exe
+# Or use command line:
 jira-importer.exe your-data.xlsx
 ```
 
@@ -57,6 +71,8 @@ Your data is now ready for Jira! The tool handles:
 
 - ✅ **Hierarchical issues** (Initiatives → Epics → Stories → Sub-tasks)
 - ✅ **Automatic validation** and error fixing
+- ✅ **Auto-generated Issue IDs** when missing
+- ✅ **Format normalization** (priorities, estimates, etc.)
 - ✅ **Smart mapping** of assignees, sprints, components
 - ✅ **CSV generation** for manual import OR **direct Jira Cloud import**
 
@@ -112,24 +128,78 @@ jira-importer.exe --credentials clear
 - Use the included template: `ImportTemplate.xlsx`
 - Run: `jira-importer.exe your-data.xlsx -ce`
 
+**Benefits:**
+
+- Everything in one file
+- Helpful lookup tables (assignees, sprints, components) in the same Excel
+- Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents`
+
 ### Option B: JSON Configuration
 
 - Copy `config_importer.json` next to your Excel file
-- Fill in your Jira details
+- Fill in your Jira details (site address, API token, project key/id)
 - Run: `jira-importer.exe your-data.xlsx -ci`
+
+**Benefits:**
+
+- Centralized configuration - Manage settings in version-controlled JSON files
+- Best for teams - Share consistent configuration across team members
+- Automation-friendly - Perfect for CI/CD pipelines and AI orchestration systems
+
+## Input/Output Example
+
+**Input (Excel):**
+
+```csv
+Summary,Priority,Issue Type,Parent,Issue ID,Estimate,Labels
+Fix login bug,high,Bug,,,2h,bug critical
+Add new feature,Medium,Story,,,,
+Implement API endpoint,Low,Sub-Task,Add new feature,,1d,backend
+```
+
+**Output (CSV - `your-data_jira_ready.csv`):**
+
+```csv
+Summary,Priority,Issue Type,Parent,Issue ID,Estimate,Labels
+Fix login bug,High,Bug,,1,7200,bug critical
+Add new feature,Medium,Story,,2,,
+Implement API endpoint,Low,Sub-Task,Add new feature,3,28800,backend
+```
+
+**What the tool fixed:**
+
+- **Issue IDs**: Auto-generated sequential IDs (`1`, `2`, `3`) when missing
+- **Priority**: Normalized case (`high` → `High`)
+- **Estimates**: Converted to seconds (`2h` → `7200`, `1d` → `28800`)
+- **Labels**: Preserved and validated
+- **Label Columns**: Multiple label columns (`labels0`, `labels1`, `labels89724`, etc.) are automatically merged into a single `labels` column
 
 ## What's Included
 
-- `jira-importer.exe` - The main executable
+- `jira-importer.exe` (Windows) or `jira-importer` (macOS) - The main executable
 - `ImportTemplate.xlsx` - Excel template with examples
 - `config_importer.json` - Configuration template
-- `README_EXECUTABLE.md` - This guide
+- `README_APP.md` - This guide
 
 ## Output Options
 
-- **CSV Export** (default): Generates CSV files ready for Jira manual import
+- **CSV Export** (default): Generates CSV files named `your-file_jira_ready.csv` saved next to your input file, ready for Jira's Bulk Create page
 - **Direct Jira Import** (with `--cloud`): Creates issues directly in Jira Cloud
 - **Excel Reports**: Processing reports with metadata written back to Excel files
+
+## Common Jira Import Errors Fixed
+
+The tool automatically detects and fixes:
+
+- **Invalid/Missing Issue IDs**: Auto-generates sequential IDs when missing
+- **Invalid Priorities**: Normalizes case and validates against allowed values
+- **Missing Parent Links**: Ensures Sub-tasks have required parent relationships
+- **Invalid Parent Links**: Validates parent-child hierarchy
+- **Formatting Issues**: Fixes Excel-to-CSV conversion problems
+- **Estimate Format Errors**: Normalizes time estimates to Jira's expected format
+- **Project Key Mismatches**: Ensures Issue IDs match your configured project key
+
+Many of these can be auto-fixed with the `--auto-fix` flag.
 
 ## Troubleshooting
 
@@ -138,6 +208,7 @@ jira-importer.exe --credentials clear
 - **"File not found"** → Check your Excel file path
 - **"Authentication failed"** → Run `--credentials run` to set up
 - **"Permission denied"** → Run as administrator if needed
+- **Configuration issues** → Check that you're using the right config flags (`-c`, `-ce`, `-ci`, `-cd`)
 - **Need more details** → Use `--debug` flag
 
 ### Get Help
@@ -145,6 +216,7 @@ jira-importer.exe --credentials clear
 - Use `--show-config` to check your setup
 - Use `--dry-run` to test without importing
 - Use `--debug` for detailed error information
+- Visit the [GitHub repository](https://github.com/DeerHide/jira-toolkit) for more help
 
 ## Advanced Features
 
@@ -180,8 +252,13 @@ For issues or questions:
 3. Try dry-run mode (use `--dry-run`)
 4. Visit the [GitHub repository](https://github.com/DeerHide/jira-toolkit) for more help
 
+### Community
+
+- **GitHub Repository**: <https://github.com/DeerHide/jira-toolkit>
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/DeerHide/jira-toolkit/issues)
+- **Discussions**: Ask questions on [GitHub Discussions](https://github.com/DeerHide/jira-toolkit/discussions)
+
 ---
 
-**Authors**: Julien (@tom4897), Alain (@Nakool)
-**Repository**: https://github.com/DeerHide/jira-toolkit
-**License**: MIT
+**Repository**: <https://github.com/DeerHide/jira-toolkit>
+**License**: MIT License - feel free to contribute or fork!

@@ -265,12 +265,7 @@ class JiraCloudClient:
 ```python
 def build_bulk_create_payload(issues: list[dict]) -> dict:
     return {
-        "issueUpdates": [
-            {
-                "fields": issue
-            }
-            for issue in issues
-        ]
+        "issueUpdates": issues
     }
 ```
 

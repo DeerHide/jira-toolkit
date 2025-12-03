@@ -138,14 +138,13 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug(fmt.kv("args", str(args)))
 
 
-def _set_autoreply(args: Any) -> bool:
+def _set_autoreply(args: Any) -> bool | None:
     """Set the autoreply flag based on the command line arguments."""
     if getattr(args, "auto_yes", False):
         return True
-    elif getattr(args, "auto_no", False):
+    if getattr(args, "auto_no", False):
         return False
-    else:
-        return None
+    return None
 
 
 def main() -> int:

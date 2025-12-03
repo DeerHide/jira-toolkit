@@ -24,6 +24,7 @@ from jira_importer.config.utils import determine_config_path, display_config
 from jira_importer.console import ConsoleIO
 from jira_importer.errors import (
     ConfigurationError,
+    ErrorResponse,
     InputFileError,
     ProcessingError,
     format_error_for_display,
@@ -558,7 +559,7 @@ def main() -> int:
     return _result_code
 
 
-def run_main_with_error_response() -> tuple[int, "ErrorResponse | None"]:
+def run_main_with_error_response() -> tuple[int, ErrorResponse | None]:
     """Run main() and return an exit code plus optional structured ErrorResponse.
 
     This helper is intended for programmatic callers (e.g. integrations/tests)
@@ -568,7 +569,7 @@ def run_main_with_error_response() -> tuple[int, "ErrorResponse | None"]:
         Tuple of (exit_code, ErrorResponse|None). On success, the error response
         is None; on failure it contains the mapped error information.
     """
-    from jira_importer.errors import ErrorResponse, error_response_from_exception
+    from jira_importer.errors import error_response_from_exception
 
     try:
         exit_code = main()

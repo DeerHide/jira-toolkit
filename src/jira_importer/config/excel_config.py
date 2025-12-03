@@ -11,16 +11,13 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from .. import CFG_REQ_DEFAULT
+from ..errors import ExcelConfigurationError, ProcessingError
 from ..excel.excel_io import ExcelWorkbookManager
 from ..excel.excel_table_reader import ExcelTableReader
 from .config_models import ExcelTableConfig
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
-
-
-class ExcelConfigurationError(Exception):
-    """Raised when the Excel configuration file is invalid or cannot be read."""
 
 
 class ExcelConfiguration:
@@ -41,7 +38,10 @@ class ExcelConfiguration:
         logger.debug(f"Loading Excel configuration from {excel_path}")
         if not Path(excel_path).is_file():
             logger.error(f"The provided path '{excel_path}' is not a valid file path.")
-            raise ValueError(f"Invalid file path: {excel_path}")
+            raise ExcelConfigurationError(
+                f"Invalid file path: {excel_path}",
+                details={"file_path": excel_path, "reason": "File does not exist"},
+            )
 
         self.path = excel_path
         self.config_sheet = config_sheet
@@ -94,7 +94,15 @@ class ExcelConfiguration:
         except Exception as e:
             message = f"Error reading Excel configuration file '{self.path}': {e}"
             logger.error(message)
-            raise ExcelConfigurationError(message) from e
+            raise ExcelConfigurationError(
+                message,
+                details={
+                    "file_path": self.path,
+                    "sheet": self.config_sheet,
+                    "original_error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            ) from e
 
     def _build_nested_config(self, flat_config: dict[str, Any]) -> dict[str, Any]:
         """Convert flat key-value pairs to nested dictionary structure.
@@ -158,26 +166,49 @@ class ExcelConfiguration:
                 elif value_lower in {"false", "0", "no", "off", "disabled"}:
                     value = False
                 else:
-                    raise TypeError(
-                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')"
+                    raise ExcelConfigurationError(
+                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')",
+                        details={
+                            "key": key,
+                            "expected_type": expected_type.__name__,
+                            "actual_type": type(value).__name__,
+                            "value": str(value),
+                        },
                     )
             elif isinstance(expected_type, type) and expected_type is int and isinstance(value, str):
                 try:
                     value = int(value)
                 except ValueError as exc:
-                    raise TypeError(
-                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')"
+                    raise ExcelConfigurationError(
+                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')",
+                        details={
+                            "key": key,
+                            "expected_type": expected_type.__name__,
+                            "actual_type": type(value).__name__,
+                            "value": str(value),
+                            "original_error": str(exc),
+                        },
                     ) from exc
             elif isinstance(expected_type, type) and expected_type is float and isinstance(value, str):
                 try:
                     value = float(value)
                 except ValueError as exc:
-                    raise TypeError(
-                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')"
+                    raise ExcelConfigurationError(
+                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')",
+                        details={
+                            "key": key,
+                            "expected_type": expected_type.__name__,
+                            "actual_type": type(value).__name__,
+                            "value": str(value),
+                            "original_error": str(exc),
+                        },
                     ) from exc
             else:
                 # For other type mismatches, raise an error
-                raise TypeError(f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}")
+                raise ExcelConfigurationError(
+                    f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}",
+                    details={"key": key, "expected_type": expected_type.__name__, "actual_type": type(value).__name__},
+                )
 
         return value  # type: ignore[return-value]
 
@@ -218,7 +249,10 @@ class ExcelConfiguration:
             return self.table_config
 
         if self._workbook_manager is None:
-            raise RuntimeError("Workbook manager not initialized. Call load() first.")
+            raise ProcessingError(
+                "Workbook manager not initialized. Call load() first.",
+                details={"operation": "get_value", "config_path": str(self.path)},
+            )
 
         logger.debug(f"Loading table configuration from sheet '{self.config_sheet}'")
         table_reader = ExcelTableReader(self._workbook_manager)

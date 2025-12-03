@@ -98,6 +98,7 @@ class App:
             if App._args.version:
                 logger.critical(f"  Version: {App._args.version}")
             logger.critical(f" args: {App._args}")
+            ui.error(f"Error code: {exit_code}")
             ui.error("Fatal event raised!")
             _str = "\n" + ui.fmt.kv("Input file", ui.fmt.path(App._args.input_file)) + "\n"
             _str += ui.fmt.kv("Configuration", ui.fmt.path(App._args.config)) + "\n"
@@ -108,7 +109,6 @@ class App:
             for arg, value in App._args.__dict__.items():
                 _str += ui.fmt.kv(arg, value) + "\n"
             ui.panel("Script failed with the following arguments:", _str)
-            ui.error(f"Error code: {exit_code}")
 
         logger.critical(message)
         sys.exit(exit_code)

@@ -91,9 +91,13 @@ class LoggingConfig:
         self.is_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
         # Check if file logging is enabled
-        self.file_logging_enabled = self.config and self.config.get_value(
-            "app.logging.write_to_file", default=DEFAULT_WRITE_TO_FILE
-        )
+        # If config is None, use default (True) to ensure errors are logged
+        if self.config is None:
+            self.file_logging_enabled = DEFAULT_WRITE_TO_FILE
+        else:
+            self.file_logging_enabled = self.config.get_value(
+                "app.logging.write_to_file", default=DEFAULT_WRITE_TO_FILE
+            )
 
         # Check if console output is enabled
         self.console_output_enabled = (
@@ -119,8 +123,15 @@ class LoggingConfig:
 
     def get_file_settings(self) -> dict:
         """Get file logging settings from config."""
-        if not self.file_logging_enabled or not self.config:
+        if not self.file_logging_enabled:
             return {}
+
+        # If config is None, return defaults
+        if not self.config:
+            return {
+                "max_size_mb": DEFAULT_MAX_LOG_SIZE_MB,
+                "max_log_files": DEFAULT_MAX_LOG_FILES,
+            }
 
         return {
             "max_size_mb": self.config.get_value("app.logging.max_log_size_mb", default=DEFAULT_MAX_LOG_SIZE_MB),
@@ -256,8 +267,20 @@ def add_file_logging(config: Any):
     """Add file handler to existing root logger if enabled in config."""
     logging_config = LoggingConfig(config=config)
 
+    if not logging_config.file_logging_enabled:
+        return
+
     try:
         root_logger = logging.getLogger()
+
+        # Remove existing file handlers to avoid duplicates
+        from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
+
+        for handler in root_logger.handlers[:]:
+            if isinstance(handler, RotatingFileHandler):
+                root_logger.removeHandler(handler)
+                handler.close()  # Properly close the old handler
+
         file_handler = _create_file_handler(logging_config, root_logger.level)
         file_handler.addFilter(RedactingFilter())
         root_logger.addHandler(file_handler)

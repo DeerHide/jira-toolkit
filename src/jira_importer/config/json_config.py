@@ -10,14 +10,11 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
+from ..errors import ConfigurationError
 
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
-
-
-class ConfigurationError(Exception):
-    """Raised when the configuration file is invalid or cannot be read."""
 
 
 class JsonConfiguration:
@@ -28,7 +25,10 @@ class JsonConfiguration:
         logger.debug(f"Loading configuration from {path}")
         if not Path(path).is_file():
             logger.error(f"The provided path '{path}' is not a valid file path.")
-            raise ValueError(f"Invalid file path: {path}")
+            raise ConfigurationError(
+                f"Invalid file path: {path}",
+                details={"file_path": path, "reason": "File does not exist"},
+            )
         self.path = path
         self.content = self._load_config()
         self.cfg_req = cfg_req
@@ -71,11 +71,17 @@ class JsonConfiguration:
         except json.JSONDecodeError as e:
             message = f"The JSON file '{self.path}' is not correctly formatted. Error: {e}"
             logger.error(message)
-            raise ConfigurationError(message) from e
+            raise ConfigurationError(
+                message,
+                details={"file_path": self.path, "original_error": str(e), "error_type": type(e).__name__},
+            ) from e
         except Exception as e:
             message = f"Error reading configuration file '{self.path}': {e}"
             logger.error(message)
-            raise ConfigurationError(message) from e
+            raise ConfigurationError(
+                message,
+                details={"file_path": self.path, "original_error": str(e), "error_type": type(e).__name__},
+            ) from e
 
     def get_value(self, key: str, default: T | None = None, expected_type: type[T] | None = None) -> T | None:
         """Get a value from the configuration file."""
@@ -90,7 +96,10 @@ class JsonConfiguration:
             return default
 
         if expected_type is not None and not isinstance(value, expected_type):
-            raise TypeError(f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}")
+            raise ConfigurationError(
+                f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}",
+                details={"key": key, "expected_type": expected_type.__name__, "actual_type": type(value).__name__},
+            )
 
         return value  # type: ignore[return-value]
 

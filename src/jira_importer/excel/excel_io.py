@@ -16,6 +16,7 @@ from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from openpyxl.worksheet.worksheet import Worksheet  # type: ignore[import-untyped]
 
 from ..console import ConsoleIO
+from ..errors import FileReadError, ProcessingError
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
@@ -71,7 +72,10 @@ class ExcelWorkbookManager:
     def save(self, out_path: str | Path | None = None) -> Path:
         """Save workbook to disk. If out_path is None, overwrite original. Returns the path written."""
         if self._wb is None:
-            raise RuntimeError("Workbook not loaded. Call load() first.")
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "save", "file_path": str(self.path)},
+            )
         target = Path(out_path) if out_path else self.path
         target.parent.mkdir(parents=True, exist_ok=True)
         self._wb.save(str(target))
@@ -95,7 +99,10 @@ class ExcelWorkbookManager:
             ws = self._get_or_create_ws(sheet.lower(), replace=False)
             logger.warning(f"Worksheet '{sheet}' not found in '{self.path.name}'. Creating a new one.")
         if ws is None:
-            raise RuntimeError(f"Worksheet '{sheet}' not found in '{self.path.name}'.")
+            raise FileReadError(
+                f"Worksheet '{sheet}' not found in '{self.path.name}'.",
+                details={"file_path": str(self.path), "worksheet": sheet},
+            )
         rows_iter = ws.iter_rows(values_only=True)
 
         header: list[str] | None = None
@@ -365,16 +372,25 @@ class ExcelWorkbookManager:
     # Internals
     def _get_ws(self, title: str, *, must_exist: bool = True) -> Worksheet | None:
         if self._wb is None:
-            raise RuntimeError("Workbook not loaded. Call load() first.")
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "_get_ws", "file_path": str(self.path), "worksheet": title},
+            )
         ws = self._wb[title] if title in self._wb.sheetnames else None
         if ws is None and must_exist:
             logger.error(f"Worksheet '{title}' not found in '{self._wb.sheetnames}'.")
-            raise KeyError(f"Worksheet '{title}' not found in '{self.path.name}'.")
+            raise FileReadError(
+                f"Worksheet '{title}' not found in '{self.path.name}'.",
+                details={"file_path": str(self.path), "worksheet": title, "available_sheets": self._wb.sheetnames},
+            )
         return ws
 
     def _get_or_create_ws(self, title: str, *, replace: bool) -> Worksheet:
         if self._wb is None:
-            raise RuntimeError("Workbook not loaded. Call load() first.")
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "_get_or_create_ws", "file_path": str(self.path), "worksheet": title},
+            )
         if title in self._wb.sheetnames:
             if replace:
                 index = self._wb.sheetnames.index(title)

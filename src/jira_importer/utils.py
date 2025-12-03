@@ -37,18 +37,32 @@ def _sanitize_relative_path(relative_path: str) -> Path:
     - Reject control characters
     - Apply lightweight length limits to avoid abuse
     """
+    from .errors import ValidationError
+
     if not isinstance(relative_path, str):
-        raise ValueError("relative_path must be a string")
+        raise ValidationError(
+            "relative_path must be a string",
+            details={"provided_type": type(relative_path).__name__},
+        )
 
     if _contains_control_chars(relative_path):
-        raise ValueError("path contains control characters")
+        raise ValidationError(
+            "path contains control characters",
+            details={"path": relative_path},
+        )
 
     # Basic length constraints (conservative defaults)
     if len(relative_path) == 0 or len(relative_path) > MAX_RELATIVE_PATH_LEN:
-        raise ValueError("path length is invalid")
+        raise ValidationError(
+            "path length is invalid",
+            details={"path_length": len(relative_path), "max_length": MAX_RELATIVE_PATH_LEN},
+        )
 
     if os.path.isabs(relative_path):
-        raise ValueError("absolute paths are not allowed here")
+        raise ValidationError(
+            "absolute paths are not allowed here",
+            details={"path": relative_path},
+        )
 
     p = Path(relative_path)
     if any(part == ".." for part in p.parts):

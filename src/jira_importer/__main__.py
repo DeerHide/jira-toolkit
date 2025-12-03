@@ -22,6 +22,13 @@ from jira_importer.artifacts import ArtifactManager
 from jira_importer.config.config_factory import ConfigurationFactory
 from jira_importer.config.utils import determine_config_path, display_config
 from jira_importer.console import ConsoleIO
+from jira_importer.errors import (
+    ConfigurationError,
+    InputFileError,
+    ProcessingError,
+    format_error_for_display,
+    log_exception,
+)
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.models import ProblemSeverity
 from jira_importer.import_pipeline.processor import ImportProcessor
@@ -54,6 +61,15 @@ fmt = ui.fmt  # pylint: disable=invalid-name
 def main() -> int:
     """Main function for the Jira Importer application."""
     # TODO: Move to cli
+
+    # Minimal config class for cleanup when config/validation fails
+    class MinimalConfigForCleanup:  # pylint: disable=too-few-public-methods
+        """Minimal config for cleanup when config loading or validation fails."""
+
+        def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
+            """Return default value for any key."""
+            return default
+
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say(fmt.bold("Authors:"), fmt.default("Julien (@tom4897)"), fmt.default("Alain (@Nakool)"))
     ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
@@ -163,13 +179,37 @@ def main() -> int:
     else:
         autoreply = None
 
+    # Set up basic logging early (before config loading) so we can log errors
+    setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
+    logger = logging.getLogger(__name__)
+
+    try:
+        add_file_logging(None)
+    except Exception:
+        pass
+
     # Determine configuration file path
     config_path = determine_config_path(args)
-    config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")
+    try:
+        config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")
+    except (ConfigurationError, Exception) as config_exc:
+        log_exception(logger, config_exc, context="Configuration loading")
 
-    # Initialize logging with CLI override and config support
+        error_message = format_error_for_display(config_exc)
+        ui.error(error_message)
+
+        # Exit gracefully without showing the argument panel
+        logger.critical(f"Configuration loading failed: {error_message}")
+        ui.lf()
+
+        # Use minimal config for cleanup (ArtifactManager needs it)
+        minimal_config = MinimalConfigForCleanup()  # type: ignore[assignment]
+        app = App(ArtifactManager(minimal_config))
+        app.event_close(exit_code=1, cleanup=False)
+        return 1
+
+    # Re-initialize logging with config support (now that config is loaded)
     setup_logger(logging.DEBUG if args.debug else None, config)
-    logger = logging.getLogger(__name__)
 
     # Add file logging if enabled in config
     add_file_logging(config)
@@ -232,19 +272,40 @@ def main() -> int:
     ui.progress_light("Checking input file")
 
     xlsx_file = args.input_file
-    if not Path(xlsx_file).is_file():
-        ui.error(
-            f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again."
-        )
-        logger.error(f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
-        App.event_fatal(exit_code=2, message=f"The XLSX file '{xlsx_file}' does not exist or is not a file.")
+    in_path = Path(xlsx_file)
 
-    in_path = Path(args.input_file)
-    if not in_path.exists():
-        logger.error("Input path does not exist: %s", in_path)
-        ui.error(
-            f"The XLSX file '{xlsx_file}' does not exist or is not a file. Please check the file path and try again."
-        )
+    # Validate input file exists and is a file
+    try:
+        if not in_path.exists():
+            raise InputFileError(
+                f"Input file does not exist: {xlsx_file}",
+                details={"file_path": str(xlsx_file), "operation": "input_validation"},
+            )
+        if not in_path.is_file():
+            raise InputFileError(
+                f"Input path is not a file: {xlsx_file}",
+                details={
+                    "file_path": str(xlsx_file),
+                    "operation": "input_validation",
+                    "path_type": "directory_or_other",
+                },
+            )
+    except InputFileError as file_exc:
+        # Log the error with structured details
+        log_exception(logger, file_exc, context="Input file validation")
+
+        # Display formatted error with error code
+        error_message = format_error_for_display(file_exc)
+        ui.error(error_message)
+
+        # Exit gracefully
+        logger.critical(f"Input file validation failed: {error_message}")
+        ui.lf()
+
+        # Use minimal config for cleanup
+        minimal_config = MinimalConfigForCleanup()  # type: ignore[assignment]
+        app = App(ArtifactManager(minimal_config))
+        app.event_close(exit_code=2, cleanup=False)
         return 2
 
     output_filename: str = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
@@ -284,8 +345,10 @@ def main() -> int:
             logger.exception("Credential preflight failed: %s", preflight_exc)
             App.event_fatal(exit_code=2, message=f"Credential preflight failed: {preflight_exc}")
 
-    _result_code = 0
-    try:
+    def _run_pipeline() -> int:
+        """Run the main import pipeline and return an appropriate exit code."""
+        _result_code = 0
+
         processor = ImportProcessor(
             path=in_path,
             config=config,
@@ -403,7 +466,11 @@ def main() -> int:
 
                 if report.failed > 0:
                     CloudReportReporter().render_errors(report, ui)
-            except Exception as exc:
+            except ProcessingError:
+                # Let domain errors bubble up to the outer handler for rich reporting
+                raise
+            except Exception as exc:  # pylint: disable=broad-except
+                # Unexpected internal error during cloud import
                 logger.exception("Cloud import failed: %s", exc)
                 App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}")
             # non-zero exit if there were errors (so CI can gate)
@@ -421,15 +488,32 @@ def main() -> int:
 
         # non-zero exit if there were errors (so CI can gate)
         _result_code = 0 if result.report.errors == 0 else 1
+        return _result_code
 
-    except Exception as exc:
-        logger.exception("Import failed: %s", exc)
-        App.event_fatal(exit_code=3, message=f"An exception occurred in the processor, please check the logs: {exc}")
+    _result_code = 0
+    try:
+        _result_code = _run_pipeline()
+    except ProcessingError as proc_exc:
+        # Use structured error handling for domain exceptions
+        log_exception(logger, proc_exc, context="Import pipeline")
+        error_message = format_error_for_display(proc_exc)
+        ui.error(error_message)
+        logger.critical(f"Import pipeline failed: {error_message}")
+        app.event_close(exit_code=3, cleanup=True)
+        return 3
+    except Exception as exc:  # pylint: disable=broad-except
+        # Last-resort guard for unexpected internal errors
+        logger.exception("Unexpected internal error in import pipeline: %s", exc)
+        App.event_fatal(
+            exit_code=3,
+            message="An unexpected internal error occurred in the processor, please check the logs for details.",
+        )
+        return 3
     finally:
         try:
             if mgr is not None:
                 mgr.close()
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             pass
 
     # TODO: Move logic to utils
@@ -441,9 +525,9 @@ def main() -> int:
 
     ui.lf()
     ui.full_panel(fmt.success("Processing complete. You can close this window now."))
-    app.event_close(exit_code=0, cleanup=True)
+    app.event_close(exit_code=_result_code, cleanup=True)
 
-    return 0
+    return _result_code
 
 
 # Main function

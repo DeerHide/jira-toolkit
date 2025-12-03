@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ...console import ConsoleIO
+from ...errors import FileReadError
 from ..models import HeaderSchema
 
 ui = ConsoleIO.getUI()
@@ -28,7 +29,10 @@ class CsvSource:
     def read(self) -> tuple[HeaderSchema, list[list[Any]]]:
         """Read the CSV file and return the HeaderSchema and rows."""
         if not self.path.exists():
-            raise FileNotFoundError(self.path)
+            raise FileReadError(
+                f"CSV file not found: {self.path}",
+                details={"file_path": str(self.path)},
+            )
 
         with self.path.open("r", encoding=self.encoding, newline=self.newline) as fh:
             reader = csv.reader(fh)

@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Any
 
 from ...config.config_view import ConfigView
+from ...errors import ConfigurationError
 from .constants import AUTH_EMAIL_KEY, AUTH_TOKEN_EXPIRES_KEY, AUTH_TOKEN_INPUT_DATE_KEY, AUTH_TOKEN_KEY
 from .secrets import KEYRING_SERVICE, SecretSpec, resolve_secret, resolve_secret_with_source, store_secret_in_keyring
 
@@ -275,7 +276,10 @@ def setup_credentials_interactive(ui, cfg: ConfigView) -> dict[str, Any]:
     # Prompt for credentials
     status = ensure_cloud_credentials(ui, cfg, auto_reply=None)
     if not status.get("found"):
-        raise ValueError("Credentials were not provided.")
+        raise ConfigurationError(
+            "Credentials were not provided.",
+            details={"operation": "credential_setup", "status": status},
+        )
 
     ui.success("Credentials stored in OS keychain (dh-jira-toolkit)")
     ui.hint("Use --credentials show to view, --credentials clear to remove")

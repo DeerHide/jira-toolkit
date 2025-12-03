@@ -12,6 +12,7 @@ from datetime import UTC
 from pathlib import Path
 
 from ..config.config_view import ConfigView  # typed access over your config object
+from ..errors import FileReadError, RowProcessingError, ValidationSetupError
 from ..excel.excel_io import ExcelProcessingMeta, ExcelWorkbookManager  # generic, lives top-level
 from .fixes.registry import build_fix_registry
 from .models import (
@@ -30,26 +31,6 @@ from .sources.xlsx_source import XlsxSource
 from .validator import JiraImportValidator  # expects validate_row(...)
 
 logger = logging.getLogger(__name__)
-
-
-class ProcessingError(Exception):
-    """Base exception for processing errors."""
-
-
-class FileReadError(ProcessingError):
-    """File reading failures."""
-
-
-class ValidationSetupError(ProcessingError):
-    """Validation setup failures."""
-
-
-class RowProcessingError(ProcessingError):
-    """Row processing failures."""
-
-
-class MetadataWriteError(ProcessingError):
-    """Excel metadata write failures."""
 
 
 class ImportProcessor:
@@ -94,11 +75,20 @@ class ImportProcessor:
             header_schema, rows = self._read_source()
             indices = self._extract_indices(header_schema)
         except FileNotFoundError as e:
-            raise FileReadError(f"Input file not found: {e}") from e
+            raise FileReadError(
+                f"Input file not found: {e}",
+                details={"file_path": str(self.path), "original_error": str(e)},
+            ) from e
         except PermissionError as e:
-            raise FileReadError(f"Permission denied: {e}") from e
+            raise FileReadError(
+                f"Permission denied: {e}",
+                details={"file_path": str(self.path), "original_error": str(e)},
+            ) from e
         except Exception as e:  # keep a final guard with context
-            raise FileReadError(f"Failed to read input: {e}") from e
+            raise FileReadError(
+                f"Failed to read input: {e}",
+                details={"file_path": str(self.path), "original_error": str(e), "error_type": type(e).__name__},
+            ) from e
 
         # Phase 2: Validation Setup
         try:
@@ -114,7 +104,10 @@ class ImportProcessor:
             write_processing_meta_in_excel = cfg_view.get("app.write_processing_meta", False)
             write_report_table_in_excel = cfg_view.get("app.write_report_table", False)
         except Exception as e:  # pylint: disable=broad-except
-            raise ValidationSetupError(f"Failed to setup validation: {e}") from e
+            raise ValidationSetupError(
+                f"Failed to setup validation: {e}",
+                details={"original_error": str(e), "error_type": type(e).__name__},
+            ) from e
 
         # Phase 3: Row Processing
         try:
@@ -195,9 +188,15 @@ class ImportProcessor:
             proc_result.processed_row_count = len(normalized_rows)
             proc_result.skipped_row_count = skipped_rows
         except MemoryError as e:
-            raise RowProcessingError("Processing aborted due to memory limits") from e
+            raise RowProcessingError(
+                "Processing aborted due to memory limits",
+                details={"original_error": str(e), "row_count": original_row_count},
+            ) from e
         except Exception as e:  # pylint: disable=broad-except
-            raise RowProcessingError(f"Failed to process rows: {e}") from e
+            raise RowProcessingError(
+                f"Failed to process rows: {e}",
+                details={"original_error": str(e), "error_type": type(e).__name__, "row_count": original_row_count},
+            ) from e
 
         # Phase 4: Optional metadata write
         if self._is_excel(self.path):
@@ -205,6 +204,7 @@ class ImportProcessor:
                 self._write_excel_meta(proc_result, write_processing_meta_in_excel, write_report_table_in_excel)
             except Exception as e:  # pylint: disable=broad-except
                 logger.warning(f"Failed to write Excel metadata: {e}")
+                # Note: We don't raise MetadataWriteError here as it's non-critical
 
         return proc_result
 

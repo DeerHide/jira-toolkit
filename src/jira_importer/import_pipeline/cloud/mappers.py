@@ -13,6 +13,7 @@ from typing import Any
 from ...config.config_view import ConfigView
 from ...config.constants import LEVEL_4_SUBTASK
 from ...config.issuetypes import get_default_level3_type, get_issue_type_level
+from ...errors import ProcessingError
 from ..models import ColumnIndices, ProcessorResult
 from .constants import JIRA_KEY_PARTS_COUNT
 from .metadata import MetadataCache
@@ -118,7 +119,10 @@ def build_issue_payloads(result: ProcessorResult, mapper: IssueMapper) -> list[d
     issues = []
 
     if result.indices is None:
-        raise ValueError("Column indices not available for mapping")
+        raise ProcessingError(
+            "Column indices not available for mapping",
+            details={"reason": "ProcessorResult.indices is None"},
+        )
 
     for row in result.rows:
         payload = mapper.map_row(row, result.indices)

@@ -8,7 +8,6 @@ Author:
 from __future__ import annotations
 
 # Import libraries
-# TODO: Move most used libraries to init
 import logging
 import warnings
 from pathlib import Path
@@ -61,7 +60,6 @@ fmt = ui.fmt  # pylint: disable=invalid-name
 # TODO: Move main logic to the app
 def main() -> int:
     """Main function for the Jira Importer application."""
-    # TODO: Move to cli
 
     # Minimal config class for cleanup when config/validation fails
     class MinimalConfigForCleanup:  # pylint: disable=too-few-public-methods

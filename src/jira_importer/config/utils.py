@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
-from ..app import App
 from ..console import ConsoleIO
 from ..log import add_file_logging, setup_logger
 from ..utils import find_config_path
@@ -133,4 +132,6 @@ def display_config(config_file: str) -> None:
 
     except Exception as exc:
         logger.error(f"Configuration loading failed: {exc}")
+        from ..app import App  # pylint: disable=import-outside-toplevel
+
         App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}")

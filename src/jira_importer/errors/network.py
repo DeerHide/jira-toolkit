@@ -22,4 +22,4 @@ class NetworkError(ProcessingError):
             message: Human-readable error message.
             details: Optional dictionary with additional error details.
         """
-        super().__init__(message, code=ErrorCode.INTERNAL_ERROR, details=details)
+        super().__init__(message, code=ErrorCode.NETWORK_ERROR, details=details)

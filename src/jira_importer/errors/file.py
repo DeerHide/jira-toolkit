@@ -22,7 +22,7 @@ class FileReadError(ProcessingError):
             message: Human-readable error message.
             details: Optional dictionary with additional error details.
         """
-        super().__init__(message, code=ErrorCode.INVALID_INPUT, details=details)
+        super().__init__(message, code=ErrorCode.INPUT_FILE_ERROR, details=details)
 
 
 class FileWriteError(ProcessingError):
@@ -39,7 +39,7 @@ class FileWriteError(ProcessingError):
             message: Human-readable error message.
             details: Optional dictionary with additional error details.
         """
-        super().__init__(message, code=ErrorCode.INVALID_INPUT, details=details)
+        super().__init__(message, code=ErrorCode.INPUT_FILE_ERROR, details=details)
 
 
 class InputFileError(ProcessingError):

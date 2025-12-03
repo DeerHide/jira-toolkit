@@ -39,7 +39,7 @@ class ValidationSetupError(ProcessingError):
             message: Human-readable error message.
             details: Optional dictionary with additional error details.
         """
-        super().__init__(message, code=ErrorCode.INTERNAL_ERROR, details=details)
+        super().__init__(message, code=ErrorCode.VALIDATION_SETUP_ERROR, details=details)
 
 
 class RowProcessingError(ProcessingError):
@@ -56,7 +56,7 @@ class RowProcessingError(ProcessingError):
             message: Human-readable error message.
             details: Optional dictionary with additional error details.
         """
-        super().__init__(message, code=ErrorCode.INTERNAL_ERROR, details=details)
+        super().__init__(message, code=ErrorCode.ROW_PROCESSING_ERROR, details=details)
 
 
 class MetadataWriteError(ProcessingError):
@@ -73,4 +73,4 @@ class MetadataWriteError(ProcessingError):
             message: Human-readable error message.
             details: Optional dictionary with additional error details.
         """
-        super().__init__(message, code=ErrorCode.INTERNAL_ERROR, details=details)
+        super().__init__(message, code=ErrorCode.METADATA_WRITE_ERROR, details=details)

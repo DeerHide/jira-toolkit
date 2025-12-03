@@ -307,3 +307,48 @@ def clear_credentials(ui) -> None:
     ui.say("  Windows PowerShell:  Remove-Item Env:JIRA_EMAIL; Remove-Item Env:JIRA_API_TOKEN")
     ui.say("  Windows CMD:         set JIRA_EMAIL= & set JIRA_API_TOKEN=")
     ui.say("  macOS/Linux:         unset JIRA_EMAIL JIRA_API_TOKEN")
+
+
+def run_credentials_cli(config: Any, action: str, ui) -> int:
+    """CLI entry point for credentials command.
+
+    Handles command routing and exit codes.
+    This is the CLI orchestration layer for credentials.
+
+    Args:
+        config: Application configuration (or minimal config fallback).
+        action: Credential action ("run"|"show"|"clear").
+        ui: Console UI instance.
+
+    Returns:
+        Exit code (0 for success, 1 for error).
+    """
+    from ...errors import format_error_for_display  # pylint: disable=import-outside-toplevel
+
+    cfg_view = ConfigView(config)
+
+    ui.lf()
+
+    # Route to domain functions
+    if action == "show":
+        st = get_credential_status(ui, cfg_view)
+        display_credential_status(ui, st)
+        return 0
+
+    if action == "clear":
+        clear_credentials(ui)
+        return 0
+
+    # default: run
+    try:
+        st = setup_credentials_interactive(ui, cfg_view)
+        ui.lf()
+        ui.success("✓ Credentials configured successfully")
+        return 0
+    except ConfigurationError as cred_exc:
+        ui.error(format_error_for_display(cred_exc))
+        return 1
+    except Exception as cred_exc:  # pylint: disable=broad-except
+        # Unexpected internal error during credential setup
+        ui.error(f"Credential setup failed: {cred_exc}")
+        return 1

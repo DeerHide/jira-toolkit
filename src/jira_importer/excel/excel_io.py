@@ -16,7 +16,7 @@ from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from openpyxl.worksheet.worksheet import Worksheet  # type: ignore[import-untyped]
 
 from ..console import ConsoleIO
-from ..errors import FileReadError, ProcessingError
+from ..errors import FileReadError, FileWriteError, ProcessingError
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
@@ -78,7 +78,18 @@ class ExcelWorkbookManager:
             )
         target = Path(out_path) if out_path else self.path
         target.parent.mkdir(parents=True, exist_ok=True)
-        self._wb.save(str(target))
+        try:
+            self._wb.save(str(target))
+        except PermissionError as exc:
+            raise FileWriteError(
+                f"Permission denied while writing Excel file: {target}",
+                details={"file_path": str(target), "original_error": str(exc)},
+            ) from exc
+        except OSError as exc:
+            raise FileWriteError(
+                f"Failed to write Excel file: {target}",
+                details={"file_path": str(target), "original_error": str(exc), "error_type": type(exc).__name__},
+            ) from exc
         return target
 
     def close(self) -> None:

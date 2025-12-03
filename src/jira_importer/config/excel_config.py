@@ -91,7 +91,10 @@ class ExcelConfiguration:
 
             # Convert flat key-value pairs to nested structure
             return self._build_nested_config(config_dict)
-        except Exception as e:
+        except ExcelConfigurationError:
+            # Re-raise domain configuration errors unchanged
+            raise
+        except Exception as e:  # pylint: disable=broad-except
             message = f"Error reading Excel configuration file '{self.path}': {e}"
             logger.error(message)
             raise ExcelConfigurationError(

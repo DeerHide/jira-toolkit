@@ -79,7 +79,7 @@ class TestExceptions:
     def test_file_read_error_code(self) -> None:
         """Test that FileReadError has correct code."""
         exc = FileReadError("File not found")
-        assert exc.code == ErrorCode.INVALID_INPUT
+        assert exc.code == ErrorCode.INPUT_FILE_ERROR
 
     def test_validation_error_code(self) -> None:
         """Test that ValidationError has correct code."""
@@ -121,7 +121,7 @@ class TestErrorMapping:
     def test_map_processing_error(self) -> None:
         """Test mapping ProcessingError to code."""
         exc = FileReadError("File not found")
-        assert map_exception_to_code(exc) == ErrorCode.INVALID_INPUT
+        assert map_exception_to_code(exc) == ErrorCode.INPUT_FILE_ERROR
 
     def test_map_standard_exceptions(self) -> None:
         """Test mapping standard exceptions to codes."""
@@ -156,7 +156,7 @@ class TestErrorMapping:
         """Test formatting error for display."""
         exc = FileReadError("File not found")
         formatted = format_error_for_display(exc)
-        assert "INVALID_INPUT (1001)" in formatted
+        assert "INPUT_FILE_ERROR (1003)" in formatted
         assert "File not found" in formatted
 
     def test_format_error_for_display_standard_exception(self) -> None:

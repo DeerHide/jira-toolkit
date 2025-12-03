@@ -103,7 +103,12 @@ def main() -> int:
             config_path = determine_config_path(args)
             display_config(config_path)
             return 0
-        except Exception as exc:
+        except ConfigurationError as exc:
+            # Domain configuration error: show a clear message
+            ui.error(format_error_for_display(exc))
+            return 1
+        except Exception as exc:  # pylint: disable=broad-except
+            # Unexpected internal error
             ui.error(f"Failed to load configuration for show-config: {exc}")
             return 1
 
@@ -117,8 +122,8 @@ def main() -> int:
                 args.input_file = "dummy.xlsx"
             config_path = determine_config_path(args)
             config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
-        except Exception:
-            # If config loading fails, use minimal config for keyring/env only
+        except ConfigurationError:
+            # If config loading fails with a domain error, use minimal config for keyring/env only
             class MinimalConfigForCredentials:  # pylint: disable=too-few-public-methods
                 def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
                     return default
@@ -163,7 +168,13 @@ def main() -> int:
             st = setup_credentials_interactive(ui, cfg_view)
             ui.lf()
             ui.success("✓ Credentials configured successfully")
-        except Exception as cred_exc:
+        except ConfigurationError as cred_exc:
+            # Domain configuration/credential error
+            ui.error(format_error_for_display(cred_exc))
+            app.event_close(exit_code=1, cleanup=False)
+            return 1
+        except Exception as cred_exc:  # pylint: disable=broad-except
+            # Unexpected internal error during credential setup
             ui.error(f"Credential setup failed: {cred_exc}")
             app.event_close(exit_code=1, cleanup=False)
             return 1
@@ -185,14 +196,16 @@ def main() -> int:
 
     try:
         add_file_logging(None)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
+        # File logging is best-effort; ignore failures here
         pass
 
     # Determine configuration file path
     config_path = determine_config_path(args)
     try:
         config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")
-    except (ConfigurationError, Exception) as config_exc:
+    except ConfigurationError as config_exc:
+        # Domain configuration error: use structured logging and messaging
         log_exception(logger, config_exc, context="Configuration loading")
 
         error_message = format_error_for_display(config_exc)
@@ -203,6 +216,18 @@ def main() -> int:
         ui.lf()
 
         # Use minimal config for cleanup (ArtifactManager needs it)
+        minimal_config = MinimalConfigForCleanup()  # type: ignore[assignment]
+        app = App(ArtifactManager(minimal_config))
+        app.event_close(exit_code=1, cleanup=False)
+        return 1
+    except Exception as config_exc:  # pylint: disable=broad-except
+        # Unexpected internal error while loading configuration
+        logger.exception("Unexpected error during configuration loading: %s", config_exc)
+
+        ui.error(f"Unexpected error while loading configuration: {config_exc}")
+        logger.critical("Configuration loading failed due to unexpected internal error")
+        ui.lf()
+
         minimal_config = MinimalConfigForCleanup()  # type: ignore[assignment]
         app = App(ArtifactManager(minimal_config))
         app.event_close(exit_code=1, cleanup=False)

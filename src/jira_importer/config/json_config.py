@@ -75,7 +75,7 @@ class JsonConfiguration:
                 message,
                 details={"file_path": self.path, "original_error": str(e), "error_type": type(e).__name__},
             ) from e
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             message = f"Error reading configuration file '{self.path}': {e}"
             logger.error(message)
             raise ConfigurationError(

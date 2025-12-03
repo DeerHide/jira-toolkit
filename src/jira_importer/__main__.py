@@ -170,6 +170,20 @@ def _load_configuration(args: Any, logger: logging.Logger) -> tuple[Configuratio
         return None, None, 1
 
 
+def _set_output_dir_path(args: Any) -> Path:
+    """Set the output directory path based on the command line arguments."""
+    if args.output:
+        return Path(args.output)
+    return Path(args.input_file).parent
+
+
+def _set_output_target(args: Any) -> str:
+    """Set the output target based on the command line arguments."""
+    if args.output_target_cloud:
+        return "cloud"
+    return "csv"
+
+
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -231,13 +245,6 @@ def main() -> int:
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")
 
-    if args.output:
-        output_dir_path = Path(args.output)
-    elif args.output_is_input:
-        output_dir_path = Path(args.input_file).parent
-    else:
-        output_dir_path = Path(args.input_file).parent
-
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(artifact_manager, config)
     app = App(artifact_manager)
@@ -253,21 +260,18 @@ def main() -> int:
 
     ui.success_light("Jira Importer initialized")
 
+    output_dir_path = _set_output_dir_path(args)
+
     # Determine output target strictly from CLI: --cloud implies cloud, otherwise csv
-    output_target = "csv"
-    if getattr(args, "output_target_cloud", False):
-        if not ui.prompt_yes_no(
-            "The Jira Cloud API support is experimental and may not work properly. Do you want to continue?",
-            default=False,
-            auto_reply=autoreply,
-        ):
-            app.event_abort(exit_code=1, message="User cancelled the Execution.")
+    output_target = _set_output_target(args)
+    if output_target == "cloud":
+        _question = "The Jira Cloud API support is experimental and may not work properly. Do you want to continue?"
+        if not ui.prompt_yes_no(_question, default=False, auto_reply=autoreply):
+            app.event_abort(exit_code=1, message="Run (--cloud) stopped")
+        elif autoreply is not None:
+            ui.warning("Auto-reply is set to yes. Continuing with Jira Cloud API...")
         else:
-            if autoreply is not None:
-                ui.warning("Auto-reply is set. Continuing...")
-            else:
-                ui.success("Continuing...")
-            output_target = "cloud"
+            ui.success("Continuing with Jira Cloud API...")
 
     # --- Checking input file ---
     ui.lf()

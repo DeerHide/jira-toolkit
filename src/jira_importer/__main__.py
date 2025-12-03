@@ -18,7 +18,7 @@ from jira_importer import CFG_REQ_DEFAULT
 # Import classes
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
-from jira_importer.config.config_factory import ConfigurationFactory
+from jira_importer.config.config_factory import ConfigurationFactory, ConfigurationType
 from jira_importer.config.utils import determine_config_path, display_config
 from jira_importer.console import ConsoleIO
 from jira_importer.errors import (
@@ -147,6 +147,29 @@ def _set_autoreply(args: Any) -> bool | None:
     return None
 
 
+def _load_configuration(args: Any, logger: logging.Logger) -> tuple[ConfigurationType | None, str | None, int]:
+    """Load configuration from file with error handling.
+
+    Args:
+        args: Command line arguments.
+        logger: Logger instance for error logging.
+
+    Returns:
+        Tuple of (config, config_path, exit_code). On success, returns (config, config_path, 0).
+        On error, handles error display/logging, calls graceful exit, and returns (None, None, 1).
+    """
+    config_path = determine_config_path(args)
+    try:
+        config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")  # type: ignore
+        return config, config_path, 0
+    except Exception as config_exc:  # pylint: disable=broad-except
+        log_exception(logger, config_exc, context="Configuration loading")
+        error_message = format_error_for_display(config_exc)
+        ui.error(error_message)
+        _graceful_exit(exit_code=1, do_cleanup=False)
+        return None, None, 1
+
+
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -189,25 +212,13 @@ def main() -> int:
         # File logging is best-effort; ignore failures here
         pass
 
-    # Determine configuration file path
-    config_path = determine_config_path(args)
-    try:
-        config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")  # type: ignore
-    except ConfigurationError as config_exc:
-        # Domain configuration error: use structured logging and messaging
-        log_exception(logger, config_exc, context="Configuration loading")
-        error_message = format_error_for_display(config_exc)
-        ui.error(error_message)
-        logger.critical(f"Configuration loading failed: {error_message}")
-        _graceful_exit(exit_code=1, do_cleanup=False)
-        return 1
-    except Exception as config_exc:  # pylint: disable=broad-except
-        # Unexpected internal error while loading configuration
-        logger.exception("Unexpected error during configuration loading: %s", config_exc)
-        ui.error(f"Unexpected error while loading configuration: {config_exc}")
-        logger.critical("Configuration loading failed due to unexpected internal error")
-        _graceful_exit(exit_code=1, do_cleanup=False)
-        return 1
+    # Load configuration with error handling
+    # Note: config variable from credentials path (above) is not in scope here due to early return
+    config, config_path, exit_code = _load_configuration(args, logger)  # type: ignore[assignment]
+    if exit_code != 0:
+        return exit_code
+    if config_path is None or config is None:
+        raise ValueError("config_path and config should not be None when exit_code is 0")
 
     # Re-initialize logging with config support (now that config is loaded)
     setup_logger(logging.DEBUG if args.debug else None, config)

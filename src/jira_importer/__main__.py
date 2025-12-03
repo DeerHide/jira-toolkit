@@ -57,18 +57,40 @@ ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
 
 
+# Minimal config classes for fallback scenarios when full config loading fails or isn't needed
+class MinimalConfig:  # pylint: disable=too-few-public-methods
+    """Minimal config that returns default values for any key.
+
+    Used when full configuration loading fails or isn't needed (e.g., version display,
+    cleanup scenarios, error handling).
+    """
+
+    def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
+        """Return default value for any key."""
+        return default
+
+
+class MinimalConfigForCredentials:  # pylint: disable=too-few-public-methods
+    """Minimal config for credential operations with additional methods.
+
+    Used when config loading fails but we still need credential operations.
+    Includes both get_value() and get() methods, plus a path attribute.
+    """
+
+    path = "minimal"
+
+    def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
+        """Return default value for any key."""
+        return default
+
+    def get(self, key: str, default: Any = None) -> Any:  # pylint: disable=unused-argument
+        """Return default value for any key."""
+        return default
+
+
 # TODO: Move main logic to the app
 def main() -> int:
     """Main function for the Jira Importer application."""
-
-    # Minimal config class for cleanup when config/validation fails
-    class MinimalConfigForCleanup:  # pylint: disable=too-few-public-methods
-        """Minimal config for cleanup when config loading or validation fails."""
-
-        def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
-            """Return default value for any key."""
-            return default
-
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say(fmt.bold("Authors:"), fmt.default("Julien (@tom4897)"), fmt.default("Alain (@Nakool)"))
     ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
@@ -80,12 +102,7 @@ def main() -> int:
 
     # Handle version flag early, before any configuration loading
     if args.version:
-        # Create a minimal config for version display
-        class MinimalConfigForVersion:  # pylint: disable=too-few-public-methods
-            def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
-                return default
-
-        minimal_config = MinimalConfigForVersion()
+        minimal_config = MinimalConfig()
         artifact_manager = ArtifactManager(minimal_config)
         app = App(artifact_manager)
         app.print_version()
@@ -123,15 +140,6 @@ def main() -> int:
             config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT)
         except ConfigurationError:
             # If config loading fails with a domain error, use minimal config for keyring/env only
-            class MinimalConfigForCredentials:  # pylint: disable=too-few-public-methods
-                def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
-                    return default
-
-                def get(self, key: str, default: Any = None) -> Any:  # pylint: disable=unused-argument
-                    return default
-
-                path = "minimal"
-
             config = MinimalConfigForCredentials()  # type: ignore
 
         from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
@@ -215,7 +223,7 @@ def main() -> int:
         ui.lf()
 
         # Use minimal config for cleanup (ArtifactManager needs it)
-        minimal_config = MinimalConfigForCleanup()  # type: ignore[assignment]
+        minimal_config = MinimalConfig()  # type: ignore[assignment]
         app = App(ArtifactManager(minimal_config))
         app.event_close(exit_code=1, cleanup=False)
         return 1
@@ -227,7 +235,7 @@ def main() -> int:
         logger.critical("Configuration loading failed due to unexpected internal error")
         ui.lf()
 
-        minimal_config = MinimalConfigForCleanup()  # type: ignore[assignment]
+        minimal_config = MinimalConfig()  # type: ignore[assignment]
         app = App(ArtifactManager(minimal_config))
         app.event_close(exit_code=1, cleanup=False)
         return 1
@@ -327,7 +335,7 @@ def main() -> int:
         ui.lf()
 
         # Use minimal config for cleanup
-        minimal_config = MinimalConfigForCleanup()  # type: ignore[assignment]
+        minimal_config = MinimalConfig()  # type: ignore[assignment]
         app = App(ArtifactManager(minimal_config))
         app.event_close(exit_code=2, cleanup=False)
         return 2

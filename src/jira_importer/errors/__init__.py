@@ -18,19 +18,19 @@ All exceptions can be imported from this package:
 from __future__ import annotations
 
 from .base import ProcessingError
-
-# Re-export everything for convenience (single import point)
 from .codes import ErrorCode
 from .config import ConfigurationError, ExcelConfigurationError
 from .file import FileReadError, FileWriteError, InputFileError
 from .jira import JiraApiError, JiraAuthError
 from .network import NetworkError
 from .processing import MetadataWriteError, RowProcessingError, ValidationError, ValidationSetupError
+from .responses import ErrorResponse, error_response_from_exception, error_response_from_http
 from .utils import format_error_for_display, get_error_details, log_exception, map_exception_to_code
 
 __all__ = [
     "ConfigurationError",
     "ErrorCode",
+    "ErrorResponse",
     "ExcelConfigurationError",
     "FileReadError",
     "FileWriteError",
@@ -43,6 +43,8 @@ __all__ = [
     "RowProcessingError",
     "ValidationError",
     "ValidationSetupError",
+    "error_response_from_exception",
+    "error_response_from_http",
     "format_error_for_display",
     "get_error_details",
     "log_exception",

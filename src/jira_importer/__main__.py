@@ -116,6 +116,28 @@ def _show_config(args: Any) -> int:
         return 1
 
 
+def _graceful_exit(exit_code: int, do_cleanup: bool = False) -> None:
+    """Exit gracefully with cleanup using minimal config."""
+    ui.lf()
+    minimal_config = MinimalConfig()  # type: ignore[assignment]
+    app = App(ArtifactManager(minimal_config))
+    app.event_close(exit_code=exit_code, cleanup=do_cleanup)
+
+
+def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
+    logger.debug("Jira Importer initialized.")
+    logger.debug(f"Configuration loaded: {config.path}")
+    logger.debug(f"Input file: {args.input_file}")
+    logger.debug(fmt.kv("Input file", fmt.path(args.input_file)))
+    logger.debug(fmt.kv("Configuration", fmt.path(args.config)))
+    logger.debug(fmt.kv("Debug mode", args.debug))
+    logger.debug(fmt.kv("Version", args.version))
+    logger.debug(fmt.kv("Config default", args.config_default))
+    logger.debug(fmt.kv("Config input", args.config_input))
+    logger.debug(fmt.kv("Config excel", args.config_excel))
+    logger.debug(fmt.kv("args", str(args)))
+
+
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -170,30 +192,17 @@ def main() -> int:
     except ConfigurationError as config_exc:
         # Domain configuration error: use structured logging and messaging
         log_exception(logger, config_exc, context="Configuration loading")
-
         error_message = format_error_for_display(config_exc)
         ui.error(error_message)
-
-        # Exit gracefully without showing the argument panel
         logger.critical(f"Configuration loading failed: {error_message}")
-        ui.lf()
-
-        # Use minimal config for cleanup (ArtifactManager needs it)
-        minimal_config = MinimalConfig()  # type: ignore[assignment]
-        app = App(ArtifactManager(minimal_config))
-        app.event_close(exit_code=1, cleanup=False)
+        _graceful_exit(exit_code=1, do_cleanup=False)
         return 1
     except Exception as config_exc:  # pylint: disable=broad-except
         # Unexpected internal error while loading configuration
         logger.exception("Unexpected error during configuration loading: %s", config_exc)
-
         ui.error(f"Unexpected error while loading configuration: {config_exc}")
         logger.critical("Configuration loading failed due to unexpected internal error")
-        ui.lf()
-
-        minimal_config = MinimalConfig()  # type: ignore[assignment]
-        app = App(ArtifactManager(minimal_config))
-        app.event_close(exit_code=1, cleanup=False)
+        _graceful_exit(exit_code=1, do_cleanup=False)
         return 1
 
     # Re-initialize logging with config support (now that config is loaded)
@@ -225,17 +234,7 @@ def main() -> int:
     logger.info(f"Config: {config_path}")
     ui.say(f"Configuration file: {fmt.path(config_path)}")
 
-    logger.debug("Jira Importer initialized.")
-    logger.debug(f"Configuration loaded: {config.path}")
-    logger.debug(f"Input file: {args.input_file}")
-    logger.debug(fmt.kv("Input file", fmt.path(args.input_file)))
-    logger.debug(fmt.kv("Configuration", fmt.path(args.config)))
-    logger.debug(fmt.kv("Debug mode", args.debug))
-    logger.debug(fmt.kv("Version", args.version))
-    logger.debug(fmt.kv("Config default", args.config_default))
-    logger.debug(fmt.kv("Config input", args.config_input))
-    logger.debug(fmt.kv("Config excel", args.config_excel))
-    logger.debug(fmt.kv("args", str(args)))
+    _show_debug_info(args, config, logger)
 
     ui.success_light("Jira Importer initialized")
 

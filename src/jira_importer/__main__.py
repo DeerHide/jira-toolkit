@@ -138,6 +138,16 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug(fmt.kv("args", str(args)))
 
 
+def _set_autoreply(args: Any) -> bool:
+    """Set the autoreply flag based on the command line arguments."""
+    if getattr(args, "auto_yes", False):
+        return True
+    elif getattr(args, "auto_no", False):
+        return False
+    else:
+        return None
+
+
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -168,12 +178,7 @@ def main() -> int:
         return exit_code
 
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
-    if getattr(args, "auto_yes", False):
-        autoreply = True
-    elif getattr(args, "auto_no", False):
-        autoreply = False
-    else:
-        autoreply = None
+    autoreply = _set_autoreply(args)
 
     # Set up basic logging early (before config loading) so we can log errors
     setup_logger(logging.DEBUG if args.debug else logging.INFO, None)

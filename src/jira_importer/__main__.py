@@ -527,7 +527,9 @@ def main() -> int:
         app.event_close(exit_code=3, cleanup=True)
         return 3
     except Exception as exc:  # pylint: disable=broad-except
-        # Last-resort guard for unexpected internal errors
+        # Last-resort guard for unexpected internal errors. This broad catch is
+        # intentional so we can present a clear failure to the user while
+        # preserving the full traceback in the logs for diagnosis.
         logger.exception("Unexpected internal error in import pipeline: %s", exc)
         App.event_fatal(
             exit_code=3,
@@ -539,6 +541,7 @@ def main() -> int:
             if mgr is not None:
                 mgr.close()
         except Exception:  # pylint: disable=broad-except
+            # Best-effort cleanup; ignore close failures.
             pass
 
     # TODO: Move logic to utils
@@ -553,6 +556,26 @@ def main() -> int:
     app.event_close(exit_code=_result_code, cleanup=True)
 
     return _result_code
+
+
+def run_main_with_error_response() -> tuple[int, "ErrorResponse | None"]:
+    """Run main() and return an exit code plus optional structured ErrorResponse.
+
+    This helper is intended for programmatic callers (e.g. integrations/tests)
+    that prefer a structured error model instead of console-only messaging.
+
+    Returns:
+        Tuple of (exit_code, ErrorResponse|None). On success, the error response
+        is None; on failure it contains the mapped error information.
+    """
+    from jira_importer.errors import ErrorResponse, error_response_from_exception
+
+    try:
+        exit_code = main()
+        return exit_code, None
+    except Exception as exc:  # pylint: disable=broad-except
+        error = error_response_from_exception(exc)
+        return 1, error
 
 
 # Main function

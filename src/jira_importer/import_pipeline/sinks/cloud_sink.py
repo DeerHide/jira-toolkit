@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from ...config.config_view import ConfigView
 from ...config.constants import LEVEL_2_EPIC, LEVEL_3_STORY, LEVEL_4_SUBTASK
@@ -76,6 +77,21 @@ def _validate_config(config: object) -> tuple[str, str, str]:
             details={"config_key": "jira.connection.site_address"},
         )
 
+    # Basic URL validation to catch obvious misconfigurations early.
+    parsed = urlparse(str(base_url))
+    if not parsed.scheme or not parsed.netloc:
+        raise ConfigurationError(
+            "Invalid jira.connection.site_address in configuration for Cloud sink. "
+            "Expected an HTTPS URL like 'https://your-domain.atlassian.net'.",
+            details={"config_key": "jira.connection.site_address", "value": str(base_url)},
+        )
+    if parsed.scheme.lower() != "https":
+        raise ConfigurationError(
+            "Insecure jira.connection.site_address in configuration for Cloud sink. "
+            "Only HTTPS URLs are supported (e.g. 'https://your-domain.atlassian.net').",
+            details={"config_key": "jira.connection.site_address", "value": str(base_url)},
+        )
+
     # Use proper credential resolution (keyring -> env -> config)
     email_spec = SecretSpec(config_key=AUTH_EMAIL_KEY, env_fallback="JIRA_EMAIL")
     token_spec = SecretSpec(config_key=AUTH_TOKEN_KEY, env_fallback="JIRA_API_TOKEN")
@@ -90,6 +106,14 @@ def _validate_config(config: object) -> tuple[str, str, str]:
             "Set it via one of: config key 'jira.connection.auth.email'; environment variable JIRA_EMAIL; "
             "or run 'jira-importer --credentials' to enter and store it securely.",
             details={"config_key": "jira.connection.auth.email"},
+        )
+
+    # Lightweight email format validation
+    if "@" not in email or email.strip().startswith("@") or email.strip().endswith("@"):
+        raise ConfigurationError(
+            f"Invalid Jira account email configured for Cloud sink: '{email}'. "
+            "Please provide a valid email address (e.g. name@example.com).",
+            details={"config_key": "jira.connection.auth.email", "value": email},
         )
 
     # Check for missing or empty API token

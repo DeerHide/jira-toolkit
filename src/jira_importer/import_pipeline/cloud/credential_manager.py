@@ -100,8 +100,11 @@ def ensure_cloud_credentials(ui, cfg: ConfigView, auto_reply: bool | None) -> di
 
     Notes:
       - Does not log or print the token.
-      - If credentials are missing and auto_reply is True (-y), returns found=False (no prompt).
-      - If interactive (auto_reply is None), prompts for both values and attempts to store in keyring.
+      - When auto_reply is True (e.g. --auto-yes / non-interactive mode), this function will never prompt
+        and simply reports whether credentials are already available.
+      - When auto_reply is False, callers can use this to model a 'always no' policy for prompts.
+      - When auto_reply is None, the function may prompt interactively via the provided UI and attempt
+        to persist values in the OS keyring when available.
     """
     status: dict[str, Any] = {
         "found": False,

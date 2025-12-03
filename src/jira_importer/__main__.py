@@ -45,7 +45,6 @@ from jira_importer.utils import (
 )
 
 # Global variables
-# Warning = Critical = False
 debug_mode = False  # pylint: disable=invalid-name
 
 
@@ -88,7 +87,35 @@ class MinimalConfigForCredentials:  # pylint: disable=too-few-public-methods
         return default
 
 
-# TODO: Move main logic to the app
+def _show_version() -> int:
+    """Handle --version flag and exit early."""
+    minimal_config = MinimalConfig()
+    artifact_manager = ArtifactManager(minimal_config)
+    app = App(artifact_manager)
+    app.print_version()
+    app.event_close(exit_code=0, cleanup=False)
+    return 0
+
+
+def _show_config(args: Any) -> int:
+    """Handle --show-config flag and exit early."""
+    try:
+        if not hasattr(args, "input_file") or not args.input_file:
+            # Provide dummy input_file for config determination
+            args.input_file = "dummy.xlsx"
+        config_path = determine_config_path(args)
+        display_config(config_path)
+        return 0
+    except ConfigurationError as exc:
+        # Domain configuration error: show a clear message
+        ui.error(format_error_for_display(exc))
+        return 1
+    except Exception as exc:  # pylint: disable=broad-except
+        # Unexpected internal error
+        ui.error(f"Failed to load configuration for show-config: {exc}")
+        return 1
+
+
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -102,31 +129,11 @@ def main() -> int:
 
     # Handle version flag early, before any configuration loading
     if args.version:
-        minimal_config = MinimalConfig()
-        artifact_manager = ArtifactManager(minimal_config)
-        app = App(artifact_manager)
-        app.print_version()
-        app.event_close(exit_code=0, cleanup=False)
-        return 0
+        return _show_version()
 
     # Handle debug show-config mode
     if args.show_config:
-        # For show-config, we need minimal config for resolution but don't require input file
-        try:
-            if not hasattr(args, "input_file") or not args.input_file:
-                # Provide dummy input_file for config determination
-                args.input_file = "dummy.xlsx"
-            config_path = determine_config_path(args)
-            display_config(config_path)
-            return 0
-        except ConfigurationError as exc:
-            # Domain configuration error: show a clear message
-            ui.error(format_error_for_display(exc))
-            return 1
-        except Exception as exc:  # pylint: disable=broad-except
-            # Unexpected internal error
-            ui.error(f"Failed to load configuration for show-config: {exc}")
-            return 1
+        return _show_config(args)
 
     # Handle --credentials mode early (like --version)
     if hasattr(args, "credentials") and args.credentials:
@@ -575,7 +582,7 @@ def run_main_with_error_response() -> tuple[int, ErrorResponse | None]:
         Tuple of (exit_code, ErrorResponse|None). On success, the error response
         is None; on failure it contains the mapped error information.
     """
-    from jira_importer.errors import error_response_from_exception
+    from jira_importer.errors import error_response_from_exception  # pylint: disable=import-outside-toplevel
 
     try:
         exit_code = main()

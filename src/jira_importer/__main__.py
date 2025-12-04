@@ -29,19 +29,9 @@ from jira_importer.errors import (
     log_exception,
 )
 from jira_importer.fileops import FileManager
-from jira_importer.import_pipeline.models import ProblemSeverity
-from jira_importer.import_pipeline.processor import ImportProcessor
-from jira_importer.import_pipeline.reporting import CloudReportReporter, ProblemReporter, ReportOptions
-from jira_importer.import_pipeline.sinks.cloud_sink import write_cloud
-from jira_importer.import_pipeline.sinks.csv_sink import write_csv
+from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
-from jira_importer.utils import (
-    get_executable_dir,
-    get_logs_directory,
-    load_config_for_input,
-    open_browser,
-    open_jira_filter,
-)
+from jira_importer.utils import get_executable_dir, get_logs_directory, load_config_for_input, open_browser
 
 # Global variables
 debug_mode = False  # pylint: disable=invalid-name
@@ -347,154 +337,32 @@ def main() -> int:
     if output_target == "cloud":
         _credential_preflight(config, autoreply, logger)
 
-    def _run_pipeline() -> int:
-        """Run the main import pipeline and return an appropriate exit code."""
-        _result_code = 0
-
-        processor = ImportProcessor(
-            path=in_path,
-            config=config,
-            ui=ui,  # pipeline is UI-agnostic; reporting handled below
-            enable_excel_rules=args.enable_excel_rules,
-            excel_rules_source=str(in_path) if args.enable_excel_rules else None,
-            enable_auto_fix=args.auto_fix,
-        )
-        logger.debug(
-            "Processor:\n%s\nconfig: %s\nenable_excel_rules: %s\nexcel_rules_source: %s\nenable_auto_fix: %s",
-            processor.path,
-            processor.config,
-            processor.enable_excel_rules,
-            processor.excel_rules_source,
-            processor.enable_auto_fix,
-        )
-
-        result = processor.process()
-
-        # Report
-        # TODO: Extract as a function
-        if not args.no_report:
-            ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=False)).render(result)
-        else:
-            ProblemReporter(options=ReportOptions(show_details=False, show_aggregate_by_code=True)).render(result)
-
-        if not processor.enable_auto_fix:
-            if result.report.errors > 0:
-                ui.warning("Auto-fix is disabled. Please fix the issues manually.")
-            ui.hint(
-                "You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag."
-            )
-
-        # Check for CRITICAL problems and handle user interaction
-        critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]
-        if critical_problems:
-            # If --auto-yes and --cloud, terminate immediately
-            if autoreply is True and output_target == "cloud":
-                ui.error("Cannot proceed with --auto-yes and --cloud when critical issues are present.")
-                app.event_abort(exit_code=1, message="Critical validation issues with --auto-yes and --cloud")
-
-            # Skip critical validation prompt for dry-run mode since we never reach sinks
-            if not args.dry_run:
-                # For all other cases, ask user whether to continue
-                if not ui.prompt_yes_no(
-                    "Critical validation issues found. Do you want to continue?", default=False, auto_reply=autoreply
-                ):
-                    app.event_abort(exit_code=1, message="User cancelled due to critical issues.")
-                else:
-                    ui.success("Continuing despite critical issues...")
-
-        if result.report.errors > 0:
-            if not ui.prompt_yes_no("Do you want to continue?", default=False, auto_reply=autoreply):
-                app.event_abort(exit_code=1, message="User cancelled the Execution.")
-            else:
-                ui.success("Continuing...")
-
-        # Handle dry-run mode - stop before sinks
-        if args.dry_run:
-            ui.info("Dry-run mode: Processing complete, stopping before sinks")
-            ui.success(f"Dry-run completed successfully. {len(result.rows)} rows processed.")
-            ui.hint("Remove --dry-run flag to run with actual output")
-            # Exit with validation-based code
-            _result_code = 0 if result.report.errors == 0 else 1
-            ui.lf()
-            ui.full_panel(fmt.success("Dry-run complete. You can close this window now."))
-            app.event_close(exit_code=_result_code, cleanup=True)
-            return _result_code
-
-        # Apply Jira Cloud x60 quirk in CSV sink only, if requested
-        temp_config = None
-        if args.fix_cloud_estimates and output_target == "csv":
-            if isinstance(config, dict):
-                temp_config = {**config, "jira.cloud.estimate.multiply_by_60": True}
-            else:
-
-                class _Cfg(dict):
-                    def get(self, k, d=None):  # type: ignore[override]
-                        return super().get(k, d)
-
-                temp_config = _Cfg()
-                temp_config.update({"jira.cloud.estimate.multiply_by_60": True})
-
-        if output_target == "cloud":
-            ui.info("Output target: Jira Cloud API")
-
-            # Check for critical assignee errors before proceeding
-            critical_assignee_errors = [
-                p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("assignee.")
-            ]
-            if critical_assignee_errors:
-                ui.error("Critical assignee errors found - cannot proceed with cloud import:")
-                for error in critical_assignee_errors:
-                    ui.error(f"  Row {error.row_index}: {error.message}")
-                App.event_fatal(exit_code=4, message="Critical assignee errors prevent cloud import")
-
-            try:
-                # Write payloads if debug mode is enabled or cloud debug flag is set
-                debug_output_dir = (
-                    output_dir_path if (args.debug or getattr(args, "cloud_debug_payloads", False)) else None
-                )
-                report = write_cloud(result, config, dry_run=False, output_dir=debug_output_dir, ui=ui)
-                ui.success(f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}")
-                if debug_output_dir:
-                    ui.info(f"Jira Cloud payloads written to: {debug_output_dir}")
-                if report.created_issue_keys:
-                    # Display created issue keys in a user-friendly format
-                    issue_keys_str = ", ".join(report.created_issue_keys)
-                    ui.info(f"{issue_keys_str.count(',') + 1} issues created: {issue_keys_str}")
-                    logger.info(f"Created Jira issues: {issue_keys_str}")
-
-                    # Open Jira filter if auto_open_page is enabled
-                    if config.get_value("app.import.auto_open_page", default=False, expected_type=bool):
-                        open_jira_filter(config, report.created_issue_keys, ui, logger)
-
-                if report.failed > 0:
-                    CloudReportReporter().render_errors(report, ui)
-            except ProcessingError:
-                # Let domain errors bubble up to the outer handler for rich reporting
-                raise
-            except Exception as exc:  # pylint: disable=broad-except
-                # Unexpected internal error during cloud import
-                logger.exception("Cloud import failed: %s", exc)
-                App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}")
-            # non-zero exit if there were errors (so CI can gate)
-            _result_code = 0 if result.report.errors == 0 else 1
-            # End after cloud path
-            ui.lf()
-            ui.full_panel(fmt.success("Processing complete. You can close this window now."))
-            app.event_close(exit_code=_result_code, cleanup=True)
-            return _result_code
-
-        if output_target == "csv":
-            write_csv(result, output_filepath, config=temp_config if temp_config is not None else config)
-            ui.say(f"Output Import CSV Ready → {fmt.path(str(output_filepath))}")
-            logger.info("Wrote output CSV → %s", output_filepath)
-
-        # non-zero exit if there were errors (so CI can gate)
-        _result_code = 0 if result.report.errors == 0 else 1
-        return _result_code
-
     _result_code = 0
+    context = PipelineContext(
+        input_path=in_path,
+        output_target=output_target,  # type: ignore[assignment]  # str -> Literal conversion
+        output_filepath=output_filepath,
+        output_dir=output_dir_path,
+        config=config,
+        ui=ui,
+        logger=logger,
+        app=app,
+    )
+    options = PipelineOptions(
+        enable_excel_rules=args.enable_excel_rules,
+        excel_rules_source=str(in_path) if args.enable_excel_rules else None,
+        enable_auto_fix=args.auto_fix,
+        no_report=args.no_report,
+        dry_run=args.dry_run,
+        fix_cloud_estimates=args.fix_cloud_estimates,
+        debug=args.debug,
+        cloud_debug_payloads=getattr(args, "cloud_debug_payloads", False),
+        auto_reply=autoreply,
+    )
+
     try:
-        _result_code = _run_pipeline()
+        runner = ImportRunner(context, options)
+        _result_code = runner.run()
     except ProcessingError as proc_exc:
         # Use structured error handling for domain exceptions
         log_exception(logger, proc_exc, context="Import pipeline")
@@ -521,16 +389,18 @@ def main() -> int:
             # Best-effort cleanup; ignore close failures.
             pass
 
-    # TODO: Move logic to utils
-    if config.get_value("app.import.auto_open_page", default=False, expected_type=bool):
-        site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
-        if site_address and "BulkCreateSetupPage" not in site_address:
-            site_address += "/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true"
-        open_browser(f"{site_address}")
+    # Handle CSV-specific finalization (cloud output is handled by ImportRunner)
+    if output_target == "csv":
+        # TODO: Move logic to utils
+        if config.get_value("app.import.auto_open_page", default=False, expected_type=bool):
+            site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
+            if site_address and "BulkCreateSetupPage" not in site_address:
+                site_address += "/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true"
+            open_browser(f"{site_address}")
 
-    ui.lf()
-    ui.full_panel(fmt.success("Processing complete. You can close this window now."))
-    app.event_close(exit_code=_result_code, cleanup=True)
+        ui.lf()
+        ui.full_panel(fmt.success("Processing complete. You can close this window now."))
+        app.event_close(exit_code=_result_code, cleanup=True)
 
     return _result_code
 

@@ -7,6 +7,7 @@ Author:
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from rich_argparse import RichHelpFormatter
 
@@ -280,3 +281,110 @@ class App:
         debug_group.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
         debug_group.add_argument("--show-config", help="Show configuration and exit", action="store_true")
         debug_group.add_argument("--dry-run", help="Process data but stop before writing output", action="store_true")
+
+    @staticmethod
+    def show_version() -> int:
+        """Handle --version flag and exit early.
+
+        Returns:
+            Exit code (always 0 for version display).
+        """
+        from .config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+
+        minimal_config = MinimalConfig()
+        artifact_manager = ArtifactManager(minimal_config)
+        app = App(artifact_manager)
+        app.print_version()
+        app.event_close(exit_code=0, cleanup=False)
+        return 0
+
+    @staticmethod
+    def show_config(args: argparse.Namespace) -> int:
+        """Handle --show-config flag and exit early.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            Exit code (0 on success, 1 on error).
+        """
+        from .config.utils import determine_config_path, display_config  # pylint: disable=import-outside-toplevel
+        from .errors import ConfigurationError, format_error_for_display  # pylint: disable=import-outside-toplevel
+
+        ui_instance, _ = ConsoleIO.getComponents()
+
+        try:
+            if not hasattr(args, "input_file") or not args.input_file:
+                # Provide dummy input_file for config determination
+                args.input_file = "dummy.xlsx"
+            config_path = determine_config_path(args)
+            display_config(config_path)
+            return 0
+        except ConfigurationError as exc:
+            # Domain configuration error: show a clear message
+            ui_instance.error(format_error_for_display(exc))
+            return 1
+        except Exception as exc:  # pylint: disable=broad-except
+            # Unexpected internal error
+            ui_instance.error(f"Failed to load configuration for show-config: {exc}")
+            return 1
+
+    @staticmethod
+    def graceful_exit(exit_code: int, do_cleanup: bool = False) -> None:
+        """Exit gracefully with cleanup using minimal config.
+
+        Args:
+            exit_code: Exit code to use.
+            do_cleanup: Whether to perform cleanup operations.
+        """
+        from .config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+
+        ui_instance, _ = ConsoleIO.getComponents()
+        ui_instance.lf()
+        minimal_config = MinimalConfig()
+        app = App(ArtifactManager(minimal_config))
+        app.event_close(exit_code=exit_code, cleanup=do_cleanup)
+
+    @staticmethod
+    def get_autoreply_from_args(args: argparse.Namespace) -> bool | None:
+        """Get the autoreply flag based on the command line arguments.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            True for -y/--yes, False for -n/--no, None otherwise.
+        """
+        if getattr(args, "auto_yes", False):
+            return True
+        if getattr(args, "auto_no", False):
+            return False
+        return None
+
+    @staticmethod
+    def get_output_dir_from_args(args: argparse.Namespace) -> Path:
+        """Get the output directory path based on the command line arguments.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            Output directory path.
+        """
+        if args.output:
+            return Path(args.output)
+        return Path(args.input_file).parent
+
+    @staticmethod
+    def get_output_target_from_args(args: argparse.Namespace) -> str:
+        """Get the output target based on the command line arguments.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            Output target: "cloud" or "csv".
+        """
+        if getattr(args, "output_target_cloud", False):
+            return "cloud"
+        return "csv"

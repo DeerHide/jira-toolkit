@@ -18,16 +18,10 @@ from jira_importer import CFG_REQ_DEFAULT
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
 from jira_importer.config.config_factory import ConfigurationFactory, ConfigurationType
-from jira_importer.config.utils import determine_config_path, display_config
+from jira_importer.config.minimal_config import MinimalConfigForCredentials
+from jira_importer.config.utils import determine_config_path
 from jira_importer.console import ConsoleIO
-from jira_importer.errors import (
-    ConfigurationError,
-    ErrorResponse,
-    InputFileError,
-    ProcessingError,
-    format_error_for_display,
-    log_exception,
-)
+from jira_importer.errors import ErrorResponse, InputFileError, ProcessingError, format_error_for_display, log_exception
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
@@ -45,74 +39,6 @@ ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
 
 
-# Minimal config classes for fallback scenarios when full config loading fails or isn't needed
-class MinimalConfig:  # pylint: disable=too-few-public-methods
-    """Minimal config that returns default values for any key.
-
-    Used when full configuration loading fails or isn't needed (e.g., version display,
-    cleanup scenarios, error handling).
-    """
-
-    def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
-        """Return default value for any key."""
-        return default
-
-
-class MinimalConfigForCredentials:  # pylint: disable=too-few-public-methods
-    """Minimal config for credential operations with additional methods.
-
-    Used when config loading fails but we still need credential operations.
-    Includes both get_value() and get() methods, plus a path attribute.
-    """
-
-    path = "minimal"
-
-    def get_value(self, key: str, default: Any = None, expected_type: Any = None) -> Any:  # pylint: disable=unused-argument
-        """Return default value for any key."""
-        return default
-
-    def get(self, key: str, default: Any = None) -> Any:  # pylint: disable=unused-argument
-        """Return default value for any key."""
-        return default
-
-
-def _show_version() -> int:
-    """Handle --version flag and exit early."""
-    minimal_config = MinimalConfig()
-    artifact_manager = ArtifactManager(minimal_config)
-    app = App(artifact_manager)
-    app.print_version()
-    app.event_close(exit_code=0, cleanup=False)
-    return 0
-
-
-def _show_config(args: Any) -> int:
-    """Handle --show-config flag and exit early."""
-    try:
-        if not hasattr(args, "input_file") or not args.input_file:
-            # Provide dummy input_file for config determination
-            args.input_file = "dummy.xlsx"
-        config_path = determine_config_path(args)
-        display_config(config_path)
-        return 0
-    except ConfigurationError as exc:
-        # Domain configuration error: show a clear message
-        ui.error(format_error_for_display(exc))
-        return 1
-    except Exception as exc:  # pylint: disable=broad-except
-        # Unexpected internal error
-        ui.error(f"Failed to load configuration for show-config: {exc}")
-        return 1
-
-
-def _graceful_exit(exit_code: int, do_cleanup: bool = False) -> None:
-    """Exit gracefully with cleanup using minimal config."""
-    ui.lf()
-    minimal_config = MinimalConfig()  # type: ignore[assignment]
-    app = App(ArtifactManager(minimal_config))
-    app.event_close(exit_code=exit_code, cleanup=do_cleanup)
-
-
 def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug("Jira Importer initialized.")
     logger.debug(f"Configuration loaded: {config.path}")
@@ -125,15 +51,6 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug(fmt.kv("Config input", args.config_input))
     logger.debug(fmt.kv("Config excel", args.config_excel))
     logger.debug(fmt.kv("args", str(args)))
-
-
-def _set_autoreply(args: Any) -> bool | None:
-    """Set the autoreply flag based on the command line arguments."""
-    if getattr(args, "auto_yes", False):
-        return True
-    if getattr(args, "auto_no", False):
-        return False
-    return None
 
 
 def _validate_input_file(in_path: Path, xlsx_file: str, logger: logging.Logger) -> None:
@@ -160,7 +77,7 @@ def _validate_input_file(in_path: Path, xlsx_file: str, logger: logging.Logger) 
         error_message = format_error_for_display(file_exc)
         ui.error(error_message)
         logger.critical(f"Input file validation failed: {error_message}")
-        _graceful_exit(exit_code=2, do_cleanup=False)
+        App.graceful_exit(exit_code=2, do_cleanup=False)
 
 
 def _load_configuration(args: Any, logger: logging.Logger) -> tuple[ConfigurationType | None, str | None, int]:
@@ -182,22 +99,8 @@ def _load_configuration(args: Any, logger: logging.Logger) -> tuple[Configuratio
         log_exception(logger, config_exc, context="Configuration loading")
         error_message = format_error_for_display(config_exc)
         ui.error(error_message)
-        _graceful_exit(exit_code=1, do_cleanup=False)
+        App.graceful_exit(exit_code=1, do_cleanup=False)
         return None, None, 1
-
-
-def _set_output_dir_path(args: Any) -> Path:
-    """Set the output directory path based on the command line arguments."""
-    if args.output:
-        return Path(args.output)
-    return Path(args.input_file).parent
-
-
-def _set_output_target(args: Any) -> str:
-    """Set the output target based on the command line arguments."""
-    if args.output_target_cloud:
-        return "cloud"
-    return "csv"
 
 
 def _credential_preflight(config: Any, autoreply: bool | None, logger: logging.Logger) -> None:
@@ -236,11 +139,11 @@ def main() -> int:
 
     # Handle version flag early, before any configuration loading
     if args.version:
-        return _show_version()
+        return App.show_version()
 
     # Handle debug show-config mode
     if args.show_config:
-        return _show_config(args)
+        return App.show_config(args)
 
     # Handle --credentials mode early (like --version)
     if hasattr(args, "credentials") and args.credentials:
@@ -253,7 +156,7 @@ def main() -> int:
         return exit_code
 
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
-    autoreply = _set_autoreply(args)
+    autoreply = App.get_autoreply_from_args(args)
 
     # Set up basic logging early (before config loading) so we can log errors
     setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
@@ -299,10 +202,10 @@ def main() -> int:
 
     ui.success_light("Jira Importer initialized")
 
-    output_dir_path = _set_output_dir_path(args)
+    output_dir_path = App.get_output_dir_from_args(args)
 
     # Determine output target strictly from CLI: --cloud implies cloud, otherwise csv
-    output_target = _set_output_target(args)
+    output_target = App.get_output_target_from_args(args)
     if output_target == "cloud":
         _question = "The Jira Cloud API support is experimental and may not work properly. Do you want to continue?"
         if not ui.prompt_yes_no(_question, default=False, auto_reply=autoreply):

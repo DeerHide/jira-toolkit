@@ -13,9 +13,8 @@ import warnings
 from pathlib import Path
 from typing import Any
 
-from jira_importer import CFG_REQ_DEFAULT
-
 # Import classes
+from jira_importer import CFG_REQ_DEFAULT
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
 from jira_importer.config.config_factory import ConfigurationFactory, ConfigurationType
@@ -147,6 +146,33 @@ def _set_autoreply(args: Any) -> bool | None:
     return None
 
 
+def _validate_input_file(in_path: Path, xlsx_file: str, logger: logging.Logger) -> None:
+    """Validate the input file exists and is a file."""
+    try:
+        if not in_path.exists():
+            raise InputFileError(
+                f"Input file does not exist: {xlsx_file}",
+                details={"file_path": str(xlsx_file), "operation": "input_validation"},
+            )
+        if not in_path.is_file():
+            raise InputFileError(
+                f"Input path is not a file: {xlsx_file}",
+                details={
+                    "file_path": str(xlsx_file),
+                    "operation": "input_validation",
+                    "path_type": "directory_or_other",
+                },
+            )
+    except InputFileError as file_exc:
+        # Log the error with structured details
+        log_exception(logger, file_exc, context="Input file validation")
+        # Display formatted error with error code
+        error_message = format_error_for_display(file_exc)
+        ui.error(error_message)
+        logger.critical(f"Input file validation failed: {error_message}")
+        _graceful_exit(exit_code=2, do_cleanup=False)
+
+
 def _load_configuration(args: Any, logger: logging.Logger) -> tuple[ConfigurationType | None, str | None, int]:
     """Load configuration from file with error handling.
 
@@ -182,6 +208,29 @@ def _set_output_target(args: Any) -> str:
     if args.output_target_cloud:
         return "cloud"
     return "csv"
+
+
+def _credential_preflight(config: Any, autoreply: bool | None, logger: logging.Logger) -> None:
+    try:
+        from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
+        from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
+            ensure_cloud_credentials,
+        )
+
+        status = ensure_cloud_credentials(ui, ConfigView(config), autoreply)
+        if status.get("found"):
+            src = status.get("source", "unknown")
+            logger.info("Jira API Email/Key found (%s)", src)
+            if status.get("email"):
+                ui.hint(f"Using Jira account: {status['email']}")
+        else:
+            App.event_fatal(
+                exit_code=2,
+                message=("Jira API credentials are missing. Set them in config/env, or run without -y to enter them."),
+            )
+    except Exception as preflight_exc:
+        logger.exception("Credential preflight failed: %s", preflight_exc)
+        App.event_fatal(exit_code=2, message=f"Credential preflight failed: {preflight_exc}")
 
 
 def main() -> int:
@@ -280,39 +329,7 @@ def main() -> int:
     xlsx_file = args.input_file
     in_path = Path(xlsx_file)
 
-    # Validate input file exists and is a file
-    try:
-        if not in_path.exists():
-            raise InputFileError(
-                f"Input file does not exist: {xlsx_file}",
-                details={"file_path": str(xlsx_file), "operation": "input_validation"},
-            )
-        if not in_path.is_file():
-            raise InputFileError(
-                f"Input path is not a file: {xlsx_file}",
-                details={
-                    "file_path": str(xlsx_file),
-                    "operation": "input_validation",
-                    "path_type": "directory_or_other",
-                },
-            )
-    except InputFileError as file_exc:
-        # Log the error with structured details
-        log_exception(logger, file_exc, context="Input file validation")
-
-        # Display formatted error with error code
-        error_message = format_error_for_display(file_exc)
-        ui.error(error_message)
-
-        # Exit gracefully
-        logger.critical(f"Input file validation failed: {error_message}")
-        ui.lf()
-
-        # Use minimal config for cleanup
-        minimal_config = MinimalConfig()  # type: ignore[assignment]
-        app = App(ArtifactManager(minimal_config))
-        app.event_close(exit_code=2, cleanup=False)
-        return 2
+    _validate_input_file(in_path, xlsx_file, logger)
 
     output_filename: str = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
     output_filepath: Path = output_dir_path / output_filename
@@ -328,28 +345,7 @@ def main() -> int:
 
     # Early credential preflight for Jira Cloud with fail-fast and logging
     if output_target == "cloud":
-        try:
-            from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
-            from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
-                ensure_cloud_credentials,
-            )
-
-            status = ensure_cloud_credentials(ui, ConfigView(config), autoreply)
-            if status.get("found"):
-                src = status.get("source", "unknown")
-                logger.info("Jira API Email/Key found (%s)", src)
-                if status.get("email"):
-                    ui.hint(f"Using Jira account: {status['email']}")
-            else:
-                App.event_fatal(
-                    exit_code=2,
-                    message=(
-                        "Jira API credentials are missing. Set them in config/env, or run without -y to enter them."
-                    ),
-                )
-        except Exception as preflight_exc:
-            logger.exception("Credential preflight failed: %s", preflight_exc)
-            App.event_fatal(exit_code=2, message=f"Credential preflight failed: {preflight_exc}")
+        _credential_preflight(config, autoreply, logger)
 
     def _run_pipeline() -> int:
         """Run the main import pipeline and return an appropriate exit code."""

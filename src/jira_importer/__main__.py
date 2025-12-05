@@ -14,14 +14,12 @@ from pathlib import Path
 from typing import Any
 
 # Import classes
-from jira_importer import CFG_REQ_DEFAULT
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
-from jira_importer.config.config_factory import ConfigurationFactory, ConfigurationType
 from jira_importer.config.minimal_config import MinimalConfigForCredentials
-from jira_importer.config.utils import determine_config_path
+from jira_importer.config.utils import load_configuration_with_error_handling
 from jira_importer.console import ConsoleIO
-from jira_importer.errors import ErrorResponse, InputFileError, ProcessingError, format_error_for_display, log_exception
+from jira_importer.errors import ErrorResponse, ProcessingError, format_error_for_display, log_exception
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
@@ -51,56 +49,6 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug(fmt.kv("Config input", args.config_input))
     logger.debug(fmt.kv("Config excel", args.config_excel))
     logger.debug(fmt.kv("args", str(args)))
-
-
-def _validate_input_file(in_path: Path, xlsx_file: str, logger: logging.Logger) -> None:
-    """Validate the input file exists and is a file."""
-    try:
-        if not in_path.exists():
-            raise InputFileError(
-                f"Input file does not exist: {xlsx_file}",
-                details={"file_path": str(xlsx_file), "operation": "input_validation"},
-            )
-        if not in_path.is_file():
-            raise InputFileError(
-                f"Input path is not a file: {xlsx_file}",
-                details={
-                    "file_path": str(xlsx_file),
-                    "operation": "input_validation",
-                    "path_type": "directory_or_other",
-                },
-            )
-    except InputFileError as file_exc:
-        # Log the error with structured details
-        log_exception(logger, file_exc, context="Input file validation")
-        # Display formatted error with error code
-        error_message = format_error_for_display(file_exc)
-        ui.error(error_message)
-        logger.critical(f"Input file validation failed: {error_message}")
-        App.graceful_exit(exit_code=2, do_cleanup=False)
-
-
-def _load_configuration(args: Any, logger: logging.Logger) -> tuple[ConfigurationType | None, str | None, int]:
-    """Load configuration from file with error handling.
-
-    Args:
-        args: Command line arguments.
-        logger: Logger instance for error logging.
-
-    Returns:
-        Tuple of (config, config_path, exit_code). On success, returns (config, config_path, 0).
-        On error, handles error display/logging, calls graceful exit, and returns (None, None, 1).
-    """
-    config_path = determine_config_path(args)
-    try:
-        config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")  # type: ignore
-        return config, config_path, 0
-    except Exception as config_exc:  # pylint: disable=broad-except
-        log_exception(logger, config_exc, context="Configuration loading")
-        error_message = format_error_for_display(config_exc)
-        ui.error(error_message)
-        App.graceful_exit(exit_code=1, do_cleanup=False)
-        return None, None, 1
 
 
 def _credential_preflight(config: Any, autoreply: bool | None, logger: logging.Logger) -> None:
@@ -170,7 +118,7 @@ def main() -> int:
 
     # Load configuration with error handling
     # Note: config variable from credentials path (above) is not in scope here due to early return
-    config, config_path, exit_code = _load_configuration(args, logger)  # type: ignore[assignment]
+    config, config_path, exit_code = load_configuration_with_error_handling(args, logger)  # type: ignore[assignment]
     if exit_code != 0:
         return exit_code
     if config_path is None or config is None:
@@ -222,7 +170,7 @@ def main() -> int:
     xlsx_file = args.input_file
     in_path = Path(xlsx_file)
 
-    _validate_input_file(in_path, xlsx_file, logger)
+    FileManager.validate_input_file(in_path, xlsx_file, logger)
 
     output_filename: str = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
     output_filepath: Path = output_dir_path / output_filename

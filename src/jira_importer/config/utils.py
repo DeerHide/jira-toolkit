@@ -13,7 +13,7 @@ from ..console import ConsoleIO
 from ..log import add_file_logging, setup_logger
 from ..utils import find_config_path
 from .config_display import display_config_content, display_table_config
-from .config_factory import ConfigurationFactory
+from .config_factory import ConfigurationFactory, ConfigurationType
 
 
 def determine_config_path(args: Any) -> str:
@@ -132,6 +132,37 @@ def display_config(config_file: str) -> None:
 
     except Exception as exc:
         logger.error(f"Configuration loading failed: {exc}")
-        from ..app import App  # pylint: disable=import-outside-toplevel
+        from jira_importer.app import App  # pylint: disable=import-outside-toplevel
 
         App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}")
+
+
+def load_configuration_with_error_handling(
+    args: Any, logger: logging.Logger
+) -> tuple[ConfigurationType | None, str | None, int]:
+    """Load configuration from file with error handling.
+
+    Args:
+        args: Command line arguments.
+        logger: Logger instance for error logging.
+
+    Returns:
+        Tuple of (config, config_path, exit_code). On success, returns (config, config_path, 0).
+        On error, handles error display/logging, calls graceful exit, and returns (None, None, 1).
+    """
+    from jira_importer.app import App  # pylint: disable=import-outside-toplevel
+    from jira_importer.errors import format_error_for_display, log_exception  # pylint: disable=import-outside-toplevel
+
+    ui_instance = ConsoleIO.getUI()
+
+    config_path = determine_config_path(args)
+    try:
+        config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")
+        return config, config_path, 0
+    except Exception as config_exc:  # pylint: disable=broad-except
+        log_exception(logger, config_exc, context="Configuration loading")
+        error_message = format_error_for_display(config_exc)
+        ui_instance.error(error_message)
+        # Use App.graceful_exit for consistent error handling
+        App.graceful_exit(exit_code=1, do_cleanup=False)
+        return None, None, 1

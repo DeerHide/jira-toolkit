@@ -289,7 +289,7 @@ class App:
         Returns:
             Exit code (always 0 for version display).
         """
-        from .config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+        from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
 
         minimal_config = MinimalConfig()
         artifact_manager = ArtifactManager(minimal_config)
@@ -308,8 +308,14 @@ class App:
         Returns:
             Exit code (0 on success, 1 on error).
         """
-        from .config.utils import determine_config_path, display_config  # pylint: disable=import-outside-toplevel
-        from .errors import ConfigurationError, format_error_for_display  # pylint: disable=import-outside-toplevel
+        from jira_importer.config.utils import (  # pylint: disable=import-outside-toplevel
+            determine_config_path,
+            display_config,
+        )
+        from jira_importer.errors import (  # pylint: disable=import-outside-toplevel
+            ConfigurationError,
+            format_error_for_display,
+        )
 
         ui_instance, _ = ConsoleIO.getComponents()
 
@@ -337,7 +343,7 @@ class App:
             exit_code: Exit code to use.
             do_cleanup: Whether to perform cleanup operations.
         """
-        from .config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+        from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
 
         ui_instance, _ = ConsoleIO.getComponents()
         ui_instance.lf()

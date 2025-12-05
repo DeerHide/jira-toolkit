@@ -297,3 +297,47 @@ class FileManager:
             ui.error(f"File '{file_path}' does not exist.")
             logger.warning(f"Missing file: '{file_path}'")
             return False
+
+    @staticmethod
+    def validate_input_file(in_path: Path, xlsx_file: str, logger_ref: logging.Logger) -> None:
+        """Validate the input file exists and is a file.
+
+        Args:
+            in_path: Path to the input file.
+            xlsx_file: Input file path as string (for error messages).
+            logger_ref: Logger instance for error logging.
+
+        Raises:
+            InputFileError: If the file doesn't exist or is not a file.
+        """
+        from jira_importer.app import App  # pylint: disable=import-outside-toplevel
+        from jira_importer.errors import (  # pylint: disable=import-outside-toplevel
+            InputFileError,
+            format_error_for_display,
+            log_exception,
+        )
+
+        try:
+            if not in_path.exists():
+                raise InputFileError(
+                    f"Input file does not exist: {xlsx_file}",
+                    details={"file_path": str(xlsx_file), "operation": "input_validation"},
+                )
+            if not in_path.is_file():
+                raise InputFileError(
+                    f"Input path is not a file: {xlsx_file}",
+                    details={
+                        "file_path": str(xlsx_file),
+                        "operation": "input_validation",
+                        "path_type": "directory_or_other",
+                    },
+                )
+        except InputFileError as file_exc:
+            # Log the error with structured details
+            log_exception(logger_ref, file_exc, context="Input file validation")
+            # Display formatted error with error code
+            error_message = format_error_for_display(file_exc)
+            ui.error(error_message)
+            logger_ref.critical(f"Input file validation failed: {error_message}")
+            # Use App.graceful_exit for consistent error handling
+            App.graceful_exit(exit_code=2, do_cleanup=False)

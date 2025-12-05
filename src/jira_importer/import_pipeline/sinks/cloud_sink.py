@@ -145,6 +145,103 @@ def _setup_auth(email: str, api_token: str):
     return BasicAuthProvider(email, api_token)
 
 
+def _test_authentication(client: JiraCloudClient, base_url: str, auth_context: dict[str, str]) -> None:
+    """Test Jira authentication with a pre-flight API call.
+
+    This pre-flight test provides clear error messages for common auth issues
+    before attempting to create issues.
+
+    Args:
+        client: Jira Cloud API client.
+        base_url: Base URL of the Jira instance.
+        auth_context: Authentication context dictionary with email and secret_source.
+
+    Raises:
+        JiraAuthError: For authentication errors (401, 403).
+        JiraApiError: For API errors (404, 429, 5xx, or other status codes).
+        NetworkError: For network/connection issues.
+    """
+    try:
+        logger.info("Testing Jira authentication...")
+        test_response = client.get("/myself")
+
+        if test_response.status_code == HTTP_OK:
+            try:
+                user_info = test_response.json()
+                logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
+            except (ValueError, KeyError) as json_error:
+                logger.warning(f"Authentication successful but received malformed response: {json_error}")
+                logger.info("Authentication successful - proceeding with import")
+            return
+
+        # Handle specific error status codes
+        email_display = auth_context.get("email") or "unknown"
+        source_display = auth_context.get("secret_source") or "unknown"
+        context_suffix = f" (email: {email_display}, secret source: {source_display})"
+
+        if test_response.status_code == HTTP_UNAUTHORIZED:
+            raise JiraAuthError(
+                "Jira authentication failed (HTTP 401) - your API token may have expired. "
+                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
+                f"Refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens{context_suffix}",
+                status_code=HTTP_UNAUTHORIZED,
+                details={"email": email_display, "secret_source": source_display},
+            )
+        elif test_response.status_code == HTTP_FORBIDDEN:
+            raise JiraAuthError(
+                "Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
+                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
+                f"Check/rotate your token at: https://id.atlassian.com/manage-profile/security/api-tokens{context_suffix}",
+                status_code=HTTP_FORBIDDEN,
+                details={"email": email_display, "secret_source": source_display},
+            )
+        elif test_response.status_code == HTTP_NOT_FOUND:
+            raise JiraApiError(
+                f"Jira instance not found at {base_url} (HTTP 404). Please check your site_address configuration.",
+                status_code=HTTP_NOT_FOUND,
+                details={"base_url": base_url},
+            )
+        elif test_response.status_code == HTTP_TOO_MANY_REQUESTS:
+            raise JiraApiError(
+                "Jira API rate limit exceeded (HTTP 429). Please wait a moment and try again.",
+                status_code=HTTP_TOO_MANY_REQUESTS,
+            )
+        elif HTTP_SERVER_ERROR_START <= test_response.status_code < HTTP_SERVER_ERROR_END:
+            raise JiraApiError(
+                f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator.",
+                status_code=test_response.status_code,
+            )
+        else:
+            raise JiraApiError(
+                f"Authentication test failed with status {test_response.status_code}{context_suffix}",
+                status_code=test_response.status_code,
+                details={"email": email_display, "secret_source": source_display},
+            )
+
+    except (JiraAuthError, JiraApiError, ConfigurationError):
+        # Re-raise our custom error messages
+        raise
+    except Exception as e:
+        # Handle network/connection issues
+        error_str = str(e).lower()
+        if any(keyword in error_str for keyword in ["timeout", "connection", "network", "dns", "ssl"]):
+            raise NetworkError(
+                f"Network connection failed to {base_url}. Please check your internet connection and try again. Error: {e!s}",
+                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
+            ) from e
+        elif "not found" in error_str or "404" in error_str:
+            raise JiraApiError(
+                f"Jira instance not found at {base_url}. Please check your site_address configuration.",
+                status_code=404,
+                details={"base_url": base_url, "original_error": str(e)},
+            ) from e
+        else:
+            raise NetworkError(
+                f"Failed to connect to Jira at {base_url}. Error: {e!s}",
+                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
+            ) from e
+
+
 def _process_batches(
     result: ProcessorResult,
     client: JiraCloudClient,
@@ -253,12 +350,30 @@ def write_cloud(
     *,
     dry_run: bool = False,
     output_dir: Path | None = None,
-    ui=None,
+    ui: Any | None = None,
     auto_reply: bool | None = None,
 ) -> CloudSubmitReport:
-    """Submit processed issues to Jira Cloud in batches."""
+    """Submit processed issues to Jira Cloud in batches.
+
+    Args:
+        result: Processed result containin rows and column indices.
+        config: Configuration object.
+        dry_run: If True, skip actual API calls.
+        output_dir: Optional directory for debug output.
+        ui: Optional UI object for progress tracking and user interaction.
+        auto_reply: Optional auto-reply flag for non-interactive mode.
+
+    Returns:
+        CloudSubmitReport with creation results.
+
+    Raises:
+        ConfigurationError: If configuration is invalid or credentials are missing.
+        JiraAuthError: If authentication fails.
+        JiraApiError: If API calls fail.
+        NetwokError: If network connection fails.
+    """
     # Secondary safety net: opportunistic ensure of credentials if UI provided
-    auth_status = None
+    auth_status: dict[str, Any] | None = None
     try:
         if ui is not None:
             from ..cloud.credential_manager import ensure_cloud_credentials  # pylint: disable=import-outside-toplevel
@@ -271,104 +386,30 @@ def write_cloud(
                     "environment variables (JIRA_EMAIL/JIRA_API_TOKEN), or run 'jira-importer --credentials' to set them.",
                     details={"missing_credentials": True},
                 )
+    except ConfigurationError:
+        # Re-raise configuration errors immediately
+        raise
     except Exception:
-        # Do not mask errors; validation step below will provide exact messages
-        pass
+        # Only suppress unexpected errors from ensure_cloud_credentials
+        # Validation step below will provide exact messages
+        logger.debug("Credential check failed, will validate via _validate_config", exc_info=True)
 
     base_url, email, api_token = _validate_config(config)
+
     # Build auth context for downstream error messages
     auth_context = {
         "email": (auth_status or {}).get("email") or email,
         "secret_source": (auth_status or {}).get("source") or "unknown",
     }
+
     auth_provider = _setup_auth(email, api_token)
-    client = JiraCloudClient(base_url=f"{base_url.rstrip('/')}/rest/api/3", auth_provider=auth_provider)
+    # Normalize base_url to avoid double slashes when appending /rest/api/3
+    # JiraCloudClient also normalizes URLs in its methods, but we ensure clean construction here
+    normalized_base = base_url.rstrip("/")
+    client = JiraCloudClient(base_url=f"{normalized_base}/rest/api/3", auth_provider=auth_provider)
 
     # Test authentication before proceeding
-    # This pre-flight test provides clear error messages for common auth issues
-    try:
-        logger.info("Testing Jira authentication...")
-        # Make a simple API call to test authentication
-        test_response = client.get("/myself")
-        if test_response.status_code == HTTP_OK:
-            try:
-                user_info = test_response.json()
-                logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
-            except (ValueError, KeyError) as json_error:
-                logger.warning(f"Authentication successful but received malformed response: {json_error}")
-                logger.info("Authentication successful - proceeding with import")
-        elif test_response.status_code == HTTP_UNAUTHORIZED:
-            raise JiraAuthError(
-                "Jira authentication failed (HTTP 401) - your API token may have expired. "
-                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
-                "Refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
-                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})",
-                status_code=HTTP_UNAUTHORIZED,
-                details={
-                    "email": auth_context.get("email") or "unknown",
-                    "secret_source": auth_context.get("secret_source"),
-                },
-            )
-        elif test_response.status_code == HTTP_FORBIDDEN:
-            raise JiraAuthError(
-                "Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
-                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
-                "Check/rotate your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
-                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})",
-                status_code=HTTP_FORBIDDEN,
-                details={
-                    "email": auth_context.get("email") or "unknown",
-                    "secret_source": auth_context.get("secret_source"),
-                },
-            )
-        elif test_response.status_code == HTTP_NOT_FOUND:
-            raise JiraApiError(
-                f"Jira instance not found at {base_url} (HTTP 404). Please check your site_address configuration.",
-                status_code=HTTP_NOT_FOUND,
-                details={"base_url": base_url},
-            )
-        elif test_response.status_code == HTTP_TOO_MANY_REQUESTS:
-            raise JiraApiError(
-                "Jira API rate limit exceeded (HTTP 429). Please wait a moment and try again.",
-                status_code=HTTP_TOO_MANY_REQUESTS,
-            )
-        elif HTTP_SERVER_ERROR_START <= test_response.status_code < HTTP_SERVER_ERROR_END:
-            raise JiraApiError(
-                f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator.",
-                status_code=test_response.status_code,
-            )
-        else:
-            raise JiraApiError(
-                f"Authentication test failed with status {test_response.status_code}"
-                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})",
-                status_code=test_response.status_code,
-                details={
-                    "email": auth_context.get("email") or "unknown",
-                    "secret_source": auth_context.get("secret_source"),
-                },
-            )
-    except (JiraAuthError, JiraApiError, ConfigurationError):
-        # Re-raise our custom error messages
-        raise
-    except Exception as e:
-        # Handle network/connection issues
-        error_str = str(e).lower()
-        if any(keyword in error_str for keyword in ["timeout", "connection", "network", "dns", "ssl"]):
-            raise NetworkError(
-                f"Network connection failed to {base_url}. Please check your internet connection and try again. Error: {e!s}",
-                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
-            ) from e
-        elif "not found" in error_str or "404" in error_str:
-            raise JiraApiError(
-                f"Jira instance not found at {base_url}. Please check your site_address configuration.",
-                status_code=404,
-                details={"base_url": base_url, "original_error": str(e)},
-            ) from e
-        else:
-            raise NetworkError(
-                f"Failed to connect to Jira at {base_url}. Error: {e!s}",
-                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
-            ) from e
+    _test_authentication(client, base_url, auth_context)
 
     return _process_batches(result, client, dry_run, output_dir, ui, config, auth_context)
 

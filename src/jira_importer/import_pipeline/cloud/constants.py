@@ -18,6 +18,12 @@ DEFAULT_HEADERS: Final[dict[str, str]] = {
 HTTP_SUCCESS_MIN: Final[int] = 200
 HTTP_SUCCESS_MAX: Final[int] = 299
 
+HTTP_OK: Final[int] = 200
+HTTP_UNAUTHORIZED: Final[int] = 401
+HTTP_FORBIDDEN: Final[int] = 403
+HTTP_NOT_FOUND: Final[int] = 404
+HTTP_TOO_MANY_REQUESTS: Final[int] = 429
+
 HTTP_SERVER_ERROR_MIN: Final[int] = 500
 HTTP_SERVER_ERROR_MAX: Final[int] = 599
 

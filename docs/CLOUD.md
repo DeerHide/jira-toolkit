@@ -52,7 +52,7 @@ if test_response.status_code == HTTP_OK:
 
 ### Authentication Providers
 
-Currently supports Basic Authentication:
+Currently supports Basic Authentication (OAuth 2.0 is scaffolded but not functional):
 
 ```python
 from ..cloud.auth import BasicAuthProvider
@@ -343,7 +343,7 @@ python -m pytest tests/integration/test_cloud_integration.py -v
 
 ### Planned Features
 
-- **OAuth 2.0 support**: For enterprise Jira instances
+- **OAuth 2.0 support**: For enterprise Jira instances (currently scaffolded but not functional - only Basic Auth is supported)
 - **Retry mechanisms**: Automatic retry for transient failures
 - **Progress tracking**: Real-time progress updates for large imports
 - **Validation caching**: Cache validation results across runs

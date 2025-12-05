@@ -292,7 +292,7 @@ Flexible configuration management supporting multiple sources:
 
 Direct Jira Cloud API integration with advanced features:
 
-- **`auth.py`** - Authentication providers (Basic Auth, OAuth 2.0 scaffolded)
+- **`auth.py`** - Authentication providers (Basic Auth fully implemented; OAuth 2.0 scaffolded but not functional)
 - **`client.py`** - HTTP client wrapper for Jira Cloud REST API v3
 - **`credential_manager.py`** - Advanced credential management with keyring
 - **`secrets.py`** - Secrets resolution (keyring → env → config → prompt)
@@ -392,14 +392,15 @@ We use **LF (Line Feed)** line endings for all text files. This keeps things con
 
 ### Current Dependencies
 
-The project uses **37 dependencies** (9 direct + 28 transitive) for comprehensive functionality:
+The project uses dependencies for comprehensive functionality:
 
 **Direct Dependencies:**
-- **Data processing**: pandas, openpyxl, numpy
+- **Data processing**: pandas, openpyxl
 - **UI/Console**: rich, rich-argparse, tqdm, colorlog, colorama
-- **HTTP/API**: requests, urllib3, certifi
-- **Security**: keyring, jaraco-* packages
+- **HTTP/API**: requests
+- **Security**: keyring
 - **Logging**: structlog, colorlog
+- **Configuration**: PyYAML
 
 **Development Dependencies:**
 - **Testing**: pytest, pytest-cov
@@ -494,3 +495,5 @@ The project supports multiple build configurations:
 **Happy coding!** 🎉
 
 *This documentation is maintained by the Jira Importer Toolkit development team.*
+
+:_GeneratedFile_

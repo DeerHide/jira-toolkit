@@ -45,7 +45,10 @@ The most important settings are:
   "jira": {
     "connection": {
       "site_address": "https://yourcompany.atlassian.net",
-      "api_token": "YOUR_API_TOKEN"
+      "auth": {
+        "email": "your-email@company.com",
+        "api_token": "YOUR_API_TOKEN"
+      }
     },
     "project": {
       "key": "PROJ",
@@ -222,7 +225,7 @@ If you're getting "Missing jira.connection.site_address" errors:
 
 ## Full examples
 
-- Excel template with a `Config` sheet: `resources/templates/ImportTemplate_with_config.xlsx`
+- Excel template with a `Config` sheet: `resources/templates/ImportTemplate.xlsx`
 - JSON template: `resources/templates/config_importer.json`
 
 :_GeneratedFile_

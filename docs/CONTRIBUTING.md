@@ -271,15 +271,16 @@ python -m jira_importer path/to/test.xlsx --debug
 
 ### Current Dependencies
 
-The project uses **37 dependencies** (9 direct + 28 transitive) for comprehensive functionality:
+The project uses dependencies for comprehensive functionality:
 
 **Direct Dependencies:**
 
-- **Data processing**: pandas, openpyxl, numpy
+- **Data processing**: pandas, openpyxl
 - **UI/Console**: rich, rich-argparse, tqdm, colorlog, colorama
-- **HTTP/API**: requests, urllib3, certifi
-- **Security**: keyring, jaraco-* packages
+- **HTTP/API**: requests
+- **Security**: keyring
 - **Logging**: structlog, colorlog
+- **Configuration**: PyYAML
 
 **Development Dependencies:**
 
@@ -395,3 +396,5 @@ poetry update
 **Thank you for contributing to the Jira Importer Toolkit!** 🎉
 
 *This contributing guide is maintained by the Jira Importer Toolkit development team.*
+
+:_GeneratedFile_

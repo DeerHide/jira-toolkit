@@ -8,12 +8,24 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC
 from pathlib import Path
 
 from ..config.config_view import ConfigView  # typed access over your config object
-from ..errors import FileReadError, RowProcessingError, ValidationSetupError
+from ..errors import FileReadError, MetadataWriteError, RowProcessingError, ValidationSetupError
 from ..excel.excel_io import ExcelProcessingMeta, ExcelWorkbookManager  # generic, lives top-level
+from .constants import (
+    CFG_APP_WRITE_PROCESSING_META,
+    CFG_APP_WRITE_REPORT_TABLE,
+    CFG_VALIDATION_SKIP_ISSUETYPES,
+    CFG_VALIDATION_SKIP_ROWTYPE,
+    DEFAULT_SKIP_ROWTYPE_ENABLED,
+    DEFAULT_WRITE_PROCESSING_META,
+    DEFAULT_WRITE_REPORT_TABLE,
+    FIRST_DATA_ROW_INDEX,
+    ROW_TYPE_SKIP,
+)
 from .fixes.registry import build_fix_registry
 from .models import (
     ColumnIndices,
@@ -31,6 +43,16 @@ from .sources.xlsx_source import XlsxSource
 from .validator import JiraImportValidator  # expects validate_row(...)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True, frozen=True)
+class ProcessingConfig:
+    """Configuration for processing behavior."""
+
+    skip_rowtype_enabled: bool
+    skip_issue_types: list[str]
+    write_processing_meta: bool
+    write_report_table: bool
 
 
 class ImportProcessor:
@@ -65,15 +87,35 @@ class ImportProcessor:
             f"enable_auto_fix={self.enable_auto_fix}"
         )
 
-    def process(self) -> ProcessorResult:  # pylint: disable=too-many-locals
-        """Process the input file with phased error handling and safe cleanup."""
-        header_schema = None
-        rows: list[list[object]] | None = None
+    def _extract_processing_config(self, cfg_view: ConfigView) -> ProcessingConfig:
+        """Extract processing configuration from config view.
 
-        # Phase 1: File Reading & Setup
+        Args:
+            cfg_view: Configuration view to extract values from.
+
+        Returns:
+            ProcessingConfig with all processing settings.
+        """
+        return ProcessingConfig(
+            skip_rowtype_enabled=cfg_view.get(CFG_VALIDATION_SKIP_ROWTYPE, DEFAULT_SKIP_ROWTYPE_ENABLED),
+            skip_issue_types=cfg_view.get(CFG_VALIDATION_SKIP_ISSUETYPES, ["comment", "note", "skip"]),
+            write_processing_meta=cfg_view.get(CFG_APP_WRITE_PROCESSING_META, DEFAULT_WRITE_PROCESSING_META),
+            write_report_table=cfg_view.get(CFG_APP_WRITE_REPORT_TABLE, DEFAULT_WRITE_REPORT_TABLE),
+        )
+
+    def _read_and_setup(self) -> tuple[HeaderSchema, list[list[object]], ColumnIndices]:
+        """Phase 1: Read source file and extract indices.
+
+        Returns:
+            Tuple of (header_schema, rows, indices).
+
+        Raises:
+            FileReadError: If file reading fails.
+        """
         try:
             header_schema, rows = self._read_source()
             indices = self._extract_indices(header_schema)
+            return header_schema, rows, indices
         except FileNotFoundError as e:
             raise FileReadError(
                 f"Input file not found: {e}",
@@ -90,30 +132,66 @@ class ImportProcessor:
                 details={"file_path": str(self.path), "original_error": str(e), "error_type": type(e).__name__},
             ) from e
 
-        # Phase 2: Validation Setup
+    def _setup_validation(self, cfg_view: ConfigView) -> tuple[JiraImportValidator, ProcessingConfig]:
+        """Phase 2: Setup validation rules and extract processing configuration.
+
+        Args:
+            cfg_view: Configuration view.
+
+        Returns:
+            Tuple of (validator, processing_config).
+
+        Raises:
+            ValidationSetupError: If validation setup fails.
+        """
         try:
             logger.debug("Compose rules/fixes/validator")
-            cfg_view = ConfigView(self.config)
             rule_registry = build_registry(cfg_view, self._excel_loader_ctx())
             rules = rule_registry.get_rules()
             fix_registry = build_fix_registry(cfg_view) if self.enable_auto_fix else None
             validator = JiraImportValidator(rules=rules, fix_registry=fix_registry)
-
-            skip_enabled = cfg_view.get("validation.skip_rowtype", True)
-            skip_issuetypes = cfg_view.get("validation.skip_issuetypes", ["comment", "note", "skip"])
-            write_processing_meta_in_excel = cfg_view.get("app.write_processing_meta", False)
-            write_report_table_in_excel = cfg_view.get("app.write_report_table", False)
+            processing_config = self._extract_processing_config(cfg_view)
+            return validator, processing_config
+        except (ValueError, KeyError, AttributeError) as e:
+            raise ValidationSetupError(
+                f"Failed to setup validation: {e}",
+                details={"original_error": str(e), "error_type": type(e).__name__},
+            ) from e
         except Exception as e:  # pylint: disable=broad-except
             raise ValidationSetupError(
                 f"Failed to setup validation: {e}",
                 details={"original_error": str(e), "error_type": type(e).__name__},
             ) from e
 
-        # Phase 3: Row Processing
+    def _process_rows(
+        self,
+        header_schema: HeaderSchema,
+        rows: list[list[object]],
+        indices: ColumnIndices,
+        validator: JiraImportValidator,
+        processing_config: ProcessingConfig,
+        cfg_view: ConfigView,
+    ) -> ProcessorResult:
+        """Phase 3: Process rows through validation pipeline.
+
+        Args:
+            header_schema: Header schema from source file.
+            rows: Raw rows from source file.
+            indices: Column indices for accessing row data.
+            validator: Validator instance.
+            processing_config: Processing configuration.
+            cfg_view: Configuration view.
+
+        Returns:
+            ProcessorResult with processed data and problems.
+
+        Raises:
+            RowProcessingError: If row processing fails.
+        """
         try:
             logger.debug("Validate + apply patches row-by-row")
             problems: list[Problem] = []
-            normalized_rows = []  # Build dynamically, only including non-skipped rows
+            normalized_rows: list[list[object]] = []  # Build dynamically, only including non-skipped rows
             complex_children: list[ComplexChildIssue] = []  # fill from your rules if needed
 
             issue_id_seen: dict[str, None] = {}
@@ -124,17 +202,17 @@ class ImportProcessor:
             issue_data = self._pre_populate_issue_data(rows, indices, issue_id_seen)
 
             logger.debug("row_index is 1-based (header = 1), so first data row is 2")
-            for i, row in enumerate(rows, start=2):
+            for i, row in enumerate(rows, start=FIRST_DATA_ROW_INDEX):
                 # Skip rows with RowType = "SKIP"
-                if self._should_skip_row_rowtype(row, indices, skip_enabled):
+                if self._should_skip_row_rowtype(row, indices, processing_config.skip_rowtype_enabled):
                     skipped_rows += 1
-                    logger.debug(f"Skipping row {i} (RowType = SKIP)")
+                    logger.debug(f"Skipping row {i} (RowType = {ROW_TYPE_SKIP})")
                     continue
 
-                # Skip rows with Issue Type = "Epic"
-                if self._should_skip_row_issuetype(row, indices, skip_issuetypes):
+                # Skip rows with Issue Type in skip list
+                if self._should_skip_row_issuetype(row, indices, processing_config.skip_issue_types):
                     skipped_rows += 1
-                    logger.debug(f"Skipping row {i} (Issue Type = EPIC)")
+                    logger.debug(f"Skipping row {i} (Issue Type in skip list)")
                     continue
 
                 # Add non-skipped row to normalized_rows
@@ -157,9 +235,8 @@ class ImportProcessor:
                 if result.problems:
                     problems.extend(result.problems)
 
-            # TODO: Add a report for the skipped rows
             if skipped_rows > 0:
-                logger.info(f"Skipped {skipped_rows} rows (RowType = SKIP or Issue Type in skip list)")
+                logger.info(f"Skipped {skipped_rows} rows (RowType = {ROW_TYPE_SKIP} or Issue Type in skip list)")
 
             logger.debug("Build processor result")
             report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
@@ -172,8 +249,8 @@ class ImportProcessor:
             logger.debug(f"Original row count: {original_row_count}")
             logger.debug(f"Processed row count: {len(normalized_rows)}")
             logger.debug(f"Skipped row count: {skipped_rows}")
-            logger.debug(f"Write processing meta in excel: {write_processing_meta_in_excel}")
-            logger.debug(f"Write report table in excel: {write_report_table_in_excel}")
+            logger.debug(f"Write processing meta in excel: {processing_config.write_processing_meta}")
+            logger.debug(f"Write report table in excel: {processing_config.write_report_table}")
             proc_result = ProcessorResult(
                 header=header_schema.normalized,
                 rows=normalized_rows,
@@ -187,6 +264,7 @@ class ImportProcessor:
             proc_result.original_row_count = original_row_count
             proc_result.processed_row_count = len(normalized_rows)
             proc_result.skipped_row_count = skipped_rows
+            return proc_result
         except MemoryError as e:
             raise RowProcessingError(
                 "Processing aborted due to memory limits",
@@ -198,13 +276,42 @@ class ImportProcessor:
                 details={"original_error": str(e), "error_type": type(e).__name__, "row_count": original_row_count},
             ) from e
 
+    def _write_metadata_if_needed(self, result: ProcessorResult, processing_config: ProcessingConfig) -> None:
+        """Phase 4: Write metadata if configured.
+
+        Args:
+            result: Processing result with metadata.
+            processing_config: Processing configuration.
+        """
+        if not self._is_excel(self.path):
+            return
+
+        try:
+            self._write_excel_meta(
+                result, processing_config.write_processing_meta, processing_config.write_report_table
+            )
+        except Exception as e:  # pylint: disable=broad-except
+            metadata_error = MetadataWriteError(
+                f"Failed to write Excel metadata: {e}",
+                details={"original_error": str(e), "error_type": type(e).__name__},
+            )
+            logger.warning(f"Failed to write Excel metadata: {metadata_error}")
+            # Note: We don't re-raise as metadata writing is non-critical
+
+    def process(self) -> ProcessorResult:
+        """Process the input file with phased error handling and safe cleanup."""
+        # Phase 1: File Reading & Setup
+        header_schema, rows, indices = self._read_and_setup()
+
+        # Phase 2: Validation Setup
+        cfg_view = ConfigView(self.config)
+        validator, processing_config = self._setup_validation(cfg_view)
+
+        # Phase 3: Row Processing
+        proc_result = self._process_rows(header_schema, rows, indices, validator, processing_config, cfg_view)
+
         # Phase 4: Optional metadata write
-        if self._is_excel(self.path):
-            try:
-                self._write_excel_meta(proc_result, write_processing_meta_in_excel, write_report_table_in_excel)
-            except Exception as e:  # pylint: disable=broad-except
-                logger.warning(f"Failed to write Excel metadata: {e}")
-                # Note: We don't raise MetadataWriteError here as it's non-critical
+        self._write_metadata_if_needed(proc_result, processing_config)
 
         return proc_result
 
@@ -330,7 +437,7 @@ class ImportProcessor:
         if rowtype_value is None:
             return False
 
-        return str(rowtype_value).strip().upper() == "SKIP"
+        return str(rowtype_value).strip().upper() == ROW_TYPE_SKIP
 
     def _should_skip_row_issuetype(
         self, row: Sequence[object], indices: ColumnIndices, skip_issuetypes: list[str]
@@ -374,7 +481,7 @@ class ImportProcessor:
         if indices.issue_id is None:
             return issue_data
 
-        for i, row in enumerate(rows, start=2):
+        for i, row in enumerate(rows, start=FIRST_DATA_ROW_INDEX):
             issue_id_value = self._cell_str(row, indices.issue_id)
             if issue_id_value:
                 issue_id_seen[issue_id_value] = None

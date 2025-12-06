@@ -18,13 +18,9 @@ from ...errors import ProcessingError
 from ..models import ColumnIndices, ProcessorResult
 from .constants import JIRA_KEY_PARTS_COUNT
 from .metadata import MetadataCache
+from .secrets import redact_secret
 
 logger = logging.getLogger(__name__)
-
-
-def redact_secret(value: str | None) -> str:
-    """Redact secret values for logging."""
-    return "***" if value else ""
 
 
 @dataclass

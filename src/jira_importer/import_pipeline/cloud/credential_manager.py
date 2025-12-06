@@ -96,7 +96,19 @@ def _resolve_with_prompt(
     *,
     prompter: Callable[[], str] | None,
 ) -> str | None:
-    # Use resolve_secret's prompt hook to both prompt and store to keyring when available
+    """Resolve a secret with optional prompting.
+
+    Uses resolve_secret's prompt hook to both prompt and store to keyring when available.
+
+    Args:
+        cfg: Configuration view.
+        spec: Secret specification.
+        prompter: Optional function that prompts for the secret value.
+
+    Returns:
+        Secret value if found or entered, None otherwise.
+    """
+
     def _prompt_adapter(_: str) -> str:
         return prompter() if prompter else ""
 
@@ -268,7 +280,7 @@ def display_credential_status(ui, status: dict[str, Any]) -> None:
     # Show token (masked)
     if token_info.get("value"):
         token_value = token_info["value"]
-        TOKEN_MASK_LENGTH = 24
+        TOKEN_MASK_LENGTH = 12
         if token_value and len(token_value) > TOKEN_MASK_LENGTH:
             masked = token_value[:TOKEN_MASK_LENGTH] + "..."
         else:

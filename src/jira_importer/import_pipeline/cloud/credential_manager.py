@@ -338,7 +338,7 @@ def clear_credentials(ui) -> None:
     ui.say("  macOS/Linux:         unset JIRA_EMAIL JIRA_API_TOKEN")
 
 
-def _test_credentials_cli(cfg_view: ConfigView, ui) -> int:
+def _test_credentials_cli(ui, cfg_view: ConfigView) -> int:
     """Test stored credentials by making an API call to Jira.
 
     This function sets up the client and uses test_credentials() to verify
@@ -549,8 +549,8 @@ def run_credentials_cli(config: Any, action: str, ui) -> int:
 
     # Route to domain functions
     if action == "show":
-        st = get_credential_status(ui, cfg_view)
-        display_credential_status(ui, st)
+        status = get_credential_status(ui, cfg_view)
+        display_credential_status(ui, status)
         return 0
 
     if action == "clear":
@@ -558,7 +558,7 @@ def run_credentials_cli(config: Any, action: str, ui) -> int:
         return 0
 
     if action == "test":
-        return _test_credentials_cli(cfg_view, ui)
+        return _test_credentials_cli(ui, cfg_view)
 
     # default: run
     try:

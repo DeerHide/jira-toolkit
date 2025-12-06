@@ -37,6 +37,9 @@ class RedactingFilter(logging.Filter):
 
     This is a best-effort safety net; primary redaction should happen at the source.
     Uses regex patterns to identify and redact secret values in various formats.
+
+    Email addresses are partially redacted: the local part (before @) is redacted
+    while the domain is kept visible for debugging purposes.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
@@ -45,6 +48,11 @@ class RedactingFilter(logging.Filter):
             msg = str(record.getMessage())
             original_msg = msg
             lower = msg.lower()
+
+            # Email address redaction: redact local part (before @), keep domain
+            # Matches email addresses in various formats: user@domain.com, "user@domain.com", etc.
+            email_pattern = re.compile(r"\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b", re.IGNORECASE)
+            msg = email_pattern.sub(r"***@\2", msg)
 
             # Check if any sensitive terms are present
             if any(term in lower for term in _SENSITIVE_TERMS):
@@ -66,10 +74,10 @@ class RedactingFilter(logging.Filter):
                     pattern = re.compile(rf"\b{re.escape(term)}\s*:\s*([^\s,;)\]]+)", re.IGNORECASE)
                     msg = pattern.sub(rf"{term}: [REDACTED]", msg)
 
-                # If message was modified, update the record
-                if msg != original_msg:
-                    record.msg = "[REDACTED] " + msg
-                    record.args = ()
+            # If message was modified, update the record
+            if msg != original_msg:
+                record.msg = "[REDACTED] " + msg
+                record.args = ()
         except Exception:
             # Never block logging - if redaction fails, log the original message
             pass

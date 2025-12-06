@@ -11,6 +11,7 @@ from typing import Any, TypeVar
 
 from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 from ..errors import ConfigurationError
+from ..import_pipeline.cloud.constants import SENSITIVE_TERMS
 
 T = TypeVar("T")
 
@@ -120,15 +121,17 @@ class JsonConfiguration:
         """Return a redacted copy of the configuration for safe logging.
 
         Redacts common sensitive keys, including nested occurrences and case-insensitive matches.
+        Uses centralized SENSITIVE_TERMS constant from cloud.constants.
         """
-        sensitive_terms = {"api_token", "password", "secret", "token", "client_secret", "access_token"}
+        # Convert tuple to set for efficient membership testing
+        sensitive_terms_set = set(SENSITIVE_TERMS)
 
         def redact(obj: Any) -> Any:
             if isinstance(obj, dict):
                 redacted: dict[str, Any] = {}
                 for k, v in obj.items():
                     key_lower = str(k).lower()
-                    if any(term in key_lower for term in sensitive_terms):
+                    if any(term in key_lower for term in sensitive_terms_set):
                         redacted[k] = "***"
                     else:
                         redacted[k] = redact(v)

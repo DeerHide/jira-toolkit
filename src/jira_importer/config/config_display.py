@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from ..console import ConsoleIO
+from ..import_pipeline.cloud.constants import SENSITIVE_TERMS
 from .constants import MAX_DISPLAY_ITEMS
 
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
@@ -30,7 +31,7 @@ def display_config_content(content: dict[str, Any], indent: int = 0) -> None:
         else:
             # Redact sensitive information
             display_value = value
-            if any(sensitive in key.lower() for sensitive in ["password", "token", "secret", "key", "auth"]):
+            if any(sensitive in key.lower() for sensitive in SENSITIVE_TERMS):
                 display_value = "***"
 
             ui.say(f"{indent_str}{fmt.bold(key)}: {fmt.default(display_value)}")

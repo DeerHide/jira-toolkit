@@ -16,8 +16,8 @@ This document covers the current features and capabilities of the Jira Importer 
 
 #### Authentication Methods
 
-- **Basic Authentication**: Email + API token (fully implemented)
-- **OAuth 2.0**: Scaffolded for future implementation
+- **Basic Authentication**: Email + API token (fully implemented and currently the only supported method)
+- **OAuth 2.0**: Scaffolded for future implementation (not functional - skeleton code only)
 - **Credential resolution order**: Keyring → Environment → Config → Prompt
 
 #### Excel Table Configuration

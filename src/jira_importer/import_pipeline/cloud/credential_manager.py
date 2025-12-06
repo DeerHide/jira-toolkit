@@ -4,6 +4,7 @@ Responsibilities:
 - Resolve Jira credentials (email and API token) using keyring → env → config
 - Optionally prompt the user (when interactive) to input missing values
 - Best-effort persistence to the OS keychain
+- Test and validate Jira connection and authentication
 
 This module is designed to be used early (preflight) and also from sinks as a
 secondary safety net. It never logs or returns the API token in logs/UI.
@@ -11,14 +12,30 @@ secondary safety net. It never logs or returns the API token in logs/UI.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
 from ...config.config_view import ConfigView
-from ...errors import ConfigurationError
-from .constants import AUTH_EMAIL_KEY, AUTH_TOKEN_EXPIRES_KEY, AUTH_TOKEN_INPUT_DATE_KEY, AUTH_TOKEN_KEY
+from ...errors import ConfigurationError, JiraApiError, JiraAuthError, NetworkError
+from .client import JiraCloudClient
+from .constants import (
+    AUTH_EMAIL_KEY,
+    AUTH_TOKEN_EXPIRES_KEY,
+    AUTH_TOKEN_INPUT_DATE_KEY,
+    AUTH_TOKEN_KEY,
+    HTTP_FORBIDDEN,
+    HTTP_NOT_FOUND,
+    HTTP_OK,
+    HTTP_SERVER_ERROR_MAX,
+    HTTP_SERVER_ERROR_MIN,
+    HTTP_TOO_MANY_REQUESTS,
+    HTTP_UNAUTHORIZED,
+)
 from .secrets import KEYRING_SERVICE, SecretSpec, resolve_secret, resolve_secret_with_source, store_secret_in_keyring
+
+logger = logging.getLogger(__name__)
 
 EMAIL_KEY = AUTH_EMAIL_KEY
 TOKEN_KEY = AUTH_TOKEN_KEY
@@ -307,3 +324,150 @@ def clear_credentials(ui) -> None:
     ui.say("  Windows PowerShell:  Remove-Item Env:JIRA_EMAIL; Remove-Item Env:JIRA_API_TOKEN")
     ui.say("  Windows CMD:         set JIRA_EMAIL= & set JIRA_API_TOKEN=")
     ui.say("  macOS/Linux:         unset JIRA_EMAIL JIRA_API_TOKEN")
+
+
+def test_credentials(client: JiraCloudClient, base_url: str, auth_context: dict[str, str] | None = None) -> None:
+    """Test Jira credentials and connection with a pre-flight API call.
+
+    This pre-flight test provides clear error messages for common auth issues
+    before attempting to create issues or perform other operations.
+
+    Args:
+        client: Jira Cloud API client.
+        base_url: Base URL of the Jira instance.
+        auth_context: Optional authentication context dictionary with email and secret_source.
+            If not provided, context information will be omitted from error messages.
+
+    Raises:
+        JiraAuthError: For authentication errors (401, 403).
+        JiraApiError: For API errors (404, 429, 5xx, or other status codes).
+        NetworkError: For network/connection issues.
+    """
+    try:
+        logger.info("Testing Jira authentication...")
+        test_response = client.get("/myself")
+
+        if test_response.status_code == HTTP_OK:
+            try:
+                user_info = test_response.json()
+                logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
+            except (ValueError, KeyError) as json_error:
+                logger.warning(f"Authentication successful but received malformed response: {json_error}")
+                logger.info("Authentication successful - proceeding with import")
+            return
+
+        # Handle specific error status codes
+        email_display = "unknown"
+        source_display = "unknown"
+        context_suffix = ""
+        if auth_context:
+            email_display = auth_context.get("email") or "unknown"
+            source_display = auth_context.get("secret_source") or "unknown"
+            context_suffix = f" (email: {email_display}, secret source: {source_display})"
+
+        if test_response.status_code == HTTP_UNAUTHORIZED:
+            raise JiraAuthError(
+                "Jira authentication failed (HTTP 401) - your API token may have expired. "
+                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
+                f"Refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens{context_suffix}",
+                status_code=HTTP_UNAUTHORIZED,
+                details={"email": email_display, "secret_source": source_display},
+            )
+        elif test_response.status_code == HTTP_FORBIDDEN:
+            raise JiraAuthError(
+                "Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
+                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
+                f"Check/rotate your token at: https://id.atlassian.com/manage-profile/security/api-tokens{context_suffix}",
+                status_code=HTTP_FORBIDDEN,
+                details={"email": email_display, "secret_source": source_display},
+            )
+        elif test_response.status_code == HTTP_NOT_FOUND:
+            raise JiraApiError(
+                f"Jira instance not found at {base_url} (HTTP 404). Please check your site_address configuration.",
+                status_code=HTTP_NOT_FOUND,
+                details={"base_url": base_url},
+            )
+        elif test_response.status_code == HTTP_TOO_MANY_REQUESTS:
+            raise JiraApiError(
+                "Jira API rate limit exceeded (HTTP 429). Please wait a moment and try again.",
+                status_code=HTTP_TOO_MANY_REQUESTS,
+            )
+        elif HTTP_SERVER_ERROR_MIN <= test_response.status_code <= HTTP_SERVER_ERROR_MAX:
+            raise JiraApiError(
+                f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator.",
+                status_code=test_response.status_code,
+            )
+        else:
+            raise JiraApiError(
+                f"Authentication test failed with status {test_response.status_code}{context_suffix}",
+                status_code=test_response.status_code,
+                details={"email": email_display, "secret_source": source_display},
+            )
+
+    except (JiraAuthError, JiraApiError, ConfigurationError):
+        # Re-raise our custom error messages
+        raise
+    except Exception as e:
+        # Handle network/connection issues
+        error_str = str(e).lower()
+        if any(keyword in error_str for keyword in ["timeout", "connection", "network", "dns", "ssl"]):
+            raise NetworkError(
+                f"Network connection failed to {base_url}. Please check your internet connection and try again. Error: {e!s}",
+                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
+            ) from e
+        elif "not found" in error_str or "404" in error_str:
+            raise JiraApiError(
+                f"Jira instance not found at {base_url}. Please check your site_address configuration.",
+                status_code=404,
+                details={"base_url": base_url, "original_error": str(e)},
+            ) from e
+        else:
+            raise NetworkError(
+                f"Failed to connect to Jira at {base_url}. Error: {e!s}",
+                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
+            ) from e
+
+
+def run_credentials_cli(config: Any, action: str, ui) -> int:
+    """CLI entry point for credentials command.
+
+    Handles command routing and exit codes.
+    This is the CLI orchestration layer for credentials.
+
+    Args:
+        config: Application configuration (or minimal config fallback).
+        action: Credential action ("run"|"show"|"clear").
+        ui: Console UI instance.
+
+    Returns:
+        Exit code (0 for success, 1 for error).
+    """
+    from ...errors import format_error_for_display  # pylint: disable=import-outside-toplevel
+
+    cfg_view = ConfigView(config)
+
+    ui.lf()
+
+    # Route to domain functions
+    if action == "show":
+        st = get_credential_status(ui, cfg_view)
+        display_credential_status(ui, st)
+        return 0
+
+    if action == "clear":
+        clear_credentials(ui)
+        return 0
+
+    # default: run
+    try:
+        st = setup_credentials_interactive(ui, cfg_view)
+        ui.lf()
+        ui.success("✓ Credentials configured successfully")
+        return 0
+    except ConfigurationError as cred_exc:
+        ui.error(format_error_for_display(cred_exc))
+        return 1
+    except Exception as cred_exc:  # pylint: disable=broad-except
+        # Unexpected internal error during credential setup
+        ui.error(f"Credential setup failed: {cred_exc}")
+        return 1

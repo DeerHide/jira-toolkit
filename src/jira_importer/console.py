@@ -249,7 +249,6 @@ class Fmt:  # pylint: disable=too-many-public-methods
 
     def esc(self, text: str) -> str:
         """Escape raw text that may include [brackets] so markup stays valid."""
-        # TODO: This is a hack to escape [brackets] so markup stays valid.
         return rich_escape(text)
 
 

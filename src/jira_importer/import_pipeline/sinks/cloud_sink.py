@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from ...config.config_view import ConfigView
 from ...config.constants import LEVEL_2_EPIC, LEVEL_3_STORY, LEVEL_4_SUBTASK
 from ...config.issuetypes import get_default_level3_type, get_issue_type_level
-from ...errors import ConfigurationError, JiraApiError, JiraAuthError, NetworkError, ProcessingError
+from ...errors import ConfigurationError, JiraApiError, JiraAuthError, ProcessingError
 from ..cloud.bulk import build_bulk_create_payload, chunk_issues
 from ..cloud.client import JiraCloudClient
 from ..cloud.constants import (
@@ -24,20 +24,18 @@ from ..cloud.constants import (
     AUTH_TOKEN_KEY,
     BATCH_SIZE,
     HTTP_ERROR_THRESHOLD,
+    HTTP_FORBIDDEN,
+    HTTP_NOT_FOUND,
+    HTTP_SERVER_ERROR_MAX,
+    HTTP_SERVER_ERROR_MIN,
+    HTTP_TOO_MANY_REQUESTS,
+    HTTP_UNAUTHORIZED,
     PARENT_RESOLUTION_KEYWORDS,
 )
+from ..cloud.credential_manager import test_credentials
 from ..cloud.mappers import IssueMapper
 from ..cloud.metadata import MetadataCache
 from ..models import ColumnIndices, ProcessorResult
-
-# HTTP status codes for better error handling
-HTTP_OK = 200
-HTTP_UNAUTHORIZED = 401
-HTTP_FORBIDDEN = 403
-HTTP_NOT_FOUND = 404
-HTTP_TOO_MANY_REQUESTS = 429
-HTTP_SERVER_ERROR_START = 500
-HTTP_SERVER_ERROR_END = 600
 
 logger = logging.getLogger(__name__)
 
@@ -253,12 +251,30 @@ def write_cloud(
     *,
     dry_run: bool = False,
     output_dir: Path | None = None,
-    ui=None,
+    ui: Any | None = None,
     auto_reply: bool | None = None,
 ) -> CloudSubmitReport:
-    """Submit processed issues to Jira Cloud in batches."""
+    """Submit processed issues to Jira Cloud in batches.
+
+    Args:
+        result: Processed result containin rows and column indices.
+        config: Configuration object.
+        dry_run: If True, skip actual API calls.
+        output_dir: Optional directory for debug output.
+        ui: Optional UI object for progress tracking and user interaction.
+        auto_reply: Optional auto-reply flag for non-interactive mode.
+
+    Returns:
+        CloudSubmitReport with creation results.
+
+    Raises:
+        ConfigurationError: If configuration is invalid or credentials are missing.
+        JiraAuthError: If authentication fails.
+        JiraApiError: If API calls fail.
+        NetwokError: If network connection fails.
+    """
     # Secondary safety net: opportunistic ensure of credentials if UI provided
-    auth_status = None
+    auth_status: dict[str, Any] | None = None
     try:
         if ui is not None:
             from ..cloud.credential_manager import ensure_cloud_credentials  # pylint: disable=import-outside-toplevel
@@ -271,104 +287,30 @@ def write_cloud(
                     "environment variables (JIRA_EMAIL/JIRA_API_TOKEN), or run 'jira-importer --credentials' to set them.",
                     details={"missing_credentials": True},
                 )
+    except ConfigurationError:
+        # Re-raise configuration errors immediately
+        raise
     except Exception:
-        # Do not mask errors; validation step below will provide exact messages
-        pass
+        # Only suppress unexpected errors from ensure_cloud_credentials
+        # Validation step below will provide exact messages
+        logger.debug("Credential check failed, will validate via _validate_config", exc_info=True)
 
     base_url, email, api_token = _validate_config(config)
+
     # Build auth context for downstream error messages
     auth_context = {
         "email": (auth_status or {}).get("email") or email,
         "secret_source": (auth_status or {}).get("source") or "unknown",
     }
-    auth_provider = _setup_auth(email, api_token)
-    client = JiraCloudClient(base_url=f"{base_url.rstrip('/')}/rest/api/3", auth_provider=auth_provider)
 
-    # Test authentication before proceeding
-    # This pre-flight test provides clear error messages for common auth issues
-    try:
-        logger.info("Testing Jira authentication...")
-        # Make a simple API call to test authentication
-        test_response = client.get("/myself")
-        if test_response.status_code == HTTP_OK:
-            try:
-                user_info = test_response.json()
-                logger.info(f"Authentication successful - connected as: {user_info.get('displayName', 'Unknown')}")
-            except (ValueError, KeyError) as json_error:
-                logger.warning(f"Authentication successful but received malformed response: {json_error}")
-                logger.info("Authentication successful - proceeding with import")
-        elif test_response.status_code == HTTP_UNAUTHORIZED:
-            raise JiraAuthError(
-                "Jira authentication failed (HTTP 401) - your API token may have expired. "
-                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
-                "Refresh your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
-                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})",
-                status_code=HTTP_UNAUTHORIZED,
-                details={
-                    "email": auth_context.get("email") or "unknown",
-                    "secret_source": auth_context.get("secret_source"),
-                },
-            )
-        elif test_response.status_code == HTTP_FORBIDDEN:
-            raise JiraAuthError(
-                "Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions. "
-                "Use 'jira-importer --credentials show' to inspect current values, or '... --credentials' to update. "
-                "Check/rotate your token at: https://id.atlassian.com/manage-profile/security/api-tokens"
-                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})",
-                status_code=HTTP_FORBIDDEN,
-                details={
-                    "email": auth_context.get("email") or "unknown",
-                    "secret_source": auth_context.get("secret_source"),
-                },
-            )
-        elif test_response.status_code == HTTP_NOT_FOUND:
-            raise JiraApiError(
-                f"Jira instance not found at {base_url} (HTTP 404). Please check your site_address configuration.",
-                status_code=HTTP_NOT_FOUND,
-                details={"base_url": base_url},
-            )
-        elif test_response.status_code == HTTP_TOO_MANY_REQUESTS:
-            raise JiraApiError(
-                "Jira API rate limit exceeded (HTTP 429). Please wait a moment and try again.",
-                status_code=HTTP_TOO_MANY_REQUESTS,
-            )
-        elif HTTP_SERVER_ERROR_START <= test_response.status_code < HTTP_SERVER_ERROR_END:
-            raise JiraApiError(
-                f"Jira server error (HTTP {test_response.status_code}). Please try again later or contact your Jira administrator.",
-                status_code=test_response.status_code,
-            )
-        else:
-            raise JiraApiError(
-                f"Authentication test failed with status {test_response.status_code}"
-                f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source')})",
-                status_code=test_response.status_code,
-                details={
-                    "email": auth_context.get("email") or "unknown",
-                    "secret_source": auth_context.get("secret_source"),
-                },
-            )
-    except (JiraAuthError, JiraApiError, ConfigurationError):
-        # Re-raise our custom error messages
-        raise
-    except Exception as e:
-        # Handle network/connection issues
-        error_str = str(e).lower()
-        if any(keyword in error_str for keyword in ["timeout", "connection", "network", "dns", "ssl"]):
-            raise NetworkError(
-                f"Network connection failed to {base_url}. Please check your internet connection and try again. Error: {e!s}",
-                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
-            ) from e
-        elif "not found" in error_str or "404" in error_str:
-            raise JiraApiError(
-                f"Jira instance not found at {base_url}. Please check your site_address configuration.",
-                status_code=404,
-                details={"base_url": base_url, "original_error": str(e)},
-            ) from e
-        else:
-            raise NetworkError(
-                f"Failed to connect to Jira at {base_url}. Error: {e!s}",
-                details={"base_url": base_url, "original_error": str(e), "error_type": type(e).__name__},
-            ) from e
+    auth_provider = _setup_auth(email, api_token)
+    # Normalize base_url to avoid double slashes when appending /rest/api/3
+    # JiraCloudClient also normalizes URLs in its methods, but we ensure clean construction here
+    normalized_base = base_url.rstrip("/")
+    client = JiraCloudClient(base_url=f"{normalized_base}/rest/api/3", auth_provider=auth_provider)
+
+    # Test credentials before proceeding
+    test_credentials(client, base_url, auth_context)
 
     return _process_batches(result, client, dry_run, output_dir, ui, config, auth_context)
 
@@ -643,15 +585,154 @@ def _find_logical_parent(child_summary: str, summary_to_row: dict[str, int]) -> 
     return None
 
 
+def _handle_batch_error_response(
+    resp: Any,
+    batch_num: int,
+    issue_type: str,
+    context_suffix: str,
+) -> dict[str, Any]:
+    """Handle HTTP error responses from batch API calls.
+
+    Args:
+        resp: HTTP response object with status_code and json()/text attributes.
+        batch_num: Current batch number for error details.
+        issue_type: Type of issues being created (for error details).
+        context_suffix: Additional context string for error messages.
+
+    Returns:
+        Error detail dictionary for non-critical errors.
+
+    Raises:
+        JiraAuthError: For authentication errors (401, 403).
+        JiraApiError: For API errors (404, 429, 5xx).
+    """
+    # Parse error detail once
+    try:
+        detail = resp.json()
+    except ValueError:
+        detail = {"error": resp.text}
+
+    # Handle critical errors that should stop processing
+    if resp.status_code == HTTP_UNAUTHORIZED:
+        error_msg = "Authentication failed (HTTP 401) - your API token may have expired" + context_suffix
+        logger.error(error_msg)
+        raise JiraAuthError(
+            error_msg,
+            status_code=HTTP_UNAUTHORIZED,
+            details={"batch_num": batch_num, "issue_type": issue_type},
+        )
+    elif resp.status_code == HTTP_FORBIDDEN:
+        error_msg = (
+            "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions" + context_suffix
+        )
+        logger.error(error_msg)
+        raise JiraAuthError(
+            error_msg,
+            status_code=HTTP_FORBIDDEN,
+            details={"batch_num": batch_num, "issue_type": issue_type},
+        )
+    elif resp.status_code == HTTP_NOT_FOUND:
+        error_msg = "Jira API endpoint not found (HTTP 404) - check your site_address"
+        logger.error(error_msg)
+        raise JiraApiError(
+            error_msg,
+            status_code=HTTP_NOT_FOUND,
+            details={"batch_num": batch_num, "issue_type": issue_type},
+        )
+    elif resp.status_code == HTTP_TOO_MANY_REQUESTS:
+        error_msg = "Jira API rate limit exceeded (HTTP 429) - please wait and try again"
+        logger.error(error_msg)
+        raise JiraApiError(
+            error_msg,
+            status_code=HTTP_TOO_MANY_REQUESTS,
+            details={"batch_num": batch_num, "issue_type": issue_type},
+        )
+    elif HTTP_SERVER_ERROR_MIN <= resp.status_code <= HTTP_SERVER_ERROR_MAX:
+        error_msg = f"Jira server error (HTTP {resp.status_code}) - please try again later"
+        logger.error(error_msg)
+        raise JiraApiError(
+            error_msg,
+            status_code=resp.status_code,
+            details={"batch_num": batch_num, "issue_type": issue_type},
+        )
+
+    # For other error status codes, return detail for caller to handle
+    return {"status": resp.status_code, "detail": detail}
+
+
+def _process_single_batch(
+    client: JiraCloudClient,
+    batch: list[dict[str, Any]],
+    batch_num: int,
+    output_dir: Path | None,
+    issue_type: str,
+    context_suffix: str,
+) -> tuple[int, int, list[dict[str, Any]], list[dict[str, Any]]]:
+    """Process a single batch of issues.
+
+    Args:
+        client: Jira Cloud API client.
+        batch: List of issue payloads for this batch.
+        batch_num: Current batch number.
+        output_dir: Optional directory for debug output.
+        issue_type: Type of issues being created.
+        context_suffix: Additional context for error messages.
+
+    Returns:
+        Tuple of (created_count, failed_count, errors_list, created_issues_list).
+
+    Raises:
+        JiraAuthError: For authentication errors.
+        JiraApiError: For API errors.
+    """
+    payload = build_bulk_create_payload(batch)
+
+    # Write payload to debug file if output_dir is provided
+    if output_dir:
+        _write_payload_debug(payload, batch_num, output_dir)
+
+    resp = client.post("issue/bulk", json=payload)
+
+    if resp.status_code >= HTTP_ERROR_THRESHOLD:
+        error_detail = _handle_batch_error_response(resp, batch_num, issue_type, context_suffix)
+        # If we get here, it's a non-critical error (not raised)
+        return (0, len(batch), [error_detail], [])
+
+    # Process successful response
+    data = resp.json()
+    issues_created = len(data.get("issues", []))
+    created_issues: list[dict[str, Any]] = list(data.get("issues", []))
+    errors: list[dict[str, Any]] = []
+
+    # Collect individual errors from response
+    for err in data.get("errors", []):
+        errors.append(err)
+        logger.error(f"Jira API error: {err}")
+
+    return (issues_created, len(errors), errors, created_issues)
+
+
 def _create_issues_batch(
     client: JiraCloudClient,
     issues: list[tuple[int, dict[str, Any]]],
     output_dir: Path | None,
     issue_type: str,
-    ui=None,
-    auth_context: dict | None = None,
+    ui: Any = None,
+    auth_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Create a batch of issues and return results."""
+    """Create a batch of issues and return results.
+
+    Args:
+        client: Jira Cloud API client.
+        issues: List of (row_index, payload) tuples.
+        output_dir: Optional directory for debug output.
+        issue_type: Type of issues being created (for progress/error messages).
+        ui: Optional UI object with progress() method for progress tracking.
+        auth_context: Optional authentication context for error messages.
+
+    Returns:
+        Dictionary with keys: created, failed, errors, batches, created_issues.
+    """
     created = 0
     failed = 0
     errors: list[dict[str, Any]] = []
@@ -661,8 +742,8 @@ def _create_issues_batch(
     # Extract just the payloads for processing
     payloads = [payload for _, payload in issues]
 
-    # Calculate total batches for progress tracking
-    total_batches = len(list(chunk_issues(payloads, batch_size=BATCH_SIZE)))
+    # Calculate total batches for progress tracking (efficiently)
+    total_batches = sum(1 for _ in chunk_issues(payloads, batch_size=BATCH_SIZE))
 
     # Build auth context suffix for error messages
     context_suffix = ""
@@ -672,170 +753,38 @@ def _create_issues_batch(
             f"secret source: {auth_context.get('secret_source') or 'unknown'})"
         )
 
-    # Add progress tracking if UI is available
+    # Process batches with optional progress tracking
+    batch_iter = chunk_issues(payloads, batch_size=BATCH_SIZE)
+
     if ui and hasattr(ui, "progress"):
+        # Use progress tracking
         with ui.progress() as progress:
             task = progress.add_task(f"Creating {issue_type} issues", total=total_batches)
 
-            for batch in chunk_issues(payloads, batch_size=BATCH_SIZE):
+            for batch in batch_iter:
                 batches += 1
-                payload = build_bulk_create_payload(batch)
+                batch_created, batch_failed, batch_errors, batch_created_issues = _process_single_batch(
+                    client, batch, batches, output_dir, issue_type, context_suffix
+                )
 
-                # Write payload to debug file if output_dir is provided
-                if output_dir:
-                    _write_payload_debug(payload, batches, output_dir)
-
-                resp = client.post("issue/bulk", json=payload)
-                if resp.status_code >= HTTP_ERROR_THRESHOLD:
-                    try:
-                        detail = resp.json()
-                    except ValueError:
-                        detail = {"error": resp.text}
-
-                    # Check for specific error cases and provide clear user guidance
-                    if resp.status_code == HTTP_UNAUTHORIZED:
-                        error_msg = (
-                            "Authentication failed (HTTP 401) - your API token may have expired" + context_suffix
-                        )
-                        logger.error(error_msg)
-                        raise JiraAuthError(
-                            error_msg,
-                            status_code=HTTP_UNAUTHORIZED,
-                            details={"batch_num": batches, "issue_type": issue_type},
-                        )
-                    elif resp.status_code == HTTP_FORBIDDEN:
-                        error_msg = (
-                            "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions"
-                            + context_suffix
-                        )
-                        logger.error(error_msg)
-                        raise JiraAuthError(
-                            error_msg,
-                            status_code=HTTP_FORBIDDEN,
-                            details={"batch_num": batches, "issue_type": issue_type},
-                        )
-                    elif resp.status_code == HTTP_NOT_FOUND:
-                        error_msg = "Jira API endpoint not found (HTTP 404) - check your site_address"
-                        logger.error(error_msg)
-                        raise JiraApiError(
-                            error_msg,
-                            status_code=HTTP_NOT_FOUND,
-                            details={"batch_num": batches, "issue_type": issue_type},
-                        )
-                    elif resp.status_code == HTTP_TOO_MANY_REQUESTS:
-                        error_msg = "Jira API rate limit exceeded (HTTP 429) - please wait and try again"
-                        logger.error(error_msg)
-                        raise JiraApiError(
-                            error_msg,
-                            status_code=HTTP_TOO_MANY_REQUESTS,
-                            details={"batch_num": batches, "issue_type": issue_type},
-                        )
-                    elif HTTP_SERVER_ERROR_START <= resp.status_code < HTTP_SERVER_ERROR_END:
-                        error_msg = f"Jira server error (HTTP {resp.status_code}) - please try again later"
-                        logger.error(error_msg)
-                        raise JiraApiError(
-                            error_msg,
-                            status_code=resp.status_code,
-                            details={"batch_num": batches, "issue_type": issue_type},
-                        )
-
-                    errors.append({"status": resp.status_code, "detail": detail})
-                    failed += len(batch)
-                    progress.advance(task)
-                    continue
-
-                data = resp.json()
-                issues_created = len(data.get("issues", []))
-                created += issues_created
-
-                # Collect created issues for mapping
-                for issue in data.get("issues", []):
-                    created_issues.append(issue)
-
-                for err in data.get("errors", []):
-                    failed += 1
-                    errors.append(err)
-                    logger.error(f"Jira API error: {err}")
+                created += batch_created
+                failed += batch_failed
+                errors.extend(batch_errors)
+                created_issues.extend(batch_created_issues)
 
                 progress.advance(task)
     else:
         # Fallback without progress tracking
-        for batch in chunk_issues(payloads, batch_size=BATCH_SIZE):
+        for batch in batch_iter:
             batches += 1
-            payload = build_bulk_create_payload(batch)
+            batch_created, batch_failed, batch_errors, batch_created_issues = _process_single_batch(
+                client, batch, batches, output_dir, issue_type, context_suffix
+            )
 
-            # Write payload to debug file if output_dir is provided
-            if output_dir:
-                _write_payload_debug(payload, batches, output_dir)
-
-            resp = client.post("issue/bulk", json=payload)
-            if resp.status_code >= HTTP_ERROR_THRESHOLD:
-                try:
-                    detail = resp.json()
-                except ValueError:
-                    detail = {"error": resp.text}
-
-                # Check for specific error cases
-                if resp.status_code == HTTP_UNAUTHORIZED:
-                    error_msg = "Authentication failed (HTTP 401) - your API token may have expired" + context_suffix
-                    logger.error(error_msg)
-                    raise JiraAuthError(
-                        error_msg,
-                        status_code=HTTP_UNAUTHORIZED,
-                        details={"batch_num": batches, "issue_type": issue_type},
-                    )
-                elif resp.status_code == HTTP_FORBIDDEN:
-                    error_msg = (
-                        "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions"
-                        + context_suffix
-                    )
-                    logger.error(error_msg)
-                    raise JiraAuthError(
-                        error_msg,
-                        status_code=HTTP_FORBIDDEN,
-                        details={"batch_num": batches, "issue_type": issue_type},
-                    )
-                elif resp.status_code == HTTP_NOT_FOUND:
-                    error_msg = "Jira API endpoint not found (HTTP 404) - check your site_address"
-                    logger.error(error_msg)
-                    raise JiraApiError(
-                        error_msg,
-                        status_code=HTTP_NOT_FOUND,
-                        details={"batch_num": batches, "issue_type": issue_type},
-                    )
-                elif resp.status_code == HTTP_TOO_MANY_REQUESTS:
-                    error_msg = "Jira API rate limit exceeded (HTTP 429) - please wait and try again"
-                    logger.error(error_msg)
-                    raise JiraApiError(
-                        error_msg,
-                        status_code=HTTP_TOO_MANY_REQUESTS,
-                        details={"batch_num": batches, "issue_type": issue_type},
-                    )
-                elif HTTP_SERVER_ERROR_START <= resp.status_code < HTTP_SERVER_ERROR_END:
-                    error_msg = f"Jira server error (HTTP {resp.status_code}) - please try again later"
-                    logger.error(error_msg)
-                    raise JiraApiError(
-                        error_msg,
-                        status_code=resp.status_code,
-                        details={"batch_num": batches, "issue_type": issue_type},
-                    )
-
-                errors.append({"status": resp.status_code, "detail": detail})
-                failed += len(batch)
-                continue
-
-            data = resp.json()
-            issues_created = len(data.get("issues", []))
-            created += issues_created
-
-            # Collect created issues for mapping
-            for issue in data.get("issues", []):
-                created_issues.append(issue)
-
-            for err in data.get("errors", []):
-                failed += 1
-                errors.append(err)
-                logger.error(f"Jira API error: {err}")
+            created += batch_created
+            failed += batch_failed
+            errors.extend(batch_errors)
+            created_issues.extend(batch_created_issues)
 
     return {
         "created": created,

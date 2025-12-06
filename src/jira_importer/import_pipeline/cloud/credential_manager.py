@@ -338,6 +338,93 @@ def clear_credentials(ui) -> None:
     ui.say("  macOS/Linux:         unset JIRA_EMAIL JIRA_API_TOKEN")
 
 
+def _test_credentials_cli(cfg_view: ConfigView, ui) -> int:
+    """Test stored credentials by making an API call to Jira.
+
+    This function sets up the client and uses test_credentials() to verify
+    the connection. It handles all the necessary setup (credential resolution,
+    URL validation, client creation) before calling test_credentials().
+
+    Args:
+        cfg_view: Configuration view.
+        ui: Console UI instance.
+
+    Returns:
+        Exit code (0 for success, 1 for error).
+    """
+    from urllib.parse import urlparse  # pylint: disable=import-outside-toplevel
+
+    from ...errors import ConfigurationError, format_error_for_display  # pylint: disable=import-outside-toplevel
+    from .auth import BasicAuthProvider  # pylint: disable=import-outside-toplevel
+
+    ui.say("Testing Jira API credentials...")
+    ui.lf()
+
+    # Get credentials
+    status = ensure_cloud_credentials(ui, cfg_view, auto_reply=None)
+    if not status.get("found"):
+        ui.error("Credentials not found. Use '--credentials run' to set them up.")
+        return 1
+
+    email = status.get("email")
+    api_token = status.get("api_token")
+    source = status.get("source", "unknown")
+
+    if not email or not api_token:
+        ui.error("Credentials are incomplete. Use '--credentials run' to set them up.")
+        return 1
+
+    # Get and validate base URL from config
+    base_url = cfg_view.get("jira.connection.site_address", None)
+    if not base_url:
+        ui.error("Missing jira.connection.site_address in configuration.")
+        ui.hint("Set it in your JSON/Excel config file.")
+        return 1
+
+    # Validate URL format (same validation as _validate_config in cloud_sink.py)
+    parsed = urlparse(str(base_url))
+    if not parsed.scheme or not parsed.netloc:
+        ui.error(f"Invalid jira.connection.site_address: {base_url}")
+        ui.hint("Expected an HTTPS URL like 'https://your-domain.atlassian.net'.")
+        return 1
+
+    if parsed.scheme.lower() != "https":
+        ui.error(f"Insecure URL scheme: {parsed.scheme}")
+        ui.hint("Only HTTPS URLs are supported.")
+        return 1
+
+    # Normalize base URL
+    normalized_base = str(base_url).rstrip("/")
+    api_base_url = f"{normalized_base}/rest/api/3"
+
+    # Create auth provider and client (required for test_credentials)
+    auth_provider = BasicAuthProvider(email=email, api_token=api_token)
+    client = JiraCloudClient(base_url=api_base_url, auth_provider=auth_provider)
+
+    # Build auth context for error messages
+    auth_context = {
+        "email": email,
+        "secret_source": source,
+    }
+
+    # Use test_credentials() to verify the connection
+    try:
+        test_credentials(client, normalized_base, auth_context)
+        ui.lf()
+        ui.success("Credentials are valid and connection successful")
+        ui.say(f"  Email: {email}")
+        ui.say(f"  Source: {source}")
+        ui.say(f"  Base URL: {normalized_base}")
+        return 0
+    except (JiraAuthError, JiraApiError, NetworkError, ConfigurationError) as test_exc:
+        ui.error(format_error_for_display(test_exc))
+        return 1
+    except Exception as test_exc:  # pylint: disable=broad-except
+        ui.error(f"Unexpected error during credential test: {test_exc}")
+        logger.exception("Credential test failed with unexpected error")
+        return 1
+
+
 def test_credentials(client: JiraCloudClient, base_url: str, auth_context: dict[str, str] | None = None) -> None:
     """Test Jira credentials and connection with a pre-flight API call.
 
@@ -448,7 +535,7 @@ def run_credentials_cli(config: Any, action: str, ui) -> int:
 
     Args:
         config: Application configuration (or minimal config fallback).
-        action: Credential action ("run"|"show"|"clear").
+        action: Credential action ("run"|"show"|"clear"|"test").
         ui: Console UI instance.
 
     Returns:
@@ -470,11 +557,14 @@ def run_credentials_cli(config: Any, action: str, ui) -> int:
         clear_credentials(ui)
         return 0
 
+    if action == "test":
+        return _test_credentials_cli(cfg_view, ui)
+
     # default: run
     try:
         st = setup_credentials_interactive(ui, cfg_view)
         ui.lf()
-        ui.success("✓ Credentials configured successfully")
+        ui.success("Credentials configured successfully")
         return 0
     except ConfigurationError as cred_exc:
         ui.error(format_error_for_display(cred_exc))

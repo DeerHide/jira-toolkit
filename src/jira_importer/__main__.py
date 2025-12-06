@@ -99,7 +99,30 @@ def main() -> int:
             run_credentials_cli,
         )
 
-        config = MinimalConfigForCredentials()  # type: ignore
+        # For "test" action, we need the actual config to get site_address
+        # For other actions (run, show, clear), minimal config is sufficient
+        if args.credentials == "test":
+            # Set up logging first (needed for config loading)
+            setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
+            logger = logging.getLogger(__name__)
+
+            try:
+                add_file_logging(None)
+            except Exception:  # pylint: disable=broad-except
+                # File logging is best-effort; ignore failures here
+                pass
+
+            # Load configuration for test action
+            config, config_path, exit_code = load_configuration_with_error_handling(args, logger)  # type: ignore[assignment]
+            if exit_code != 0:
+                return exit_code
+            if config_path is None or config is None:
+                # Fallback to minimal config if loading fails
+                config = MinimalConfigForCredentials()  # type: ignore
+        else:
+            # For run/show/clear, minimal config is sufficient
+            config = MinimalConfigForCredentials()  # type: ignore
+
         exit_code = run_credentials_cli(config, args.credentials, ui)
         return exit_code
 

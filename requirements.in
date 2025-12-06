@@ -14,6 +14,7 @@ openpyxl
 
 # HTTP and API
 requests
+urllib3>=2.6.0
 
 # Security and credentials
 keyring

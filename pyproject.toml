@@ -18,6 +18,7 @@ dependencies = [
     "colorlog>=6.7.0",
     "PyYAML>=6.0",
     "requests>=2.25.0",
+    "urllib3>=2.6.0",
     "keyring>=23.0.0",
     "colorama>=0.4.0; platform_system == 'Windows'",
 ]

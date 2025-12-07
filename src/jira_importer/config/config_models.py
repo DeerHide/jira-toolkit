@@ -7,7 +7,7 @@ Author:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass(slots=True, frozen=True)
@@ -75,6 +75,21 @@ class TeamConfig:
 
     name: str
     id: str
+
+
+@dataclass(slots=True, frozen=True)
+class CustomFieldConfig:
+    """Configuration for custom field mapping.
+
+    Attributes:
+        name: User-friendly name that must match Excel column header (normalized).
+        id: Jira custom field ID (e.g., "customfield_10125").
+        type: Field type - one of "text", "number", "date", or "select".
+    """
+
+    name: str
+    id: str
+    type: Literal["text", "number", "date", "select"]
 
 
 @dataclass(slots=True)

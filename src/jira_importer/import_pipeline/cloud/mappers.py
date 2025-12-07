@@ -31,12 +31,14 @@ class IssueMapper:
     cfg: ConfigView
     metadata: MetadataCache
     _field_map: dict[str, str] | None = None
+    _current_row_index: int | None = None
 
     def map_row(
         self,
         row: Sequence[Any],
         indices: ColumnIndices,
         custom_configs_by_id: dict[str, CustomFieldConfig] | None = None,
+        row_index: int | None = None,
     ) -> dict[str, Any]:
         """Map a single row to Jira issue payload.
 
@@ -44,6 +46,7 @@ class IssueMapper:
             row: Row data as a sequence of values (can be Any type).
             indices: Column indices for accessing row data.
             custom_configs_by_id: Dictionary mapping field_id -> CustomFieldConfig.
+            row_index: Optional 1-based row index for error reporting (header = 1).
 
         Returns:
             Dictionary with "fields" key containing Jira issue fields.
@@ -51,6 +54,9 @@ class IssueMapper:
         Raises:
             ProcessingError: If required fields are missing.
         """
+        # Store row index for error context in custom field mapping
+        self._current_row_index = row_index
+
         fields: dict[str, Any] = {}
 
         # Map required fields
@@ -419,12 +425,12 @@ class IssueMapper:
                 if value is not None:
                     fields[field_id] = value
             except RowProcessingError as e:
-                # Re-raise with additional context if available
+                # Re-raise with additional context including row index
                 raise RowProcessingError(
                     e.message,
                     details={
                         **e.details,
-                        "row_index": getattr(self, "_current_row_index", None),
+                        "row_index": self._current_row_index,
                         "column_name": cfg.name,
                     },
                 ) from e
@@ -453,8 +459,12 @@ def build_issue_payloads(
             details={"reason": "ProcessorResult.indices is None"},
         )
 
-    for row in result.rows:
-        payload = mapper.map_row(row, result.indices, custom_configs_by_id=custom_configs_by_id)
+    for row_index, row in enumerate(result.rows):
+        # Pass row_index (0-based) + 1 to get 1-based index (header = 1)
+        # First data row is at index 0, so row_index + 1 = 2 (first data row)
+        payload = mapper.map_row(
+            row, result.indices, custom_configs_by_id=custom_configs_by_id, row_index=row_index + 1
+        )
         issues.append(payload)
 
     return issues

@@ -51,75 +51,6 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug(fmt.kv("args", str(args)))
 
 
-def _credential_preflight(config: Any, autoreply: bool | None, logger: logging.Logger, dry_run: bool = False) -> None:
-    """Validate that Jira Cloud credentials are available before proceeding.
-
-    Raises JiraAuthError if credentials are missing (unless dry_run is True),
-    with clear instructions on how to set them.
-
-    Args:
-        config: Configuration object.
-        autoreply: Auto-reply flag for prompts.
-        logger: Logger instance.
-        dry_run: If True, show warning instead of raising exception when credentials are missing.
-
-    Raises:
-        JiraAuthError: If credentials are missing or invalid (unless dry_run is True).
-    """
-    from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
-    from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
-        ensure_cloud_credentials,
-    )
-
-    status = ensure_cloud_credentials(ui, ConfigView(config), autoreply)
-
-    # Explicitly check if credentials are found and valid
-    found = status.get("found", False)
-    email = status.get("email")
-    api_token = status.get("api_token")
-
-    # Validate that both email and token are present and non-empty
-    if not found or not email or not api_token:
-        # Build a clear error message with actionable guidance
-        error_parts = ["Jira API credentials are missing or invalid."]
-        error_parts.append("")
-        error_parts.append("To set credentials, use one of the following methods:")
-        error_parts.append("  1. Run 'jira-importer --credentials' to enter them interactively")
-        error_parts.append("  2. Set environment variables: JIRA_EMAIL and JIRA_API_TOKEN")
-        error_parts.append("  3. Add to config file: jira.connection.auth.email and jira.connection.auth.api_token")
-        error_parts.append("")
-        if autoreply:
-            error_parts.append("Note: --auto-yes flag prevents interactive credential entry.")
-            error_parts.append("Set credentials via config or environment variables when using --auto-yes.")
-
-        error_message = "\n".join(error_parts)
-
-        if dry_run:
-            # In dry-run mode, show warning instead of raising exception
-            ui.warning("Jira API credentials are missing or invalid.")
-            ui.warning("Dry-run mode: Continuing without credentials (no actual API calls will be made).")
-            logger.warning("Credential preflight: credentials missing or invalid (dry-run mode)")
-            return
-
-        # Not in dry-run mode: raise exception
-        logger.error("Credential preflight failed: credentials missing or invalid")
-        raise JiraAuthError(
-            error_message,
-            details={
-                "missing_credentials": True,
-                "auto_reply": autoreply,
-                "email_found": email is not None,
-                "token_found": api_token is not None,
-            },
-        )
-
-    # Credentials are valid - log success
-    src = status.get("source", "unknown")
-    logger.info("Jira API Email/Key found (%s)", src)
-    if email:
-        ui.hint(f"Using Jira account: {email}")
-
-
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -225,10 +156,20 @@ def main() -> int:
     output_target = App.get_output_target_from_args(args)
     if output_target == "cloud":
         # Check credentials BEFORE asking if user wants to continue
-        # This ensures we fail fast with a clear error if credentials are missing
         # Note: In dry-run mode, missing credentials only show a warning
         try:
-            _credential_preflight(config, autoreply, logger, dry_run=getattr(args, "dry_run", False))
+            from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
+            from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
+                validate_cloud_credentials_for_import,
+            )
+
+            validate_cloud_credentials_for_import(
+                ui,
+                ConfigView(config),
+                autoreply,
+                dry_run=getattr(args, "dry_run", False),
+                logger_instance=logger,
+            )
         except JiraAuthError as auth_exc:
             # Handle credential errors with proper error display
             log_exception(logger, auth_exc, context="Credential preflight")

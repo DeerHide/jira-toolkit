@@ -129,9 +129,13 @@ class App:
 
         if "--credentials" in argv:
             mini = argparse.ArgumentParser(add_help=False)
-            mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear"], const="run")
+            mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear", "test"], const="run")
             parsed, _ = mini.parse_known_args(argv)
             if getattr(parsed, "credentials", None):
+                # For "test" action, we need full args parsing to get config options
+                # So skip fast-path and let the full parser handle it
+                if parsed.credentials == "test":
+                    return None
                 return argparse.Namespace(
                     credentials=parsed.credentials, input_file=None, version=False, show_config=False
                 )
@@ -152,7 +156,7 @@ class App:
             """,
             allow_abbrev=False,
         )
-        parser.add_argument("input_file", help="Excel XLSX file", default="import.xlsx")
+        parser.add_argument("input_file", nargs="?", help="Excel XLSX file", default="import.xlsx")
 
         App._add_config_args(parser)
         App._add_output_args(parser)
@@ -264,10 +268,10 @@ class App:
         parser.add_argument(
             "--credentials",
             nargs="?",
-            choices=["run", "show", "clear"],
+            choices=["run", "show", "clear", "test"],
             const="run",
             metavar="ACTION",
-            help="Manage Jira API credentials: run (interactive setup), show (display current), clear (remove stored)",
+            help="Manage Jira API credentials: run (interactive setup), show (display current), clear (remove stored), test (verify connection)",
         )
 
     @staticmethod

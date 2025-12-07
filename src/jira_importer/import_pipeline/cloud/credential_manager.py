@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, Final, TypedDict
 
 from ...config.config_view import ConfigView
 from ...errors import ConfigurationError, JiraApiError, JiraAuthError, NetworkError
@@ -41,6 +41,25 @@ EMAIL_KEY = AUTH_EMAIL_KEY
 TOKEN_KEY = AUTH_TOKEN_KEY
 TOKEN_EXPIRES_KEY = AUTH_TOKEN_EXPIRES_KEY  # ISO date YYYY-MM-DD
 TOKEN_INPUT_DATE_KEY = AUTH_TOKEN_INPUT_DATE_KEY  # ISO date YYYY-MM-DD
+
+# Module-level constants
+TOKEN_MASK_LENGTH: Final[int] = 12
+
+# Pre-configured SecretSpec instances to avoid duplication
+_EMAIL_SPEC = SecretSpec(config_key=EMAIL_KEY, env_fallback="JIRA_EMAIL", keyring_service=KEYRING_SERVICE)
+_TOKEN_SPEC = SecretSpec(config_key=TOKEN_KEY, env_fallback="JIRA_API_TOKEN", keyring_service=KEYRING_SERVICE)
+
+
+class CredentialStatus(TypedDict, total=False):
+    """Type definition for credential status dictionary."""
+
+    found: bool
+    source: str
+    email: str | None
+    api_token: str | None
+    email_source: str
+    api_token_expires_on: str | None
+    api_token_input_date: str | None
 
 
 def _prompt_with_ui(ui, prompt_text: str, *, required: bool = True, hint: str | None = None) -> str:
@@ -90,22 +109,86 @@ def _prompt_api_token_expiration(ui) -> str:
         return ""
 
 
+def _status_dict(
+    email_val: str | None,
+    token_val: str | None,
+    email_src: str,
+    token_src: str,
+    expires_on: str | None = None,
+    input_date: str | None = None,
+) -> dict[str, Any]:
+    """Build credential status dictionary.
+
+    Args:
+        email_val: Email value or None.
+        token_val: API token value or None.
+        email_src: Source of email ("keyring", "env", "config", "prompt", "none").
+        token_src: Source of token ("keyring", "env", "config", "prompt", "none").
+        expires_on: Optional expiration date (ISO format).
+        input_date: Optional input date (ISO format).
+
+    Returns:
+        Credential status dictionary.
+    """
+    result: dict[str, Any] = {
+        "found": bool(email_val and token_val),
+        "source": token_src or "none",
+        "email": email_val,
+        "api_token": token_val,
+        "email_source": email_src or "none",
+    }
+    if expires_on is not None:
+        result["api_token_expires_on"] = expires_on
+    if input_date is not None:
+        result["api_token_input_date"] = input_date
+    return result
+
+
+def _missing_credentials_error(auto_reply: bool | None) -> str:
+    """Build error message for missing credentials."""
+    error_parts = ["Jira API credentials are missing or invalid."]
+    error_parts.append("")
+    error_parts.append("To set credentials, use one of the following methods:")
+    error_parts.append("  1. Run 'jira-importer --credentials' to enter them interactively")
+    error_parts.append("  2. Set environment variables: JIRA_EMAIL and JIRA_API_TOKEN")
+    error_parts.append("  3. Add to config file: jira.connection.auth.email and jira.connection.auth.api_token")
+    error_parts.append("")
+    if auto_reply:
+        error_parts.append("Note: --auto-yes flag prevents interactive credential entry.")
+        error_parts.append("Set credentials via config or environment variables when using --auto-yes.")
+    return "\n".join(error_parts)
+
+
 def _resolve_with_prompt(
     cfg: ConfigView,
     spec: SecretSpec,
     *,
     prompter: Callable[[], str] | None,
 ) -> str | None:
-    # Use resolve_secret's prompt hook to both prompt and store to keyring when available
+    """Resolve a secret with optional prompting.
+
+    Uses resolve_secret's prompt hook to both prompt and store to keyring when available.
+
+    Args:
+        cfg: Configuration view.
+        spec: Secret specification.
+        prompter: Optional function that prompts for the secret value.
+
+    Returns:
+        Secret value if found or entered, None otherwise.
+    """
+    if prompter is None:
+        return None
+
     def _prompt_adapter(_: str) -> str:
-        return prompter() if prompter else ""
+        return prompter()
 
     return resolve_secret(
         cfg,
         spec,
         allow_keyring=True,
-        prompt_if_missing=prompter is not None,
-        prompt=_prompt_adapter if prompter is not None else None,
+        prompt_if_missing=True,
+        prompt=_prompt_adapter,
     )
 
 
@@ -123,69 +206,38 @@ def ensure_cloud_credentials(ui, cfg: ConfigView, auto_reply: bool | None) -> di
       - When auto_reply is None, the function may prompt interactively via the provided UI and attempt
         to persist values in the OS keyring when available.
     """
-    status: dict[str, Any] = {
-        "found": False,
-        "source": "none",
-        "email": None,
-        "api_token": None,
-        "api_token_expires_on": None,
-        "api_token_input_date": None,
-    }
-
-    email_spec = SecretSpec(config_key=EMAIL_KEY, env_fallback="JIRA_EMAIL", keyring_service=KEYRING_SERVICE)
-    token_spec = SecretSpec(config_key=TOKEN_KEY, env_fallback="JIRA_API_TOKEN", keyring_service=KEYRING_SERVICE)
-
     # First, try non-interactive resolution (config/env/keyring) and capture sources
     email_val, email_src = resolve_secret_with_source(
-        cfg, email_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+        cfg, _EMAIL_SPEC, allow_keyring=True, prompt_if_missing=False, prompt=None
     )
     token_val, token_src = resolve_secret_with_source(
-        cfg, token_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+        cfg, _TOKEN_SPEC, allow_keyring=True, prompt_if_missing=False, prompt=None
     )
 
+    # If both credentials found, return immediately
     if email_val and token_val:
-        status.update(
-            {
-                "found": True,
-                "source": token_src or "none",
-                "email": email_val,
-                "api_token": token_val,
-                "email_source": email_src or "none",
-            }
-        )
-        return status
+        return _status_dict(email_val, token_val, email_src, token_src)
 
     # If auto-yes is set or explicitly non-interactive, do not prompt
     if auto_reply is True:
-        return status
+        return _status_dict(email_val, token_val, email_src, token_src)
 
     # Interactive: prompt for any missing values
-    prompter_email = None if email_val else (lambda: _prompt_email(ui))
-    prompter_token = None if token_val else (lambda: _prompt_api_token(ui))
-
-    if prompter_email is not None:
-        email_val = _resolve_with_prompt(cfg, email_spec, prompter=prompter_email)
+    if not email_val:
+        email_val = _resolve_with_prompt(cfg, _EMAIL_SPEC, prompter=lambda: _prompt_email(ui))
         email_src = "prompt" if email_val else email_src
-    if prompter_token is not None:
-        token_val = _resolve_with_prompt(cfg, token_spec, prompter=prompter_token)
+
+    if not token_val:
+        token_val = _resolve_with_prompt(cfg, _TOKEN_SPEC, prompter=lambda: _prompt_api_token(ui))
         token_src = "prompt" if token_val else token_src
 
+    # If both credentials now available, store metadata and return
     if email_val and token_val:
         # Ask for optional expiration date only when we just collected a token interactively
-        expires_on = _prompt_api_token_expiration(ui)
+        expires_on = _prompt_api_token_expiration(ui) or None
         input_date = datetime.now().date().isoformat()
 
-        status.update(
-            {
-                "found": True,
-                "source": token_src or "prompt",
-                "email": email_val,
-                "api_token": token_val,
-                "email_source": email_src or "prompt",
-                "api_token_expires_on": expires_on or None,
-                "api_token_input_date": input_date,
-            }
-        )
+        status = _status_dict(email_val, token_val, email_src, token_src, expires_on, input_date)
 
         # Best-effort: ensure stored in keyring (resolve_secret already attempted when keyring enabled)
         try:
@@ -200,7 +252,71 @@ def ensure_cloud_credentials(ui, cfg: ConfigView, auto_reply: bool | None) -> di
         return status
 
     # Still missing after prompt or non-interactive
-    return status
+    return _status_dict(email_val, token_val, email_src, token_src)
+
+
+def validate_cloud_credentials_for_import(
+    ui,
+    cfg: ConfigView,
+    auto_reply: bool | None,
+    *,
+    dry_run: bool = False,
+    logger_instance: logging.Logger | None = None,
+) -> None:
+    """Validate that Jira Cloud credentials are available before proceeding with import.
+
+    This function performs a preflight check to ensure credentials are available
+    before starting a cloud import operation. In dry-run mode, missing credentials
+    will only show a warning instead of raising an exception.
+
+    Args:
+        ui: ConsoleIO instance for user interaction and output.
+        cfg: Configuration view to read credentials from.
+        auto_reply: Auto-reply flag for prompts (True = auto-yes, False = auto-no, None = interactive).
+        dry_run: If True, show warning instead of raising exception when credentials are missing.
+        logger_instance: Optional logger instance (uses module logger if None).
+
+    Raises:
+        JiraAuthError: If credentials are missing or invalid (unless dry_run is True).
+    """
+    if logger_instance is None:
+        logger_instance = logger
+
+    status = ensure_cloud_credentials(ui, cfg, auto_reply)
+
+    # Explicitly check if credentials are found and valid
+    found = status.get("found", False)
+    email = status.get("email")
+    api_token = status.get("api_token")
+
+    # Validate that both email and token are present and non-empty
+    if not found or not email or not api_token:
+        error_message = _missing_credentials_error(auto_reply)
+
+        if dry_run:
+            # In dry-run mode, show warning instead of raising exception
+            ui.warning("Jira API credentials are missing or invalid.")
+            ui.warning("Dry-run mode: Continuing without credentials (no actual API calls will be made).")
+            logger_instance.warning("Credential preflight: credentials missing or invalid (dry-run mode)")
+            return
+
+        # Not in dry-run mode: raise exception
+        logger_instance.error("Credential preflight failed: credentials missing or invalid")
+        raise JiraAuthError(
+            error_message,
+            details={
+                "missing_credentials": True,
+                "auto_reply": auto_reply,
+                "email_found": email is not None,
+                "token_found": api_token is not None,
+            },
+        )
+
+    # Credentials are valid - log success
+    src = status.get("source", "unknown")
+    logger_instance.info("Jira API Email/Key found (%s)", src)
+    if email:
+        ui.hint(f"Using Jira account: {email}")
 
 
 def get_credential_status(ui, cfg: ConfigView) -> dict[str, Any]:  # pylint: disable=unused-argument
@@ -214,15 +330,12 @@ def get_credential_status(ui, cfg: ConfigView) -> dict[str, Any]:  # pylint: dis
             "input_date": str|None
         }
     """
-    email_spec = SecretSpec(config_key=EMAIL_KEY, env_fallback="JIRA_EMAIL", keyring_service=KEYRING_SERVICE)
-    token_spec = SecretSpec(config_key=TOKEN_KEY, env_fallback="JIRA_API_TOKEN", keyring_service=KEYRING_SERVICE)
-
     # Get values and sources
     email_val, email_src = resolve_secret_with_source(
-        cfg, email_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+        cfg, _EMAIL_SPEC, allow_keyring=True, prompt_if_missing=False, prompt=None
     )
     token_val, token_src = resolve_secret_with_source(
-        cfg, token_spec, allow_keyring=True, prompt_if_missing=False, prompt=None
+        cfg, _TOKEN_SPEC, allow_keyring=True, prompt_if_missing=False, prompt=None
     )
 
     # Get metadata from keyring when source is keyring
@@ -231,17 +344,16 @@ def get_credential_status(ui, cfg: ConfigView) -> dict[str, Any]:  # pylint: dis
     expires_on = None
     input_date = None
 
-    if email_src == "keyring":
+    if email_src == "keyring" or token_src == "keyring":
         from .secrets import _keyring_get  # pylint: disable=import-outside-toplevel
 
-        email_date = _keyring_get(KEYRING_SERVICE, f"{EMAIL_KEY}_created")
+        if email_src == "keyring":
+            email_date = _keyring_get(KEYRING_SERVICE, f"{EMAIL_KEY}_created")
 
-    if token_src == "keyring":
-        from .secrets import _keyring_get  # pylint: disable=import-outside-toplevel
-
-        token_date = _keyring_get(KEYRING_SERVICE, f"{TOKEN_KEY}_created")
-        expires_on = _keyring_get(KEYRING_SERVICE, TOKEN_EXPIRES_KEY)
-        input_date = _keyring_get(KEYRING_SERVICE, TOKEN_INPUT_DATE_KEY)
+        if token_src == "keyring":
+            token_date = _keyring_get(KEYRING_SERVICE, f"{TOKEN_KEY}_created")
+            expires_on = _keyring_get(KEYRING_SERVICE, TOKEN_EXPIRES_KEY)
+            input_date = _keyring_get(KEYRING_SERVICE, TOKEN_INPUT_DATE_KEY)
 
     return {
         "email": {"value": email_val, "source": email_src, "date": email_date},
@@ -268,7 +380,6 @@ def display_credential_status(ui, status: dict[str, Any]) -> None:
     # Show token (masked)
     if token_info.get("value"):
         token_value = token_info["value"]
-        TOKEN_MASK_LENGTH = 24
         if token_value and len(token_value) > TOKEN_MASK_LENGTH:
             masked = token_value[:TOKEN_MASK_LENGTH] + "..."
         else:
@@ -311,12 +422,17 @@ def clear_credentials(ui) -> None:
     """Remove credentials from keyring and show env var unset instructions."""
     from .secrets import delete_secret_in_keyring
 
-    delete_secret_in_keyring(KEYRING_SERVICE, EMAIL_KEY)
-    delete_secret_in_keyring(KEYRING_SERVICE, TOKEN_KEY)
-    delete_secret_in_keyring(KEYRING_SERVICE, TOKEN_EXPIRES_KEY)
-    delete_secret_in_keyring(KEYRING_SERVICE, TOKEN_INPUT_DATE_KEY)
-    delete_secret_in_keyring(KEYRING_SERVICE, f"{EMAIL_KEY}_created")
-    delete_secret_in_keyring(KEYRING_SERVICE, f"{TOKEN_KEY}_created")
+    keys_to_delete = [
+        EMAIL_KEY,
+        TOKEN_KEY,
+        TOKEN_EXPIRES_KEY,
+        TOKEN_INPUT_DATE_KEY,
+        f"{EMAIL_KEY}_created",
+        f"{TOKEN_KEY}_created",
+    ]
+
+    for key in keys_to_delete:
+        delete_secret_in_keyring(KEYRING_SERVICE, key)
 
     ui.success("Cleared credentials from keychain (dh-jira-toolkit)")
     ui.lf()
@@ -324,6 +440,93 @@ def clear_credentials(ui) -> None:
     ui.say("  Windows PowerShell:  Remove-Item Env:JIRA_EMAIL; Remove-Item Env:JIRA_API_TOKEN")
     ui.say("  Windows CMD:         set JIRA_EMAIL= & set JIRA_API_TOKEN=")
     ui.say("  macOS/Linux:         unset JIRA_EMAIL JIRA_API_TOKEN")
+
+
+def _test_credentials_cli(ui, cfg_view: ConfigView) -> int:
+    """Test stored credentials by making an API call to Jira.
+
+    This function sets up the client and uses test_credentials() to verify
+    the connection. It handles all the necessary setup (credential resolution,
+    URL validation, client creation) before calling test_credentials().
+
+    Args:
+        cfg_view: Configuration view.
+        ui: Console UI instance.
+
+    Returns:
+        Exit code (0 for success, 1 for error).
+    """
+    from urllib.parse import urlparse  # pylint: disable=import-outside-toplevel
+
+    from ...errors import format_error_for_display  # pylint: disable=import-outside-toplevel
+    from .auth import BasicAuthProvider  # pylint: disable=import-outside-toplevel
+
+    ui.say("Testing Jira API credentials...")
+    ui.lf()
+
+    # Get credentials
+    status = ensure_cloud_credentials(ui, cfg_view, auto_reply=None)
+    if not status.get("found"):
+        ui.error("Credentials not found. Use '--credentials run' to set them up.")
+        return 1
+
+    email = status.get("email")
+    api_token = status.get("api_token")
+    source = status.get("source", "unknown")
+
+    if not email or not api_token:
+        ui.error("Credentials are incomplete. Use '--credentials run' to set them up.")
+        return 1
+
+    # Get and validate base URL from config
+    base_url = cfg_view.get("jira.connection.site_address", None)
+    if not base_url:
+        ui.error("Missing jira.connection.site_address in configuration.")
+        ui.hint("Set it in your JSON/Excel config file.")
+        return 1
+
+    # Validate URL format (same validation as _validate_config in cloud_sink.py)
+    parsed = urlparse(str(base_url))
+    if not parsed.scheme or not parsed.netloc:
+        ui.error(f"Invalid jira.connection.site_address: {base_url}")
+        ui.hint("Expected an HTTPS URL like 'https://your-domain.atlassian.net'.")
+        return 1
+
+    if parsed.scheme.lower() != "https":
+        ui.error(f"Insecure URL scheme: {parsed.scheme}")
+        ui.hint("Only HTTPS URLs are supported.")
+        return 1
+
+    # Normalize base URL
+    normalized_base = str(base_url).rstrip("/")
+    api_base_url = f"{normalized_base}/rest/api/3"
+
+    # Create auth provider and client (required for test_credentials)
+    auth_provider = BasicAuthProvider(email=email, api_token=api_token)
+    client = JiraCloudClient(base_url=api_base_url, auth_provider=auth_provider)
+
+    # Build auth context for error messages
+    auth_context = {
+        "email": email,
+        "secret_source": source,
+    }
+
+    # Use test_credentials() to verify the connection
+    try:
+        test_credentials(client, normalized_base, auth_context)
+        ui.lf()
+        ui.success("Credentials are valid and connection successful")
+        ui.say(f"  Email: {email}")
+        ui.say(f"  Source: {source}")
+        ui.say(f"  Base URL: {normalized_base}")
+        return 0
+    except (JiraAuthError, JiraApiError, NetworkError, ConfigurationError) as test_exc:
+        ui.error(format_error_for_display(test_exc))
+        return 1
+    except Exception as test_exc:  # pylint: disable=broad-except
+        ui.error(f"Unexpected error during credential test: {test_exc}")
+        logger.exception("Credential test failed with unexpected error")
+        return 1
 
 
 def test_credentials(client: JiraCloudClient, base_url: str, auth_context: dict[str, str] | None = None) -> None:
@@ -436,7 +639,7 @@ def run_credentials_cli(config: Any, action: str, ui) -> int:
 
     Args:
         config: Application configuration (or minimal config fallback).
-        action: Credential action ("run"|"show"|"clear").
+        action: Credential action ("run"|"show"|"clear"|"test").
         ui: Console UI instance.
 
     Returns:
@@ -450,19 +653,22 @@ def run_credentials_cli(config: Any, action: str, ui) -> int:
 
     # Route to domain functions
     if action == "show":
-        st = get_credential_status(ui, cfg_view)
-        display_credential_status(ui, st)
+        status = get_credential_status(ui, cfg_view)
+        display_credential_status(ui, status)
         return 0
 
     if action == "clear":
         clear_credentials(ui)
         return 0
 
+    if action == "test":
+        return _test_credentials_cli(ui, cfg_view)
+
     # default: run
     try:
-        st = setup_credentials_interactive(ui, cfg_view)
+        setup_credentials_interactive(ui, cfg_view)
         ui.lf()
-        ui.success("✓ Credentials configured successfully")
+        ui.success("Credentials configured successfully")
         return 0
     except ConfigurationError as cred_exc:
         ui.error(format_error_for_display(cred_exc))

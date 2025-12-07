@@ -66,3 +66,16 @@ AUTH_EMAIL_KEY: Final[str] = "jira.connection.auth.email"
 AUTH_TOKEN_KEY: Final[str] = "jira.connection.auth.api_token"
 AUTH_TOKEN_EXPIRES_KEY: Final[str] = "jira.connection.auth.api_token_expires_on"  # ISO date YYYY-MM-DD
 AUTH_TOKEN_INPUT_DATE_KEY: Final[str] = "jira.connection.auth.api_token_input_date"  # ISO date YYYY-MM-DD
+
+# Sensitive terms for secret redaction across the codebase
+# Consolidated from: log.py, config_display.py, json_config.py
+SENSITIVE_TERMS: Final[tuple[str, ...]] = (
+    "password",
+    "api_token",
+    "token",
+    "secret",
+    "client_secret",
+    "access_token",
+    "key",
+    "auth",
+)

@@ -19,7 +19,7 @@ from jira_importer.artifacts import ArtifactManager
 from jira_importer.config.minimal_config import MinimalConfigForCredentials
 from jira_importer.config.utils import load_configuration_with_error_handling
 from jira_importer.console import ConsoleIO
-from jira_importer.errors import ErrorResponse, ProcessingError, format_error_for_display, log_exception
+from jira_importer.errors import ErrorResponse, JiraAuthError, ProcessingError, format_error_for_display, log_exception
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
@@ -51,29 +51,6 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug(fmt.kv("args", str(args)))
 
 
-def _credential_preflight(config: Any, autoreply: bool | None, logger: logging.Logger) -> None:
-    try:
-        from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
-        from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
-            ensure_cloud_credentials,
-        )
-
-        status = ensure_cloud_credentials(ui, ConfigView(config), autoreply)
-        if status.get("found"):
-            src = status.get("source", "unknown")
-            logger.info("Jira API Email/Key found (%s)", src)
-            if status.get("email"):
-                ui.hint(f"Using Jira account: {status['email']}")
-        else:
-            App.event_fatal(
-                exit_code=2,
-                message=("Jira API credentials are missing. Set them in config/env, or run without -y to enter them."),
-            )
-    except Exception as preflight_exc:
-        logger.exception("Credential preflight failed: %s", preflight_exc)
-        App.event_fatal(exit_code=2, message=f"Credential preflight failed: {preflight_exc}")
-
-
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
@@ -99,7 +76,30 @@ def main() -> int:
             run_credentials_cli,
         )
 
-        config = MinimalConfigForCredentials()  # type: ignore
+        # For "test" action, we need the actual config to get site_address
+        # For other actions (run, show, clear), minimal config is sufficient
+        if args.credentials == "test":
+            # Set up logging first (needed for config loading)
+            setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
+            logger = logging.getLogger(__name__)
+
+            try:
+                add_file_logging(None)
+            except Exception:  # pylint: disable=broad-except
+                # File logging is best-effort; ignore failures here
+                pass
+
+            # Load configuration for test action
+            config, config_path, exit_code = load_configuration_with_error_handling(args, logger)  # type: ignore[assignment]
+            if exit_code != 0:
+                return exit_code
+            if config_path is None or config is None:
+                # Fallback to minimal config if loading fails
+                config = MinimalConfigForCredentials()  # type: ignore
+        else:
+            # For run/show/clear, minimal config is sufficient
+            config = MinimalConfigForCredentials()  # type: ignore
+
         exit_code = run_credentials_cli(config, args.credentials, ui)
         return exit_code
 
@@ -155,6 +155,30 @@ def main() -> int:
     # Determine output target strictly from CLI: --cloud implies cloud, otherwise csv
     output_target = App.get_output_target_from_args(args)
     if output_target == "cloud":
+        # Check credentials BEFORE asking if user wants to continue
+        # Note: In dry-run mode, missing credentials only show a warning
+        try:
+            from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
+            from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
+                validate_cloud_credentials_for_import,
+            )
+
+            validate_cloud_credentials_for_import(
+                ui,
+                ConfigView(config),
+                autoreply,
+                dry_run=getattr(args, "dry_run", False),
+                logger_instance=logger,
+            )
+        except JiraAuthError as auth_exc:
+            # Handle credential errors with proper error display
+            log_exception(logger, auth_exc, context="Credential preflight")
+            error_message = format_error_for_display(auth_exc)
+            ui.error(error_message)
+            logger.critical(f"Credential preflight failed: {error_message}")
+            app.event_close(exit_code=2, cleanup=True)
+            return 2
+
         _question = "The Jira Cloud API support is experimental and may not work properly. Do you want to continue?"
         if not ui.prompt_yes_no(_question, default=False, auto_reply=autoreply):
             app.event_abort(exit_code=1, message="Run (--cloud) stopped")
@@ -183,10 +207,6 @@ def main() -> int:
     # --- Processing Dataset file ---
     ui.lf()
     ui.progress_light("Processing CSV file for Jira Import")
-
-    # Early credential preflight for Jira Cloud with fail-fast and logging
-    if output_target == "cloud":
-        _credential_preflight(config, autoreply, logger)
 
     _result_code = 0
     context = PipelineContext(

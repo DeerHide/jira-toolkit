@@ -114,7 +114,15 @@ def parse_custom_fields(cfg_view: Any) -> list[CustomFieldConfig]:
     if not isinstance(cfg_view, ConfigView):
         cfg_view = ConfigView(cfg_view)
 
-    custom_fields_data = cfg_view.get("jira.custom_fields", [])
+    # Use direct nested access to avoid ConfigView.get() calling dict.get() on dotted keys
+    # ConfigView.get() has a bug where it calls the underlying dict.get() for dotted keys
+    # instead of walking the path. We'll access it directly.
+    jira_data = cfg_view.get("jira", {})
+    if isinstance(jira_data, dict):
+        custom_fields_data = jira_data.get("custom_fields", [])
+    else:
+        custom_fields_data = cfg_view.get("jira.custom_fields", [])
+
     if not custom_fields_data:
         return []
 

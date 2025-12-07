@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC
 from pathlib import Path
 
+from ..config.config_models import get_custom_field_configs
 from ..config.config_view import ConfigView  # typed access over your config object
 from ..errors import FileReadError, MetadataWriteError, RowProcessingError, ValidationSetupError
 from ..excel.excel_io import ExcelProcessingMeta, ExcelWorkbookManager  # generic, lives top-level
@@ -333,6 +334,27 @@ class ImportProcessor:
         def pos(key: str) -> int | None:
             return name_to_pos.get(key.lower())
 
+        # Build normalized header map for custom fields matching
+        normalized_header_map: dict[str, int] = {}
+        for idx, header_name in enumerate(header.normalized):
+            normalized_header_map[header_name] = idx
+
+        # Get custom field configs from active config source
+        cfg_view = ConfigView(self.config)
+        custom_field_configs = get_custom_field_configs(self.config, cfg_view)
+
+        # Populate custom_fields mapping
+        custom_fields: dict[str, int] = {}
+        for cfg in custom_field_configs:
+            # Normalize config name (same normalization as header map)
+            normalized_name = cfg.name.strip().lower()
+            column_index = normalized_header_map.get(normalized_name)
+
+            if column_index is not None:
+                custom_fields[cfg.id] = column_index
+            else:
+                logger.warning(f"Custom field '{cfg.name}' (id: {cfg.id}) not found in Excel headers. Skipping.")
+
         return ColumnIndices(
             summary=pos("summary"),
             priority=pos("priority"),
@@ -352,6 +374,7 @@ class ImportProcessor:
             sprint=pos("sprint"),
             rowtype=pos("rowtype"),
             child_issue_indices=[i for i, n in enumerate(header.normalized) if n.startswith("child issue")],
+            custom_fields=custom_fields,
         )
 
     def _excel_loader_ctx(self):

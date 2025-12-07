@@ -122,6 +122,9 @@ class ColumnIndices:
     # Special (can be multiple)
     child_issue_indices: list[int] = field(default_factory=list)
 
+    # Custom fields mapping (field_id -> column_index)
+    custom_fields: dict[str, int] = field(default_factory=dict)
+
     def as_dict(self) -> dict[str, int | None]:
         """Dict view (useful when passing to generic helpers)."""
         d = self.__dict__.copy()

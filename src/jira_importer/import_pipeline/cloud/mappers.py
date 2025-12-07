@@ -11,10 +11,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from ...config.config_models import CustomFieldConfig
 from ...config.config_view import ConfigView
 from ...config.constants import LEVEL_4_SUBTASK
 from ...config.issuetypes import get_default_level3_type, get_issue_type_level
-from ...errors import ProcessingError
+from ...errors import ConfigurationError, ProcessingError, RowProcessingError
 from ..models import ColumnIndices, ProcessorResult
 from .constants import JIRA_KEY_PARTS_COUNT
 from .metadata import MetadataCache
@@ -31,12 +32,18 @@ class IssueMapper:
     metadata: MetadataCache
     _field_map: dict[str, str] | None = None
 
-    def map_row(self, row: Sequence[Any], indices: ColumnIndices) -> dict[str, Any]:
+    def map_row(
+        self,
+        row: Sequence[Any],
+        indices: ColumnIndices,
+        custom_configs_by_id: dict[str, CustomFieldConfig] | None = None,
+    ) -> dict[str, Any]:
         """Map a single row to Jira issue payload.
 
         Args:
             row: Row data as a sequence of values (can be Any type).
             indices: Column indices for accessing row data.
+            custom_configs_by_id: Dictionary mapping field_id -> CustomFieldConfig.
 
         Returns:
             Dictionary with "fields" key containing Jira issue fields.
@@ -64,7 +71,9 @@ class IssueMapper:
         # Handle level 4 issue type conversion (must be after parent mapping)
         self._handle_level4_issuetype_conversion(fields, row, indices)
 
-        # TODO: Custom fields mapping
+        # Map custom fields
+        if custom_configs_by_id and indices.custom_fields:
+            self._map_custom_fields(fields, row, indices, custom_configs_by_id)
 
         return {"fields": fields}
 
@@ -264,9 +273,178 @@ class IssueMapper:
             "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
         }
 
+    def _transform_custom_value(self, raw: Any, cfg: CustomFieldConfig) -> Any | None:
+        """Transform raw Excel value to Jira API format based on field type.
 
-def build_issue_payloads(result: ProcessorResult, mapper: IssueMapper) -> list[dict[str, Any]]:
-    """Build issue payloads from processor result."""
+        Args:
+            raw: Raw value from Excel cell.
+            cfg: CustomFieldConfig with type and format information.
+
+        Returns:
+            Transformed value in Jira API format, or None if no value.
+
+        Raises:
+            RowProcessingError: If value is invalid for the field type.
+            ConfigurationError: If field type is unsupported.
+        """
+        # Treat None and empty/whitespace-only strings as "no value"
+        if raw is None:
+            return None
+        raw_str = str(raw).strip()
+        if not raw_str:
+            return None
+
+        if cfg.type == "text":
+            return raw_str
+
+        if cfg.type == "number":
+            try:
+                # Try int first, then float
+                if "." in raw_str or "e" in raw_str.lower():
+                    return float(raw_str)
+                return int(raw_str)
+            except ValueError as exc:
+                raise RowProcessingError(
+                    f"Invalid number value for custom field '{cfg.name}' (id: {cfg.id}): '{raw}'",
+                    details={
+                        "field_name": cfg.name,
+                        "field_id": cfg.id,
+                        "field_type": cfg.type,
+                        "raw_value": raw,
+                        "raw_type": type(raw).__name__,
+                    },
+                ) from exc
+
+        if cfg.type == "date":
+            from datetime import date, datetime
+
+            # 1) If raw is a datetime object (from openpyxl or similar)
+            if isinstance(raw, datetime):
+                return raw.date().isoformat()  # "YYYY-MM-DD"
+
+            if isinstance(raw, date):
+                return raw.isoformat()  # "YYYY-MM-DD"
+
+            # 2) If raw is a number (int/float) - REJECT for MVP
+            if isinstance(raw, (int, float)):
+                raise RowProcessingError(
+                    f"Numeric Excel date values are not supported for custom fields yet. "
+                    f"Please format cells as text or proper dates. "
+                    f"Field: '{cfg.name}' (id: {cfg.id}), value: {raw}",
+                    details={
+                        "field_name": cfg.name,
+                        "field_id": cfg.id,
+                        "field_type": cfg.type,
+                        "raw_value": raw,
+                        "raw_type": type(raw).__name__,
+                    },
+                )
+
+            # 3) If raw is a string - apply string-based parsing
+            if isinstance(raw, str):
+                raw_str = raw.strip()
+                default_formats = ["%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]
+                for fmt in default_formats:
+                    try:
+                        dt = datetime.strptime(raw_str, fmt)
+                        return dt.strftime("%Y-%m-%d")  # ISO 8601
+                    except ValueError:
+                        continue
+
+                # All formats failed
+                raise RowProcessingError(
+                    f"Invalid date value for custom field '{cfg.name}' (id: {cfg.id}): '{raw}'. "
+                    f"Expected format: YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY",
+                    details={
+                        "field_name": cfg.name,
+                        "field_id": cfg.id,
+                        "field_type": cfg.type,
+                        "raw_value": raw,
+                        "raw_type": type(raw).__name__,
+                    },
+                )
+
+            # 4) Any other type - unsupported
+            raise RowProcessingError(
+                f"Unsupported value type for date custom field '{cfg.name}' (id: {cfg.id}): "
+                f"{type(raw).__name__}. Expected: datetime, date, or string.",
+                details={
+                    "field_name": cfg.name,
+                    "field_id": cfg.id,
+                    "field_type": cfg.type,
+                    "raw_value": raw,
+                    "raw_type": type(raw).__name__,
+                },
+            )
+
+        if cfg.type == "select":
+            # MVP: Return dict with value, no validation against Jira allowedValues
+            return {"value": raw_str}
+
+        raise ConfigurationError(
+            f"Unsupported custom field type '{cfg.type}' for field '{cfg.name}' (id: {cfg.id})",
+            details={"field_name": cfg.name, "field_id": cfg.id, "field_type": cfg.type},
+        )
+
+    def _map_custom_fields(
+        self,
+        fields: dict[str, Any],
+        row: Sequence[Any],
+        indices: ColumnIndices,
+        custom_configs_by_id: dict[str, CustomFieldConfig],
+    ) -> None:
+        """Map custom fields from row data to Jira fields dict.
+
+        Args:
+            fields: Jira fields dictionary to populate.
+            row: Row data as sequence of values.
+            indices: Column indices including custom_fields mapping.
+            custom_configs_by_id: Dictionary mapping field_id -> CustomFieldConfig.
+        """
+        for field_id, col_idx in indices.custom_fields.items():
+            cfg = custom_configs_by_id.get(field_id)
+            if cfg is None:
+                # Config not found (shouldn't happen, but handle gracefully)
+                logger.warning(f"Custom field config not found for field_id: {field_id}")
+                continue
+
+            # Extract raw value
+            if col_idx is None or col_idx < 0 or col_idx >= len(row):
+                continue
+            raw = row[col_idx]
+
+            # Transform value
+            try:
+                value = self._transform_custom_value(raw, cfg)
+                if value is not None:
+                    fields[field_id] = value
+            except RowProcessingError as e:
+                # Re-raise with additional context if available
+                raise RowProcessingError(
+                    e.message,
+                    details={
+                        **e.details,
+                        "row_index": getattr(self, "_current_row_index", None),
+                        "column_name": cfg.name,
+                    },
+                ) from e
+
+
+def build_issue_payloads(
+    result: ProcessorResult,
+    mapper: IssueMapper,
+    custom_configs_by_id: dict[str, CustomFieldConfig] | None = None,
+) -> list[dict[str, Any]]:
+    """Build issue payloads from processor result.
+
+    Args:
+        result: Processor result with rows and indices.
+        mapper: IssueMapper instance for mapping rows.
+        custom_configs_by_id: Dictionary mapping field_id -> CustomFieldConfig.
+
+    Returns:
+        List of issue payload dictionaries.
+    """
     issues = []
 
     if result.indices is None:
@@ -276,7 +454,7 @@ def build_issue_payloads(result: ProcessorResult, mapper: IssueMapper) -> list[d
         )
 
     for row in result.rows:
-        payload = mapper.map_row(row, result.indices)
+        payload = mapper.map_row(row, result.indices, custom_configs_by_id=custom_configs_by_id)
         issues.append(payload)
 
     return issues

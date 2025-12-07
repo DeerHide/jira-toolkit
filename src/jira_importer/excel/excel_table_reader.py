@@ -13,6 +13,7 @@ from ..config.config_models import (
     AssigneeConfig,
     AutoFieldValueConfig,
     ComponentConfig,
+    CustomFieldConfig,
     ExcelTableConfig,
     FixVersionConfig,
     IgnoreListConfig,
@@ -20,6 +21,7 @@ from ..config.config_models import (
     PriorityConfig,
     SprintConfig,
 )
+from ..errors import ConfigurationError
 from .excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
@@ -63,6 +65,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             ignore_list=self._read_ignore_list(config_sheet),
             priorities=self._read_priorities(config_sheet),
             auto_field_values=self._read_auto_field_values(config_sheet),
+            custom_fields=self._read_custom_fields(config_sheet),
         )
 
     def _read_assignees(self, sheet: str) -> list[AssigneeConfig]:
@@ -195,6 +198,93 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
         logger.debug(f"Read {len(auto_field_values)} auto field values from CfgAutofieldValues table")
         return auto_field_values
+
+    def _read_custom_fields(self, sheet: str) -> list[CustomFieldConfig]:
+        """Read CfgCustomFields table."""
+        try:
+            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgCustomFields")
+        except Exception:
+            # Table doesn't exist, return empty list
+            return []
+
+        custom_fields = []
+        seen_ids: dict[str, CustomFieldConfig] = {}
+        seen_names: dict[str, CustomFieldConfig] = {}
+
+        # Normalize names for comparison
+        def normalize_name(name: str) -> str:
+            return name.strip().lower()
+
+        for row in table_data:
+            name = self._get_cell_value(row, "name")
+            field_id = self._get_cell_value(row, "id")
+            field_type = self._get_cell_value(row, "type")
+
+            if not field_id:
+                logger.warning(f"Skipping incomplete custom field row: {row}")
+                continue
+
+            if not name:
+                logger.warning(f"Skipping incomplete custom field row (missing name): {row}")
+                continue
+
+            if not field_type:
+                logger.warning(f"Skipping incomplete custom field row (missing type): {row}")
+                continue
+
+            name_str = str(name).strip()
+            field_id_str = str(field_id).strip()
+            field_type_str = str(field_type).strip().lower()
+
+            # Validate type
+            if field_type_str not in ["text", "number", "date", "select"]:
+                raise ConfigurationError(
+                    f"Invalid custom field type '{field_type_str}' for field '{name_str}'. Must be one of: text, number, date, select",
+                    details={"name": name_str, "id": field_id_str, "type": field_type_str, "source": "Excel"}
+                )
+
+            # Check for duplicate id
+            if field_id_str in seen_ids:
+                raise ConfigurationError(
+                    f"Duplicate custom field id '{field_id_str}' found in Excel config. "
+                    f"First definition: '{seen_ids[field_id_str].name}', "
+                    f"Second definition: '{name_str}'",
+                    details={
+                        "field_id": field_id_str,
+                        "first_name": seen_ids[field_id_str].name,
+                        "second_name": name_str,
+                        "source": "Excel"
+                    }
+                )
+
+            # Check for name conflict (same name, different id)
+            normalized_name = normalize_name(name_str)
+            if normalized_name in seen_names:
+                existing = seen_names[normalized_name]
+                if existing.id != field_id_str:
+                    raise ConfigurationError(
+                        f"Custom field name '{name_str}' is defined for multiple field ids in Excel: "
+                        f"'{existing.id}' and '{field_id_str}'",
+                        details={
+                            "field_name": name_str,
+                            "first_id": existing.id,
+                            "second_id": field_id_str,
+                            "source": "Excel"
+                        }
+                    )
+
+            cfg = CustomFieldConfig(
+                name=name_str,
+                id=field_id_str,
+                type=field_type_str  # type: ignore[arg-type]
+            )
+
+            custom_fields.append(cfg)
+            seen_ids[field_id_str] = cfg
+            seen_names[normalized_name] = cfg
+
+        logger.debug(f"Read {len(custom_fields)} custom field definitions from CfgCustomFields table")
+        return custom_fields
 
     def _get_cell_value(self, row: dict[str, Any], column_name: str) -> Any | None:
         """Get cell value from row dictionary.

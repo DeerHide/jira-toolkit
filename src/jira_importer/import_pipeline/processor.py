@@ -323,6 +323,13 @@ class ImportProcessor:
             mgr.load()
             header, rows = XlsxSource(mgr, data_sheet="Dataset").read()
             self._excel_mgr = mgr  # set for lifetime of this call  # pylint: disable=attribute-defined-outside-init
+
+            # Ensure ExcelConfiguration has workbook manager for table config loading
+            from ..config.excel_config import ExcelConfiguration
+
+            if isinstance(self.config, ExcelConfiguration):
+                self.config._workbook_manager = mgr  # pylint: disable=protected-access
+
             return header, rows
         else:
             return CsvSource(self.path).read()
@@ -334,14 +341,18 @@ class ImportProcessor:
         def pos(key: str) -> int | None:
             return name_to_pos.get(key.lower())
 
-        # Build normalized header map for custom fields matching
+        # Build normalized header map for custom fields matching (lowercase for case-insensitive matching)
         normalized_header_map: dict[str, int] = {}
         for idx, header_name in enumerate(header.normalized):
-            normalized_header_map[header_name] = idx
+            # Use lowercase key for case-insensitive matching
+            normalized_header_map[header_name.strip().lower()] = idx
 
         # Get custom field configs from active config source
         cfg_view = ConfigView(self.config)
         custom_field_configs = get_custom_field_configs(self.config, cfg_view)
+        logger.debug(
+            f"Found {len(custom_field_configs)} custom field configs: {[cfg.name for cfg in custom_field_configs]}"
+        )
 
         # Populate custom_fields mapping
         custom_fields: dict[str, int] = {}

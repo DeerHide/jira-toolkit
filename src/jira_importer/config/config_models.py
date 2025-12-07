@@ -213,6 +213,14 @@ def get_custom_field_configs(config: Any, cfg_view: Any) -> list[CustomFieldConf
 
     # Excel config mode: use table config
     if isinstance(config, ExcelConfiguration):
+        # Load table config if not already loaded
+        if config.table_config is None:
+            try:
+                config.load_table_config()
+            except Exception as e:
+                # If loading fails (e.g., workbook not initialized), return empty list
+                logger.debug(f"Could not load table config for custom fields: {e}")
+                return []
         table_config = config.get_table_config()
         if table_config and table_config.custom_fields:
             return table_config.custom_fields

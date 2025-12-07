@@ -227,7 +227,7 @@ def get_custom_field_configs(config: Any, cfg_view: Any) -> list[CustomFieldConf
                 config.load_table_config()
             except Exception as e:
                 # If loading fails (e.g., workbook not initialized), return empty list
-                logger.debug(f"Could not load table config for custom fields: {e}")
+                logger.warning(f"Could not load table config for custom fields: {e}")
                 return []
         table_config = config.get_table_config()
         if table_config and table_config.custom_fields:

@@ -282,7 +282,10 @@ class ExcelWorkbookManager:
             row_dict = {}
             for i, value in enumerate(row_values):
                 if i < len(headers) and headers[i] is not None:
-                    row_dict[headers[i]] = value
+                    # Only add non-empty header names (skip empty strings)
+                    header_name = str(headers[i]).strip()
+                    if header_name:
+                        row_dict[header_name] = value
             table_data.append(row_dict)
 
         logger.debug(f"Read {len(table_data)} rows from Excel table '{table_name}'")

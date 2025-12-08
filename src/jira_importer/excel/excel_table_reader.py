@@ -216,26 +216,25 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             return name.strip().lower()
 
         for row in table_data:
-            name = self._get_cell_value(row, "name")
-            field_id = self._get_cell_value(row, "id")
-            field_type = self._get_cell_value(row, "type")
+            name = self._get_cell_value(row, "Name")
+            field_id = self._get_cell_value(row, "Id")
+            field_type = self._get_cell_value(row, "Type")
 
-            # Raise ConfigurationError for missing required fields (consistent with JSON parser)
-            # Match JSON parser pattern: str(value or "").strip() then check if falsy
-            # Check name first (matches JSON parser order)
             name_str = str(name if name is not None else "").strip()
             if not name_str:
+                # Include available column names in error details for debugging
+                available_columns = list(row.keys()) if isinstance(row, dict) else []
                 raise ConfigurationError(
                     "Custom field definition missing 'name' in Excel config",
                     details={
                         "source": "Excel",
                         "sheet": sheet,
                         "row_data": row,
+                        "available_columns": available_columns,
                         "id": str(field_id if field_id is not None else "").strip() or None,
                     },
                 )
 
-            # Check id second (can include name in message since name is validated)
             field_id_str = str(field_id if field_id is not None else "").strip()
             if not field_id_str:
                 raise ConfigurationError(
@@ -248,7 +247,6 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                     },
                 )
 
-            # Check type third
             field_type_str = str(field_type if field_type is not None else "").strip().lower()
             if not field_type_str:
                 raise ConfigurationError(
@@ -261,8 +259,6 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                         "id": field_id_str,
                     },
                 )
-
-            # name_str, field_id_str, and field_type_str are already set above
 
             # Validate type
             if field_type_str not in ["text", "number", "date", "select"]:

@@ -434,6 +434,18 @@ class IssueMapper:
                         "column_name": cfg.name,
                     },
                 ) from e
+            except ConfigurationError as e:
+                # Convert ConfigurationError to RowProcessingError with context
+                raise RowProcessingError(
+                    f"Configuration error for custom field '{cfg.name}': {e.message}",
+                    details={
+                        **e.details,
+                        "row_index": self._current_row_index,
+                        "column_name": cfg.name,
+                        "field_id": cfg.id,
+                        "field_type": cfg.type,
+                    },
+                ) from e
 
 
 def build_issue_payloads(

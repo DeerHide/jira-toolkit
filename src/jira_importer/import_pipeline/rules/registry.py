@@ -19,6 +19,7 @@ from .builtin_rules import (
     ProjectKeyConsistencyRule,
     SummaryRequiredRule,
 )
+from .custom_field_rule import CustomFieldValidationRule
 
 
 @dataclass(slots=True)
@@ -48,6 +49,7 @@ def build_registry(config_view, excel_ctx: object | None) -> RuleRegistry:  # py
     rules.append(EstimateFormatRule())
     rules.append(ParentLinkValidationRule())  # Add parent link validation rule
     rules.append(AssigneeResolverRule())  # Add assignee resolution rule
+    rules.append(CustomFieldValidationRule())
 
     # TODO: if excel_ctx provided, extend with excel_rule_loader.compile(excel_ctx)
     # and insert with explicit 'order' fields.

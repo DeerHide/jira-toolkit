@@ -10,7 +10,10 @@ import re
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..config.config_models import CustomFieldConfig
 
 # models definitions
 
@@ -283,6 +286,8 @@ class ValidationContext:
     validation_issue_id_seen: MutableMapping[str, None] = field(default_factory=dict)
     # Maps issue_id -> (issue_type, row_index) for parent validation
     issue_data: MutableMapping[str, tuple[str, int]] = field(default_factory=dict)
+    # Maps field_id -> CustomFieldConfig for custom field validation
+    custom_field_configs: dict[str, CustomFieldConfig] | None = None
 
     def seen_issue_id(self, value: str) -> bool:
         """Returns True if value was seen before; otherwise records it and returns False.

@@ -202,6 +202,10 @@ class ImportProcessor:
             # Pre-populate issue_id_seen with existing Issue IDs and collect issue data for parent validation
             issue_data = self._pre_populate_issue_data(rows, indices, issue_id_seen)
 
+            # Get custom field configs
+            custom_field_configs = get_custom_field_configs(self.config, cfg_view)
+            custom_configs_by_id = {cfg.id: cfg for cfg in custom_field_configs} if custom_field_configs else None
+
             logger.debug("row_index is 1-based (header = 1), so first data row is 2")
             for i, row in enumerate(rows, start=FIRST_DATA_ROW_INDEX):
                 # Skip rows with RowType = "SKIP"
@@ -226,6 +230,7 @@ class ImportProcessor:
                     auto_fix_enabled=self.enable_auto_fix,
                     issue_id_seen=issue_id_seen,
                     issue_data=issue_data,
+                    custom_field_configs=custom_configs_by_id,
                 )
                 result: ValidationResult = validator.validate_row(row, indices, ctx)
 

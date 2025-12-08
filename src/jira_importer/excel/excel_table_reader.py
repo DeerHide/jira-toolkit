@@ -220,27 +220,55 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             field_id = self._get_cell_value(row, "id")
             field_type = self._get_cell_value(row, "type")
 
-            if not field_id:
-                logger.warning(f"Skipping incomplete custom field row: {row}")
-                continue
+            # Raise ConfigurationError for missing required fields (consistent with JSON parser)
+            # Match JSON parser pattern: str(value or "").strip() then check if falsy
+            # Check name first (matches JSON parser order)
+            name_str = str(name if name is not None else "").strip()
+            if not name_str:
+                raise ConfigurationError(
+                    "Custom field definition missing 'name' in Excel config",
+                    details={
+                        "source": "Excel",
+                        "sheet": sheet,
+                        "row_data": row,
+                        "id": str(field_id if field_id is not None else "").strip() or None,
+                    },
+                )
 
-            if not name:
-                logger.warning(f"Skipping incomplete custom field row (missing name): {row}")
-                continue
+            # Check id second (can include name in message since name is validated)
+            field_id_str = str(field_id if field_id is not None else "").strip()
+            if not field_id_str:
+                raise ConfigurationError(
+                    f"Custom field definition missing 'id' for field '{name_str}' in Excel config",
+                    details={
+                        "source": "Excel",
+                        "sheet": sheet,
+                        "row_data": row,
+                        "name": name_str,
+                    },
+                )
 
-            if not field_type:
-                logger.warning(f"Skipping incomplete custom field row (missing type): {row}")
-                continue
+            # Check type third
+            field_type_str = str(field_type if field_type is not None else "").strip().lower()
+            if not field_type_str:
+                raise ConfigurationError(
+                    f"Custom field definition missing 'type' for field '{name_str}' in Excel config",
+                    details={
+                        "source": "Excel",
+                        "sheet": sheet,
+                        "row_data": row,
+                        "name": name_str,
+                        "id": field_id_str,
+                    },
+                )
 
-            name_str = str(name).strip()
-            field_id_str = str(field_id).strip()
-            field_type_str = str(field_type).strip().lower()
+            # name_str, field_id_str, and field_type_str are already set above
 
             # Validate type
             if field_type_str not in ["text", "number", "date", "select"]:
                 raise ConfigurationError(
                     f"Invalid custom field type '{field_type_str}' for field '{name_str}'. Must be one of: text, number, date, select",
-                    details={"name": name_str, "id": field_id_str, "type": field_type_str, "source": "Excel"}
+                    details={"name": name_str, "id": field_id_str, "type": field_type_str, "source": "Excel"},
                 )
 
             # Check for duplicate id
@@ -253,8 +281,8 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                         "field_id": field_id_str,
                         "first_name": seen_ids[field_id_str].name,
                         "second_name": name_str,
-                        "source": "Excel"
-                    }
+                        "source": "Excel",
+                    },
                 )
 
             # Check for name conflict (same name, different id)
@@ -269,14 +297,14 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                             "field_name": name_str,
                             "first_id": existing.id,
                             "second_id": field_id_str,
-                            "source": "Excel"
-                        }
+                            "source": "Excel",
+                        },
                     )
 
             cfg = CustomFieldConfig(
                 name=name_str,
                 id=field_id_str,
-                type=field_type_str  # type: ignore[arg-type]
+                type=field_type_str,  # type: ignore[arg-type]
             )
 
             custom_fields.append(cfg)

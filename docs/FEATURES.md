@@ -33,6 +33,7 @@ This document covers the current features and capabilities of the Jira Importer 
   - `CfgIgnoreList`: Row skipping rules
   - `CfgPriorities`: Priority mapping
   - `CfgAutoFieldValues`: Auto-populated field values
+  - `CfgCustomFields`: Custom field configuration (name, id, type)
 
 ### Command Line Interface
 
@@ -53,6 +54,29 @@ This document covers the current features and capabilities of the Jira Importer 
 - **`-ci, --config-input`**: Use config file next to input file
 - **`-cd, --config-default`**: Use default configuration
 - **`-c, --config FILE`**: Use specific configuration file
+
+### Custom Fields Support
+
+#### Supported Field Types
+
+- **Text fields**: Any string value (no validation)
+- **Number fields**: Must be parseable as integer or float
+- **Date fields**: Must match supported date formats (YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY)
+- **Select fields**: Any string value (validation against allowed values coming soon)
+
+#### Configuration Methods
+
+- **JSON configuration**: Define custom fields in `jira.custom_fields` array
+- **Excel table configuration**: Use `CfgCustomFields` table in Config sheet
+- **Automatic validation**: Values are validated based on field type
+- **Error reporting**: Clear error messages with field name, expected format, and row number
+
+#### Features
+
+- **Type-based validation**: Automatic validation based on configured field type
+- **Flexible configuration**: Support for both JSON and Excel-based configuration
+- **Cloud import support**: Custom fields are included in direct Jira Cloud imports
+- **CSV export support**: Custom fields are included in CSV exports for manual import
 
 ### Hierarchical Issue Types
 

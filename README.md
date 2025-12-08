@@ -123,6 +123,10 @@ The tool supports:
 - **Auto-fixing**: Automatically fix common issues (with `--auto-fix` flag)
 - **Hierarchical Support**: Handle Initiatives, Epics, Stories, and Sub-tasks with proper relationships
   - Custom types and their levels can be configured in the configuration files (JSON configuration recommended)
+- **Custom Fields Support**: Import and validate custom Jira fields (text, number, date, select)
+  - Configure custom fields in JSON config or Excel tables
+  - Automatic validation based on field type
+  - Supports both CSV export and direct cloud import
 
 ### Input/Output Example
 
@@ -153,6 +157,88 @@ Implement API endpoint,Low,Sub-Task,Add new feature,3,28800,backend
 - **Label Columns**: Multiple label columns (`labels0`, `labels1`, `labels89724`, etc.) are automatically merged into a single `labels` column
 
 The tool validates, fixes issues, assigns missing Issue IDs, normalizes formats, and generates a clean CSV file ready for Jira's Bulk Create page.
+
+### Custom Fields
+
+The tool supports importing custom Jira fields from your Excel data. Custom fields are automatically detected and validated based on their configured type.
+
+**Supported Field Types:**
+
+- **Text**: Any string value (no validation)
+- **Number**: Must be parseable as integer or float
+- **Date**: Must be in format YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY
+- **Select**: Any string value (validation against allowed values is planned for future release)
+
+**Configuration:**
+
+You can configure custom fields in two ways:
+
+1. **JSON Configuration** (recommended for programmatic setup):
+
+```json
+{
+  "jira": {
+    "custom_fields": [
+      {
+        "name": "Custom Text Field",
+        "id": "customfield_10125",
+        "type": "text"
+      },
+      {
+        "name": "Story Points",
+        "id": "customfield_10002",
+        "type": "number"
+      },
+      {
+        "name": "Due Date",
+        "id": "customfield_10130",
+        "type": "date"
+      },
+      {
+        "name": "Priority Level",
+        "id": "customfield_10140",
+        "type": "select"
+      }
+    ]
+  }
+}
+```
+
+2. **Excel Table Configuration** (recommended for Excel-based workflows):
+
+   - Create a table named `CfgCustomFields` in your `Config` sheet
+   - Columns: `Name`, `Id`, `Type`
+   - The `Name` column must match your Excel data column header exactly (case-sentitive)
+
+**Excel Example:**
+
+In your data sheet, add columns matching the custom field names:
+
+```csv
+Summary,Priority,Issue Type,Custom Text Field,Story Points,Due Date
+Fix bug,High,Bug,Important,5,2024-12-31
+Add feature,Medium,Story,Urgent,8,2024-11-15
+```
+
+**Finding Custom Field IDs:**
+
+To find your custom field IDs in Jira:
+
+1. Go to your Jira project settings
+2. Navigate to "Fields" or "Custom Fields"
+3. Click on a custom field to view its details
+4. The field ID appears in the URL or field details (format: `customfield_XXXXX`)
+
+**Validation:**
+
+Custom fields are automatically validated:
+
+- **Text fields**: No validation (any value accepted)
+- **Number fields**: Must be a valid number (integer or decimal)
+- **Date fields**: Must match supported date formats
+- **Select fields**: Currently accepts any value (validation against allowed values coming soon)
+
+Validation errors are reported with clear messages indicating the field name, expected format, and row number.
 
 ### Row Skipping
 

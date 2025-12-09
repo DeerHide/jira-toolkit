@@ -179,13 +179,14 @@ def main() -> int:
             app.event_close(exit_code=2, cleanup=True)
             return 2
 
-        _question = "The Jira Cloud API support is experimental and may not work properly. Do you want to continue?"
-        if not ui.prompt_yes_no(_question, default=False, auto_reply=autoreply):
-            app.event_abort(exit_code=1, message="Run (--cloud) stopped")
-        elif autoreply is not None:
-            ui.warning("Auto-reply is set to yes. Continuing with Jira Cloud API...")
-        else:
-            ui.success("Continuing with Jira Cloud API...")
+        if not args.dry_run:
+            _question = "Using the Cloud mode will directly import the data into your Jira Cloud instance. Do you want to continue?"
+            if not ui.prompt_yes_no(_question, default=False, auto_reply=autoreply):
+                app.event_abort(exit_code=1, message="Run (--cloud) stopped")
+            elif autoreply is not None:
+                ui.warning("Auto-reply is set to yes. Continuing with Jira Cloud API...")
+            else:
+                ui.success("Continuing with Jira Cloud API...")
 
     # --- Checking input file ---
     ui.lf()

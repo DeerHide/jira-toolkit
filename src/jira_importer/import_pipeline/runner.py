@@ -99,6 +99,45 @@ class ImportRunner:
             output_target_info = f" → {self.context.output_target.upper()} output"
             self.context.ui.info(f"Summary: {summary}{output_target_info}")
 
+    def _should_prompt_for_issues(self, result: ProcessorResult, critical_problems: list[Problem]) -> bool:
+        """Determine if prompting is needed for validation issues.
+
+        Args:
+            result: The processor result containing validation report.
+            critical_problems: List of critical problems found.
+
+        Returns:
+            True if prompting is needed, False otherwise.
+        """
+        # Don't prompt in dry-run mode
+        if self.options.dry_run:
+            return False
+        # Prompt if there are critical problems or errors
+        return len(critical_problems) > 0 or result.report.errors > 0
+
+    def _build_prompt_message(self, critical_problems: list[Problem], error_count: int) -> str:
+        """Build a context-aware prompt message based on what issues exist.
+
+        Args:
+            critical_problems: List of critical problems found.
+            error_count: Number of validation errors.
+
+        Returns:
+            A prompt message string.
+        """
+        has_critical = len(critical_problems) > 0
+        has_errors = error_count > 0
+
+        if has_critical and has_errors:
+            return "Critical validation issues and errors found. Do you want to continue?"
+        elif has_critical:
+            return "Critical validation issues found. Do you want to continue?"
+        elif has_errors:
+            return "Validation errors found. Do you want to continue?"
+        else:
+            # Should not reach here if _should_prompt_for_issues is used correctly
+            return "Validation issues found. Do you want to continue?"
+
     def _create_processor(self) -> ImportProcessor:
         """Create the import processor."""
         processor = ImportProcessor(
@@ -309,38 +348,36 @@ class ImportRunner:
                     exit_code=1, message=f"Critical validation issues ({critical_count}) with --auto-yes and --cloud"
                 )
 
-            # Skip critical validation prompt for dry-run mode since we never reach sinks
-            if not self.options.dry_run:
-                # Display summary before prompting (JT-222)
-                if critical_problems or result.report.errors > 0:
-                    self._display_issue_summary(result, critical_problems)
-                # For all other cases, ask user whether to continue
-                if not self.context.ui.prompt_yes_no(
-                    "Critical validation issues found. Do you want to continue?",
-                    default=False,
-                    auto_reply=self.options.auto_reply,
-                ):
+        # 4.5. Unified prompt for validation issues (JT-218)
+        # Consolidate critical and error prompts into a single prompt
+        if self._should_prompt_for_issues(result, critical_problems):
+            # Display summary before prompting (JT-222)
+            self._display_issue_summary(result, critical_problems)
+
+            # Build context-aware prompt message
+            prompt_message = self._build_prompt_message(critical_problems, result.report.errors)
+
+            # Single unified prompt
+            user_continues = self.context.ui.prompt_yes_no(
+                prompt_message, default=False, auto_reply=self.options.auto_reply
+            )
+            if not user_continues:
+                # Determine cancellation message based on what issues exist
+                if critical_problems:
                     self.context.app.event_abort(exit_code=1, message="User cancelled due to critical issues.")
                 else:
-                    self.context.ui.success("Continuing despite critical issues...")
-
-        if result.report.errors > 0:
-            if not self.options.dry_run:
-                # Display summary before prompting if not already shown (JT-222)
-                if not critical_problems:
-                    self._display_issue_summary(result, critical_problems)
-                if not self.context.ui.prompt_yes_no(
-                    "Do you want to continue?", default=False, auto_reply=self.options.auto_reply
-                ):
-                    self.context.app.event_abort(exit_code=1, message="User cancelled the Execution.")
-                else:
-                    self.context.ui.success("Continuing...")
-            elif not critical_problems:
-                # Dry-run mode: inform user that prompts are skipped (JT-221)
-                # Only show if no critical problems (to avoid duplicate messages)
-                self.context.ui.info(
-                    "Dry-run mode: Validation errors found but skipping prompts since no actual output will be generated."
-                )
+                    self.context.app.event_abort(exit_code=1, message="User cancelled due to validation errors.")
+            elif critical_problems:
+                # Consistent success messaging (JT-223)
+                self.context.ui.success("Continuing with critical issues...")
+            elif result.report.errors > 0:
+                # Consistent success messaging (JT-223)
+                self.context.ui.success("Continuing with validation errors...")
+        elif self.options.dry_run and (critical_problems or result.report.errors > 0):
+            # Dry-run mode: inform user that prompts are skipped (JT-221)
+            self.context.ui.info(
+                "Dry-run mode: Validation issues found but skipping prompts since no actual output will be generated."
+            )
 
         # 5. Handle dry-run
         if self.options.dry_run:

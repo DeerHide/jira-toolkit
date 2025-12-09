@@ -6,8 +6,13 @@ Author:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
+
+from ..errors import ConfigurationError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -77,6 +82,165 @@ class TeamConfig:
     id: str
 
 
+@dataclass(slots=True, frozen=True)
+class CustomFieldConfig:
+    """Configuration for custom field mapping.
+
+    Attributes:
+        name: User-friendly name that must match Excel column header (normalized).
+        id: Jira custom field ID (e.g., "customfield_10125").
+        type: Field type - one of "text", "number", "date", "select", or "any".
+    """
+
+    name: str
+    id: str
+    type: Literal["text", "number", "date", "select", "any"]
+
+
+def parse_custom_fields(cfg_view: Any) -> list[CustomFieldConfig]:
+    """Parse custom field definitions from JSON config.
+
+    Args:
+        cfg_view: Configuration view (ConfigView instance).
+
+    Returns:
+        List of CustomFieldConfig instances.
+
+    Raises:
+        ConfigurationError: If invalid field type or missing required fields.
+    """
+    from .config_view import ConfigView
+
+    if not isinstance(cfg_view, ConfigView):
+        cfg_view = ConfigView(cfg_view)
+
+    # Use direct nested access to avoid ConfigView.get() calling dict.get() on dotted keys
+    # ConfigView.get() has a bug where it calls the underlying dict.get() for dotted keys
+    # instead of walking the path. We'll access it directly.
+    jira_data = cfg_view.get("jira", {})
+    if isinstance(jira_data, dict):
+        custom_fields_data = jira_data.get("custom_fields", [])
+    else:
+        custom_fields_data = cfg_view.get("jira.custom_fields", [])
+
+    if not custom_fields_data:
+        return []
+
+    custom_fields = []
+    seen_ids: dict[str, CustomFieldConfig] = {}
+    seen_names: dict[str, CustomFieldConfig] = {}
+
+    # Normalize names for comparison
+    def normalize_name(name: str) -> str:
+        return name.strip().lower()
+
+    for cf_data in custom_fields_data:
+        if not isinstance(cf_data, dict):
+            raise ConfigurationError(
+                f"Invalid custom field definition: expected dict, got {type(cf_data).__name__}",
+                details={"custom_field_data": cf_data},
+            )
+
+        name = str(cf_data.get("name", "")).strip()
+        field_id = str(cf_data.get("id", "")).strip()
+        field_type = str(cf_data.get("type", "")).strip().lower()
+
+        if not name:
+            raise ConfigurationError("Custom field definition missing 'name'", details={"custom_field_data": cf_data})
+
+        if not field_id:
+            raise ConfigurationError(
+                f"Custom field definition missing 'id' for field '{name}'",
+                details={"custom_field_data": cf_data, "name": name},
+            )
+
+        if field_type not in ["text", "number", "date", "select", "any"]:
+            raise ConfigurationError(
+                f"Invalid custom field type '{field_type}' for field '{name}'. Must be one of: text, number, date, select, any",
+                details={"custom_field_data": cf_data, "name": name, "type": field_type},
+            )
+
+        # Check for duplicate id
+        if field_id in seen_ids:
+            raise ConfigurationError(
+                f"Duplicate custom field id '{field_id}' found in JSON config. "
+                f"First definition: '{seen_ids[field_id].name}', "
+                f"Second definition: '{name}'",
+                details={
+                    "field_id": field_id,
+                    "first_name": seen_ids[field_id].name,
+                    "second_name": name,
+                    "source": "JSON",
+                },
+            )
+
+        # Check for name conflict (same name, different id)
+        normalized_name = normalize_name(name)
+        if normalized_name in seen_names:
+            existing = seen_names[normalized_name]
+            if existing.id != field_id:
+                raise ConfigurationError(
+                    f"Custom field name '{name}' is defined for multiple field ids in JSON: "
+                    f"'{existing.id}' and '{field_id}'",
+                    details={"field_name": name, "first_id": existing.id, "second_id": field_id, "source": "JSON"},
+                )
+
+        cfg = CustomFieldConfig(
+            name=name,
+            id=field_id,
+            type=field_type,  # type: ignore[arg-type]
+        )
+
+        custom_fields.append(cfg)
+        seen_ids[field_id] = cfg
+        seen_names[normalized_name] = cfg
+
+    return custom_fields
+
+
+def get_custom_field_configs(config: Any, cfg_view: Any) -> list[CustomFieldConfig]:
+    """Get custom field configs from the appropriate source based on config type.
+
+    The config system already handles selecting between JSON and Excel configs based on command-line args.
+    This function simply accesses the appropriate source:
+    - ExcelConfiguration: Use config.table_config.custom_fields (from CfgCustomFields table)
+    - JsonConfiguration: Use parse_custom_fields(cfg_view) (from jira.custom_fields in JSON)
+
+    Args:
+        config: Configuration object (JsonConfiguration or ExcelConfiguration).
+        cfg_view: Configuration view for accessing JSON values.
+
+    Returns:
+        List of CustomFieldConfig instances from the active config source.
+    """
+    from .config_view import ConfigView
+    from .excel_config import ExcelConfiguration
+
+    if not isinstance(cfg_view, ConfigView):
+        cfg_view = ConfigView(cfg_view)
+
+    # Excel config mode: use table config
+    if isinstance(config, ExcelConfiguration):
+        # Load table config if not already loaded
+        if config.table_config is None:
+            try:
+                config.load_table_config()
+            except ConfigurationError:
+                # Re-raise ConfigurationError (e.g., invalid custom field definitions)
+                raise
+            except Exception as e:
+                # If loading fails (e.g., workbook not initialized), return empty list
+                logger.warning(f"Could not load table config for custom fields: {e}")
+                return []
+        table_config = config.get_table_config()
+        if table_config and table_config.custom_fields:
+            return table_config.custom_fields
+        return []
+
+    # JSON config mode: parse from JSON
+    return parse_custom_fields(cfg_view)
+
+
 @dataclass(slots=True)
 class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
     """Container for all Excel table-based configuration data.
@@ -94,6 +258,7 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
     ignore_list: list[IgnoreListConfig] | None = None
     priorities: list[PriorityConfig] | None = None
     auto_field_values: list[AutoFieldValueConfig] | None = None
+    custom_fields: list[CustomFieldConfig] | None = None
 
     def __post_init__(self):
         """Initialize empty lists if None."""
@@ -113,6 +278,8 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
             object.__setattr__(self, "priorities", [])
         if self.auto_field_values is None:
             object.__setattr__(self, "auto_field_values", [])
+        if self.custom_fields is None:
+            object.__setattr__(self, "custom_fields", [])
 
     def get_assignee_by_name(self, assignee_name: str) -> AssigneeConfig | None:
         """Get assignee configuration by name."""

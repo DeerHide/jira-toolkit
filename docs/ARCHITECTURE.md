@@ -335,6 +335,7 @@ graph LR
         A5[EstimateFormatRule]
         A6[ProjectKeyConsistencyRule]
         A7[ParentLinkValidationRule]
+        A8[CustomFieldValidationRule]
     end
 
     subgraph "Auto-fixes"
@@ -351,6 +352,8 @@ graph LR
         C3[estimate.format]
         C4[project_key.mismatch]
         C5[issueid.missing]
+        C6[customfield.number.invalid]
+        C7[customfield.date.invalid]
     end
 
     A1 --> C1
@@ -360,6 +363,8 @@ graph LR
     A5 --> C3
     A6 --> C4
     A4 --> C5
+    A8 --> C6
+    A8 --> C7
 
     C2 --> B1
     C3 --> B2
@@ -377,6 +382,7 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`models.py`** - Data structures and interfaces for the pipeline
 - **`validator.py`** - Runs validation rules and auto-fixes
 - **`rules/`** - Validation rules (built-in + extensible for Excel-defined rules)
+  - **`custom_field_rule.py`** - Custom field validation based on field type
 - **`fixes/`** - Auto-fix system for common issues
 - **`sources/`** - Input readers for CSV and XLSX files
 - **`sinks/`** - Output writers (CSV, cloud integration)
@@ -387,6 +393,9 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`config_factory.py`** - Unified configuration loading from multiple sources
 - **`config_view.py`** - Typed configuration access with validation
 - **`config_models.py`** - Configuration data models and structures
+  - **`CustomFieldConfig`** - Custom field configuration model (name, id, type)
+  - **`parse_custom_fields()`** - Parse custom fields from JSON config
+  - **`get_custom_field_configs()`** - Get custom fields from JSON or Excel config
 - **`config_display.py`** - Configuration display utilities
 - **`excel_config.py`** - Excel-based configuration handling
 - **`json_config.py`** - JSON configuration file processing
@@ -398,6 +407,7 @@ The main processing logic - handles validation, fixes, and data transformation:
 
 - **`excel_io.py`** - Enhanced Excel workbook management
 - **`excel_table_reader.py`** - Structured table configuration reader
+  - **`_read_custom_fields()`** - Reads `CfgCustomFields` table from Excel
 - Direct XLSX processing (no intermediate CSV conversion)
 - Metadata writing and processing reports
 
@@ -426,6 +436,8 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`credential_manager.py`** - Advanced credential management with keyring integration
 - **`secrets.py`** - Secrets resolution (keyring → env → config → prompt)
 - **`mappers.py`** - Data mapping from normalized rows to Jira issue payloads
+  - **`_map_custom_fields()`** - Maps custom field values to Jira API format
+  - **`_transform_custom_value()`** - Transforms custom field values based on type
 - **`metadata.py`** - Jira metadata caching (projects, fields, issue types)
 - **`bulk.py`** - Batch processing utilities for efficient imports
 - **`constants.py`** - Cloud-specific constants and configuration

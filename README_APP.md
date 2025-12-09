@@ -74,6 +74,7 @@ Your data is now ready for Jira! The tool handles:
 - ✅ **Auto-generated Issue IDs** when missing
 - ✅ **Format normalization** (priorities, estimates, etc.)
 - ✅ **Smart mapping** of assignees, sprints, components
+- ✅ **Custom Fields** mapping and validation
 - ✅ **CSV generation** for manual import OR **direct Jira Cloud import**
 
 ## Need Help?

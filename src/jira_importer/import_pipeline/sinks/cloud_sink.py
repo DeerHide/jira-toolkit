@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from ...config.config_models import CustomFieldConfig, get_custom_field_configs
 from ...config.config_view import ConfigView
 from ...config.constants import LEVEL_2_EPIC, LEVEL_3_STORY, LEVEL_4_SUBTASK
 from ...config.issuetypes import get_default_level3_type, get_issue_type_level
@@ -166,9 +167,13 @@ def _process_batches(
     metadata = MetadataCache(client)
     mapper = IssueMapper(cfg, metadata)
 
+    # Build custom_configs_by_id for custom field mapping
+    custom_field_configs = get_custom_field_configs(config, cfg)
+    custom_configs_by_id: dict[str, CustomFieldConfig] = {cfg.id: cfg for cfg in custom_field_configs}
+
     # Separate issues into three categories based on configurable issue type levels
     epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues = _separate_parent_child_issues(
-        result, mapper, config
+        result, mapper, config, custom_configs_by_id
     )
 
     if dry_run:
@@ -316,7 +321,10 @@ def write_cloud(
 
 
 def _separate_parent_child_issues(
-    result: ProcessorResult, mapper: IssueMapper, config: Any
+    result: ProcessorResult,
+    mapper: IssueMapper,
+    config: Any,
+    custom_configs_by_id: dict[str, CustomFieldConfig] | None = None,
 ) -> tuple[
     list[tuple[int, dict[str, Any]]],
     list[tuple[int, dict[str, Any]]],
@@ -332,7 +340,7 @@ def _separate_parent_child_issues(
         )
 
     # Collect all issues and their summaries
-    all_issues, summary_to_row = _collect_issues_with_summaries(result, mapper)
+    all_issues, summary_to_row = _collect_issues_with_summaries(result, mapper, custom_configs_by_id)
 
     # Separate based on issue type and fix parent references
     epics, stories_and_tasks, sub_tasks, parent_mapping = _classify_and_fix_issues(
@@ -343,7 +351,11 @@ def _separate_parent_child_issues(
     return epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues
 
 
-def _collect_issues_with_summaries(result: ProcessorResult, mapper: IssueMapper) -> tuple[list, dict[str, int]]:
+def _collect_issues_with_summaries(
+    result: ProcessorResult,
+    mapper: IssueMapper,
+    custom_configs_by_id: dict[str, CustomFieldConfig] | None = None,
+) -> tuple[list, dict[str, int]]:
     """Collect all issues and build summary to row mapping."""
     all_issues = []
     summary_to_row = {}
@@ -354,7 +366,9 @@ def _collect_issues_with_summaries(result: ProcessorResult, mapper: IssueMapper)
                 "Column indices not available for mapping",
                 details={"reason": "ProcessorResult.indices is None", "row_index": row_index},
             )
-        payload = mapper.map_row(row, result.indices)
+        # Pass row_index (0-based) + 1 to get 1-based index (header = 1)
+        # First data row is at index 0, so row_index + 1 = 2 (first data row)
+        payload = mapper.map_row(row, result.indices, custom_configs_by_id=custom_configs_by_id, row_index=row_index + 1)
         summary = payload.get("fields", {}).get("summary", "")
         all_issues.append((row_index, payload, summary, row))  # Include original row data
         if summary:

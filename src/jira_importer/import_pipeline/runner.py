@@ -218,15 +218,26 @@ class ImportRunner:
             ProblemReporter(options=ReportOptions(show_details=False, show_aggregate_by_code=True)).render(result)
 
         # 3. Handle auto-fix warnings
-        if not processor.enable_auto_fix:
+        if not processor.enable_auto_fix and not self.options.dry_run:
             if result.report.errors > 0:
                 self.context.ui.warning("Auto-fix is disabled. Please fix the issues manually.")
             self.context.ui.hint(
                 "You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag."
             )
 
-        # 4. Check critical problems
+        # 3.5. Calculate critical problems once for reuse
         critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]
+
+        # 3.6. Early exit for auto-no flag (JT-220)
+        # If auto-no is set and there are issues requiring prompts, exit immediately
+        # Skip early exit in dry-run mode since no prompts will be shown anyway
+        if self.options.auto_reply is False and not self.options.dry_run:
+            if critical_problems or result.report.errors > 0:
+                self.context.ui.error("Auto-no flag is set. Aborting due to validation issues.")
+                self.context.app.event_abort(exit_code=1, message="User cancelled (auto-no) due to validation issues.")
+                return 1
+
+        # 4. Check critical problems
         if critical_problems:
             # If --auto-yes and --cloud, terminate immediately
             if self.options.auto_reply is True and self.context.output_target == "cloud":
@@ -246,14 +257,26 @@ class ImportRunner:
                     self.context.app.event_abort(exit_code=1, message="User cancelled due to critical issues.")
                 else:
                     self.context.ui.success("Continuing despite critical issues...")
+            else:
+                # Dry-run mode: inform user that prompts are skipped (JT-221)
+                self.context.ui.info(
+                    "Dry-run mode: Critical issues found but skipping prompts since no actual output will be generated."
+                )
 
         if result.report.errors > 0:
-            if not self.context.ui.prompt_yes_no(
-                "Do you want to continue?", default=False, auto_reply=self.options.auto_reply
-            ):
-                self.context.app.event_abort(exit_code=1, message="User cancelled the Execution.")
-            else:
-                self.context.ui.success("Continuing...")
+            if not self.options.dry_run:
+                if not self.context.ui.prompt_yes_no(
+                    "Do you want to continue?", default=False, auto_reply=self.options.auto_reply
+                ):
+                    self.context.app.event_abort(exit_code=1, message="User cancelled the Execution.")
+                else:
+                    self.context.ui.success("Continuing...")
+            elif not critical_problems:
+                # Dry-run mode: inform user that prompts are skipped (JT-221)
+                # Only show if no critical problems (to avoid duplicate messages)
+                self.context.ui.info(
+                    "Dry-run mode: Validation errors found but skipping prompts since no actual output will be generated."
+                )
 
         # 5. Handle dry-run
         if self.options.dry_run:

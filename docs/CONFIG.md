@@ -176,6 +176,11 @@ Add a `custom_fields` array to your JSON config:
         "name": "Priority Level",
         "id": "customfield_10140",
         "type": "select"
+      },
+      {
+        "name": "Custom Any Field",
+        "id": "customfield_10150",
+        "type": "any"
       }
     ]
   }
@@ -186,7 +191,7 @@ Add a `custom_fields` array to your JSON config:
 
 - **`name`** (required): The column header name in your Excel file (must match exactly, case-insensitive)
 - **`id`** (required): The Jira custom field ID (format: `customfield_XXXXX`)
-- **`type`** (required): Field type - one of `"text"`, `"number"`, `"date"`, or `"select"`
+- **`type`** (required): Field type - one of `"text"`, `"number"`, `"date"`, `"select"`, or `"any"`
 
 #### Excel Table Configuration
 
@@ -198,6 +203,7 @@ Create a table named `CfgCustomFields` in your `Config` sheet with three columns
 | Story Points | customfield_10002 | number |
 | Due Date | customfield_10130 | date |
 | Priority Level | customfield_10140 | select |
+| Custom Any Field | customfield_10150 | any |
 
 **Excel Table Requirements:**
 
@@ -213,6 +219,7 @@ Create a table named `CfgCustomFields` in your `Config` sheet with three columns
 | **number** | Numeric field | Must be parseable as integer or float | `5`, `8.5`, `100` |
 | **date** | Date field | Must match: YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY | `2024-12-31`, `12/31/2024` |
 | **select** | Select field | Currently accepts any value (validation against allowed values coming soon) | "High", "Medium", "Low" |
+| **any** | Any field type | No validation or transformation (value passed through as-is) | Any value type |
 
 #### Finding Custom Field IDs
 

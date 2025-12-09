@@ -196,6 +196,7 @@ def _map_custom_fields(
 - **Number fields**: Converted to integer or float based on value
 - **Date fields**: Converted to ISO 8601 format (`YYYY-MM-DD`) for Jira API
 - **Select fields**: Passed through as string (must match allowed values in Jira)
+- **Any fields**: Passed through as-is without any transformation or validation
 
 **Example Mapping:**
 
@@ -228,7 +229,6 @@ Custom fields must be configured in either:
 
 - JSON config: `jira.custom_fields` array
 - Excel table: `CfgCustomFields` table in Config sheet
-
 
 The `name` in the configuration must match the Excel column header (case-insensitive).
 

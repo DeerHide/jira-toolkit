@@ -123,7 +123,7 @@ The tool supports:
 - **Auto-fixing**: Automatically fix common issues (with `--auto-fix` flag)
 - **Hierarchical Support**: Handle Initiatives, Epics, Stories, and Sub-tasks with proper relationships
   - Custom types and their levels can be configured in the configuration files (JSON configuration recommended)
-- **Custom Fields Support**: Import and validate custom Jira fields (text, number, date, select)
+- **Custom Fields Support**: Import and validate custom Jira fields (text, number, date, select, any)
   - Configure custom fields in JSON config or Excel tables
   - Automatic validation based on field type
   - Supports both CSV export and direct cloud import
@@ -168,6 +168,7 @@ The tool supports importing custom Jira fields from your Excel data. Custom fiel
 - **Number**: Must be parseable as integer or float
 - **Date**: Must be in format YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY
 - **Select**: Any string value (validation against allowed values is planned for future release)
+- **Any**: Any value type (no validation or transformation, passed through as-is)
 
 **Configuration:**
 
@@ -198,6 +199,11 @@ You can configure custom fields in two ways:
         "name": "Priority Level",
         "id": "customfield_10140",
         "type": "select"
+      },
+      {
+        "name": "Custom Any Field",
+        "id": "customfield_10150",
+        "type": "any"
       }
     ]
   }
@@ -237,6 +243,7 @@ Custom fields are automatically validated:
 - **Number fields**: Must be a valid number (integer or decimal)
 - **Date fields**: Must match supported date formats
 - **Select fields**: Currently accepts any value (validation against allowed values coming soon)
+- **Any fields**: No validation or transformation (value passed through as-is)
 
 Validation errors are reported with clear messages indicating the field name, expected format, and row number.
 

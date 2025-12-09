@@ -7,6 +7,7 @@ Author:
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -124,7 +125,7 @@ class ExcelWorkbookManager:
             row = list(raw or [])
             if self._is_empty_row(row):
                 continue
-            header = [self._normalize_header_cell(c) for c in row]
+            header = self._normalize_header_row(row)
             break
 
         if header is None:
@@ -425,18 +426,58 @@ class ExcelWorkbookManager:
 
     @staticmethod
     def _normalize_header_cell(val: Any) -> str:
-        # Keep case/spacing under your control; do not lowercase by default.
+        """Normalize a single header cell value.
+
+        Kept for future use.
+
+        Args:
+            val: Header cell value.
+
+        Returns:
+            Normalized header name.
+        """
         if val is None:
             return ""
+        return str(val).strip()
 
-        # Convert to string and strip whitespace
-        header_name = str(val).strip()
+    def _normalize_header_row(self, row: list[Any]) -> list[str]:
+        """Normalize header row, preserving legitimate digits but collapsing Excel duplicate suffixes.
 
-        # Remove Excel's automatic numbered suffixes for duplicate column names
-        # This handles Excel's behavior of adding numbers to duplicate column names
-        # Pattern matches a number at the end of the string (e.g., "1", "12", "123")
-        import re
+        First applies basic normalization to each cell, then detects and collapses
+        Excel's auto-suffixed duplicate columns. Only strips trailing digits when
+        the base name (without digits) was already seen in the same header row.
 
-        header_name = re.sub(r"\d+$", "", header_name)
+        This preserves legitimate field names like "CF123" while handling Excel's
+        auto-suffixed duplicates like "Labels", "Labels1", "Labels2".
 
-        return header_name
+        Args:
+            row: List of header cell values.
+
+        Returns:
+            List of normalized header names.
+        """
+        normalized: list[str] = []
+        seen_base_names: set[str] = set()
+
+        for cell in row:
+            # Apply basic normalization first
+            name = self._normalize_header_cell(cell)
+            if not name:
+                normalized.append(name)
+                seen_base_names.add(name)
+                continue
+
+            # Check if this looks like Excel duplicate suffix: <base><digits>
+            # Only strip if the base name was already seen
+            match = re.match(r"^(.*?)(\d+)$", name)
+            if match:
+                base = match.group(1).strip()
+                if base and base in seen_base_names:
+                    # This is Excel's duplicate suffix - use base name
+                    name = base
+                # else: legitimate digits in name (e.g., "CF 123"), preserve them
+
+            seen_base_names.add(name)
+            normalized.append(name)
+
+        return normalized

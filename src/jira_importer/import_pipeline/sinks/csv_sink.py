@@ -10,12 +10,15 @@ from __future__ import annotations
 #   if config.get("jira.cloud.estimate.multiply_by_60", False):
 #       row[estimate_index] = str(int(row[estimate_index]) * 60)
 import csv
+import logging
 from pathlib import Path
 
 from ...config.config_view import ConfigView
 from ...console import ConsoleIO
 from ..models import ProcessorResult
 from .sink_utils import times60_estimates_inplace
+
+logger = logging.getLogger(__name__)
 
 ui = ConsoleIO.getUI()
 
@@ -48,9 +51,21 @@ def write_csv(
     if cfg and cfg.get("jira.cloud.estimate.multiply_by_60", False):
         times60_estimates_inplace(result)
 
+    # Transform header: replace custom field names with field IDs for Jira CSV import
+    header = list(result.header)  # Create mutable copy
+    if result.indices and result.indices.custom_fields:
+        # Build mapping from column_index -> field_id
+        column_to_field_id: dict[int, str] = {
+            col_idx: field_id for field_id, col_idx in result.indices.custom_fields.items()
+        }
+        # Replace header names with field IDs for custom fields
+        for col_idx, field_id in column_to_field_id.items():
+            if 0 <= col_idx < len(header):
+                header[col_idx] = field_id
+
     with out_path.open("w", encoding=encoding, newline=newline) as fh:
         w = csv.writer(fh)
-        w.writerow(result.header)
+        w.writerow(header)
 
         # Add progress tracking if UI is available
         if ui and hasattr(ui, "progress"):

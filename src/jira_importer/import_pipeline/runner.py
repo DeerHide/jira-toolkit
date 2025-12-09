@@ -12,9 +12,9 @@ from typing import Any, Literal
 from ..app import App
 from ..errors import ProcessingError
 from ..utils import open_jira_filter
-from .models import ProblemSeverity, ProcessorResult
+from .models import Problem, ProblemSeverity, ProcessorResult
 from .processor import ImportProcessor
-from .reporting import CloudReportReporter, ProblemReporter, ReportOptions
+from .reporting import EMO_ERROR, EMO_WARN, CloudReportReporter, ProblemReporter, ReportOptions
 from .sinks.cloud_sink import write_cloud
 from .sinks.csv_sink import write_csv
 
@@ -71,6 +71,33 @@ class ImportRunner:
             0 if no errors, 1 otherwise.
         """
         return 0 if result.report.errors == 0 else 1
+
+    def _display_issue_summary(self, result: ProcessorResult, critical_problems: list[Problem]) -> None:
+        """Display a concise summary of issues before prompting.
+
+        Shows counts of critical problems, errors, warnings, and output target context.
+
+        Args:
+            result: The processor result containing validation report.
+            critical_problems: List of critical problems found.
+        """
+        critical_count = len(critical_problems)
+        error_count = result.report.errors
+        warning_count = result.report.warnings
+
+        # Build summary parts
+        parts = []
+        if critical_count > 0:
+            parts.append(f"{EMO_ERROR} {critical_count} critical")
+        if error_count > 0:
+            parts.append(f"{EMO_ERROR} {error_count} error{'s' if error_count != 1 else ''}")
+        if warning_count > 0:
+            parts.append(f"{EMO_WARN} {warning_count} warning{'s' if warning_count != 1 else ''}")
+
+        if parts:
+            summary = "  ".join(parts)
+            output_target_info = f" → {self.context.output_target.upper()} output"
+            self.context.ui.info(f"Summary: {summary}{output_target_info}")
 
     def _create_processor(self) -> ImportProcessor:
         """Create the import processor."""
@@ -284,6 +311,9 @@ class ImportRunner:
 
             # Skip critical validation prompt for dry-run mode since we never reach sinks
             if not self.options.dry_run:
+                # Display summary before prompting (JT-222)
+                if critical_problems or result.report.errors > 0:
+                    self._display_issue_summary(result, critical_problems)
                 # For all other cases, ask user whether to continue
                 if not self.context.ui.prompt_yes_no(
                     "Critical validation issues found. Do you want to continue?",
@@ -296,6 +326,9 @@ class ImportRunner:
 
         if result.report.errors > 0:
             if not self.options.dry_run:
+                # Display summary before prompting if not already shown (JT-222)
+                if not critical_problems:
+                    self._display_issue_summary(result, critical_problems)
                 if not self.context.ui.prompt_yes_no(
                     "Do you want to continue?", default=False, auto_reply=self.options.auto_reply
                 ):

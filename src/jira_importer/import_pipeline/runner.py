@@ -96,8 +96,39 @@ class ImportRunner:
     def _dry_run_sink(self, result: ProcessorResult) -> int:
         """Handle dry-run mode and return exit code."""
         self.context.ui.info("Dry-run mode: Processing complete, stopping before sinks")
-        self.context.ui.success(f"Dry-run completed successfully. {len(result.rows)} rows processed.")
-        self.context.ui.hint("Remove --dry-run flag to run with actual output")
+
+        # Check for critical problems and errors
+        critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]
+        has_errors = result.report.errors > 0
+        has_critical = len(critical_problems) > 0
+
+        if has_errors or has_critical:
+            # Adjust success message when issues exist
+            self.context.ui.warning(
+                f"Dry-run completed with {len(result.rows)} rows processed, but validation issues were found."
+            )
+
+            if has_critical:
+                self.context.ui.error(
+                    f"{len(critical_problems)} critical issue(s) found. These must be fixed before import."
+                )
+            else:
+                self.context.ui.error(
+                    "Validation errors found. Please fix these before running the import. "
+                    "\nImporting this dataset, as-is, will likely fail."
+                )
+
+            if self.context.output_target == "cloud":
+                self.context.ui.hint(
+                    "Consider using CSV output (no --cloud) mode to see the full dataset and fix the issues. "
+                    "Using --cloud with errors may produce unwanted results and partially imported work items."
+                )
+        else:
+            self.context.ui.success(f"Dry-run completed successfully. {len(result.rows)} rows processed.")
+            if result.report.warnings > 0:
+                self.context.ui.hint("Dry-run completed with warnings. Review before running the import.")
+            self.context.ui.hint("Remove --dry-run flag to run with actual output")
+
         result_code = self._calculate_exit_code(result)
         self.context.ui.lf()
         self.context.ui.full_panel(self.context.ui.fmt.success("Dry-run complete. You can close this window now."))
@@ -241,9 +272,14 @@ class ImportRunner:
         if critical_problems:
             # If --auto-yes and --cloud, terminate immediately
             if self.options.auto_reply is True and self.context.output_target == "cloud":
-                self.context.ui.error("Cannot proceed with --auto-yes and --cloud when critical issues are present.")
+                critical_count = len(critical_problems)
+                self.context.ui.error(
+                    f"Cannot proceed with --auto-yes and --cloud when {critical_count} critical issue(s) are present. "
+                    "The --auto-yes flag skips confirmation prompts, but critical issues require review before making API calls. "
+                    "Please fix the critical issues first, remove --auto-yes to get confirmation prompts, or use CSV output mode instead."
+                )
                 self.context.app.event_abort(
-                    exit_code=1, message="Critical validation issues with --auto-yes and --cloud"
+                    exit_code=1, message=f"Critical validation issues ({critical_count}) with --auto-yes and --cloud"
                 )
 
             # Skip critical validation prompt for dry-run mode since we never reach sinks
@@ -257,11 +293,6 @@ class ImportRunner:
                     self.context.app.event_abort(exit_code=1, message="User cancelled due to critical issues.")
                 else:
                     self.context.ui.success("Continuing despite critical issues...")
-            else:
-                # Dry-run mode: inform user that prompts are skipped (JT-221)
-                self.context.ui.info(
-                    "Dry-run mode: Critical issues found but skipping prompts since no actual output will be generated."
-                )
 
         if result.report.errors > 0:
             if not self.options.dry_run:

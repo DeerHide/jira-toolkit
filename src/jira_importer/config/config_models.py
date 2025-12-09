@@ -89,12 +89,12 @@ class CustomFieldConfig:
     Attributes:
         name: User-friendly name that must match Excel column header (normalized).
         id: Jira custom field ID (e.g., "customfield_10125").
-        type: Field type - one of "text", "number", "date", or "select".
+        type: Field type - one of "text", "number", "date", "select", or "any".
     """
 
     name: str
     id: str
-    type: Literal["text", "number", "date", "select"]
+    type: Literal["text", "number", "date", "select", "any"]
 
 
 def parse_custom_fields(cfg_view: Any) -> list[CustomFieldConfig]:
@@ -154,9 +154,9 @@ def parse_custom_fields(cfg_view: Any) -> list[CustomFieldConfig]:
                 details={"custom_field_data": cf_data, "name": name},
             )
 
-        if field_type not in ["text", "number", "date", "select"]:
+        if field_type not in ["text", "number", "date", "select", "any"]:
             raise ConfigurationError(
-                f"Invalid custom field type '{field_type}' for field '{name}'. Must be one of: text, number, date, select",
+                f"Invalid custom field type '{field_type}' for field '{name}'. Must be one of: text, number, date, select, any",
                 details={"custom_field_data": cf_data, "name": name, "type": field_type},
             )
 

@@ -300,6 +300,10 @@ class IssueMapper:
         if not raw_str:
             return None
 
+        if cfg.type == "any":
+            # Any fields: pass through raw value as-is without transformation
+            return raw
+
         if cfg.type == "text":
             return raw_str
 

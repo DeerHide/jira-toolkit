@@ -24,6 +24,7 @@ class CustomFieldValidationRule(IRowRule):
     - Number: Must be parseable as int or float
     - Date: Must be parseable as date (string formats or datetime objects)
     - Select: No validation against allowed values (MVP limitation)
+    - Any: No validation (any value is accepted)
 
     Severity: error
     """
@@ -88,6 +89,10 @@ class CustomFieldValidationRule(IRowRule):
             return None
         raw_str = str(raw).strip()
         if not raw_str:
+            return None
+
+        if cfg.type == "any":
+            # Any fields accept any value without validation
             return None
 
         if cfg.type == "text":
@@ -181,4 +186,3 @@ class CustomFieldValidationRule(IRowRule):
             row_index=row_index,
             col_key=cfg.name,
         )
-

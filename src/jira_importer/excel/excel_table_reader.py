@@ -261,9 +261,9 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                 )
 
             # Validate type
-            if field_type_str not in ["text", "number", "date", "select"]:
+            if field_type_str not in ["text", "number", "date", "select", "any"]:
                 raise ConfigurationError(
-                    f"Invalid custom field type '{field_type_str}' for field '{name_str}'. Must be one of: text, number, date, select",
+                    f"Invalid custom field type '{field_type_str}' for field '{name_str}'. Must be one of: text, number, date, select, any",
                     details={"name": name_str, "id": field_id_str, "type": field_type_str, "source": "Excel"},
                 )
 

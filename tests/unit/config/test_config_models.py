@@ -165,13 +165,14 @@ class TestParseCustomFields:
                         {"name": "CF Number", "id": "customfield_2", "type": "number"},
                         {"name": "CF Date", "id": "customfield_3", "type": "date"},
                         {"name": "CF Select", "id": "customfield_4", "type": "select"},
+                        {"name": "CF Any", "id": "customfield_5", "type": "any"},
                     ]
                 }
             }
         )
         result = parse_custom_fields(cfg_view)
-        assert len(result) == 4
-        assert {cfg.type for cfg in result} == {"text", "number", "date", "select"}
+        assert len(result) == 5
+        assert {cfg.type for cfg in result} == {"text", "number", "date", "select", "any"}
 
     def test_parse_strips_whitespace(self) -> None:
         """Test that parsing strips whitespace from values."""

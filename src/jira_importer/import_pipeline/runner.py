@@ -179,10 +179,8 @@ class ImportRunner:
                     f"{len(critical_problems)} critical issue(s) found. These must be fixed before import."
                 )
             else:
-                self.context.ui.error(
-                    "Validation errors found. Please fix these before running the import. "
-                    "\nImporting this dataset, as-is, will likely fail."
-                )
+                self.context.ui.error("Validation errors found. Please fix these before running the import.")
+                self.context.ui.error("Importing this dataset, as-is, will likely fail.")
 
             if self.context.output_target == "cloud":
                 self.context.ui.hint(
@@ -361,18 +359,22 @@ class ImportRunner:
             user_continues = self.context.ui.prompt_yes_no(
                 prompt_message, default=False, auto_reply=self.options.auto_reply
             )
+            # Consistent messaging for user feedback (JT-223)
             if not user_continues:
                 # Determine cancellation message based on what issues exist
                 if critical_problems:
                     self.context.app.event_abort(exit_code=1, message="User cancelled due to critical issues.")
                 else:
                     self.context.app.event_abort(exit_code=1, message="User cancelled due to validation errors.")
+            elif critical_problems and result.report.errors > 0:
+                self.context.ui.success("Continuing with critical issues and errors...")
             elif critical_problems:
-                # Consistent success messaging (JT-223)
-                self.context.ui.success("Continuing with critical issues...")
+                self.context.ui.warning("Continuing with critical issues...")
             elif result.report.errors > 0:
-                # Consistent success messaging (JT-223)
-                self.context.ui.success("Continuing with validation errors...")
+                self.context.ui.warning("Continuing with validation errors...")
+            else:
+                # Defensive fallback
+                self.context.ui.success("Continuing...")
         elif self.options.dry_run and (critical_problems or result.report.errors > 0):
             # Dry-run mode: inform user that prompts are skipped (JT-221)
             self.context.ui.info(

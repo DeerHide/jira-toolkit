@@ -279,6 +279,104 @@ class IssueMapper:
             "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}],
         }
 
+    def _normalize_raw_value(self, raw: Any) -> str | None:
+        if raw is None:
+            return None
+        raw_str = str(raw).strip()
+        if not raw_str:
+            return None
+        return raw_str
+
+    def _serialize_any_value(self, raw: Any) -> Any:
+        from datetime import date, datetime  # pylint: disable=import-outside-toplevel
+
+        if isinstance(raw, (datetime, date)):
+            return raw.isoformat()
+        if isinstance(raw, (int, float, str, bool, type(None))):
+            return raw
+        return str(raw)
+
+    def _transform_number_value(self, raw_str: str, cfg: CustomFieldConfig) -> int | float:
+        try:
+            if "." in raw_str or "e" in raw_str.lower():
+                return float(raw_str)
+            return int(raw_str)
+        except ValueError as exc:
+            raise RowProcessingError(
+                f"Invalid number value for custom field '{cfg.name}' (id: {cfg.id}): '{raw_str}'",
+                details={
+                    "field_name": cfg.name,
+                    "field_id": cfg.id,
+                    "field_type": cfg.type,
+                    "raw_value": raw_str,
+                    "raw_type": type(raw_str).__name__,
+                },
+            ) from exc
+
+    def _parse_date_string(self, date_str: str, cfg: CustomFieldConfig) -> str:
+        from datetime import datetime
+
+        default_formats = ["%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]
+        for fmt in default_formats:
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return dt.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+
+        raise RowProcessingError(
+            f"Invalid date value for custom field '{cfg.name}' (id: {cfg.id}): '{date_str}'. "
+            f"Expected format: YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY",
+            details={
+                "field_name": cfg.name,
+                "field_id": cfg.id,
+                "field_type": cfg.type,
+                "raw_value": date_str,
+                "raw_type": type(date_str).__name__,
+            },
+        )
+
+    def _transform_date_value(self, raw: Any, cfg: CustomFieldConfig) -> str:
+        from datetime import date, datetime
+
+        if isinstance(raw, datetime):
+            return raw.date().isoformat()
+
+        if isinstance(raw, date):
+            return raw.isoformat()
+
+        if isinstance(raw, (int, float)):
+            raise RowProcessingError(
+                f"Numeric Excel date values are not supported for custom fields yet. "
+                f"Please format cells as text or proper dates. "
+                f"Field: '{cfg.name}' (id: {cfg.id}), value: {raw}",
+                details={
+                    "field_name": cfg.name,
+                    "field_id": cfg.id,
+                    "field_type": cfg.type,
+                    "raw_value": raw,
+                    "raw_type": type(raw).__name__,
+                },
+            )
+
+        if isinstance(raw, str):
+            return self._parse_date_string(raw.strip(), cfg)
+
+        raise RowProcessingError(
+            f"Unsupported value type for date custom field '{cfg.name}' (id: {cfg.id}): "
+            f"{type(raw).__name__}. Expected: datetime, date, or string.",
+            details={
+                "field_name": cfg.name,
+                "field_id": cfg.id,
+                "field_type": cfg.type,
+                "raw_value": raw,
+                "raw_type": type(raw).__name__,
+            },
+        )
+
+    def _transform_select_value(self, raw_str: str) -> dict[str, str]:
+        return {"value": raw_str}
+
     def _transform_custom_value(self, raw: Any, cfg: CustomFieldConfig) -> Any | None:
         """Transform raw Excel value to Jira API format based on field type.
 
@@ -293,103 +391,24 @@ class IssueMapper:
             RowProcessingError: If value is invalid for the field type.
             ConfigurationError: If field type is unsupported.
         """
-        # Treat None and empty/whitespace-only strings as "no value"
-        if raw is None:
-            return None
-        raw_str = str(raw).strip()
-        if not raw_str:
+        raw_str = self._normalize_raw_value(raw)
+        if raw_str is None:
             return None
 
         if cfg.type == "any":
-            # Any fields: pass through raw value as-is without transformation
-            return raw
+            return self._serialize_any_value(raw)
 
         if cfg.type == "text":
             return raw_str
 
         if cfg.type == "number":
-            try:
-                # Try int first, then float
-                if "." in raw_str or "e" in raw_str.lower():
-                    return float(raw_str)
-                return int(raw_str)
-            except ValueError as exc:
-                raise RowProcessingError(
-                    f"Invalid number value for custom field '{cfg.name}' (id: {cfg.id}): '{raw}'",
-                    details={
-                        "field_name": cfg.name,
-                        "field_id": cfg.id,
-                        "field_type": cfg.type,
-                        "raw_value": raw,
-                        "raw_type": type(raw).__name__,
-                    },
-                ) from exc
+            return self._transform_number_value(raw_str, cfg)
 
         if cfg.type == "date":
-            from datetime import date, datetime
-
-            # 1) If raw is a datetime object (from openpyxl or similar)
-            if isinstance(raw, datetime):
-                return raw.date().isoformat()  # "YYYY-MM-DD"
-
-            if isinstance(raw, date):
-                return raw.isoformat()  # "YYYY-MM-DD"
-
-            # 2) If raw is a number (int/float) - REJECT for MVP
-            if isinstance(raw, (int, float)):
-                raise RowProcessingError(
-                    f"Numeric Excel date values are not supported for custom fields yet. "
-                    f"Please format cells as text or proper dates. "
-                    f"Field: '{cfg.name}' (id: {cfg.id}), value: {raw}",
-                    details={
-                        "field_name": cfg.name,
-                        "field_id": cfg.id,
-                        "field_type": cfg.type,
-                        "raw_value": raw,
-                        "raw_type": type(raw).__name__,
-                    },
-                )
-
-            # 3) If raw is a string - apply string-based parsing
-            if isinstance(raw, str):
-                raw_str = raw.strip()
-                default_formats = ["%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%Y-%m-%d %H:%M:%S"]
-                for fmt in default_formats:
-                    try:
-                        dt = datetime.strptime(raw_str, fmt)
-                        return dt.strftime("%Y-%m-%d")  # ISO 8601
-                    except ValueError:
-                        continue
-
-                # All formats failed
-                raise RowProcessingError(
-                    f"Invalid date value for custom field '{cfg.name}' (id: {cfg.id}): '{raw}'. "
-                    f"Expected format: YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY",
-                    details={
-                        "field_name": cfg.name,
-                        "field_id": cfg.id,
-                        "field_type": cfg.type,
-                        "raw_value": raw,
-                        "raw_type": type(raw).__name__,
-                    },
-                )
-
-            # 4) Any other type - unsupported
-            raise RowProcessingError(
-                f"Unsupported value type for date custom field '{cfg.name}' (id: {cfg.id}): "
-                f"{type(raw).__name__}. Expected: datetime, date, or string.",
-                details={
-                    "field_name": cfg.name,
-                    "field_id": cfg.id,
-                    "field_type": cfg.type,
-                    "raw_value": raw,
-                    "raw_type": type(raw).__name__,
-                },
-            )
+            return self._transform_date_value(raw, cfg)
 
         if cfg.type == "select":
-            # MVP: Return dict with value, no validation against Jira allowedValues
-            return {"value": raw_str}
+            return self._transform_select_value(raw_str)
 
         raise ConfigurationError(
             f"Unsupported custom field type '{cfg.type}' for field '{cfg.name}' (id: {cfg.id})",

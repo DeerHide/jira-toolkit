@@ -13,6 +13,11 @@ from datetime import datetime
 
 # TODO: refactor into a class in the build_utils package
 
+DEFAULT_MAJOR = 1
+DEFAULT_MINOR = 1
+DEFAULT_PATCH = 0
+DEFAULT_BUILD_NUMBER = 0
+
 
 # TODO: Move to utils
 def _get_project_root() -> str:
@@ -82,18 +87,19 @@ def get_git_branch() -> str:
 
 def get_version_numbers() -> tuple[str, str, int, int, int, int]:
     """Read version info from counter file and increment build number."""
+    # TODO: Refactor the logic around the build number
     counter_file = os.path.join(os.path.dirname(__file__), "..", "build", "version", "build-counter.json")
 
     try:
         if os.path.exists(counter_file):
             with open(counter_file, encoding="utf-8") as f:
                 data = json.load(f)
-                major = data.get("major", 1)
-                minor = data.get("minor", 0)
-                patch = data.get("patch", 0)
-                build_number = data.get("build_number", 0) + 1
+                major = data.get("major", DEFAULT_MAJOR)
+                minor = data.get("minor", DEFAULT_MINOR)
+                patch = data.get("patch", DEFAULT_PATCH)
+                build_number = data.get("build_number", DEFAULT_BUILD_NUMBER) + 1
         else:
-            major, minor, patch, build_number = 0, 1, 0, 0
+            major, minor, patch, build_number = DEFAULT_MAJOR, DEFAULT_MINOR, DEFAULT_PATCH, DEFAULT_BUILD_NUMBER
 
         version_data = {"major": major, "minor": minor, "patch": patch, "build_number": build_number}
         with open(counter_file, "w", encoding="utf-8") as f:
@@ -105,12 +111,19 @@ def get_version_numbers() -> tuple[str, str, int, int, int, int]:
         return version_num_short, version_num_full, major, minor, patch, build_number
     except Exception as e:
         print(f"Warning: Could not manage version info: {e}")
-        return "1.0.0", "1.0.0.1", 1, 0, 0, 1
+        return (
+            f"{DEFAULT_MAJOR}.{DEFAULT_MINOR}.{DEFAULT_PATCH}",
+            f"{DEFAULT_MAJOR}.{DEFAULT_MINOR}.{DEFAULT_PATCH}.{DEFAULT_BUILD_NUMBER + 1}",
+            DEFAULT_MAJOR,
+            DEFAULT_MINOR,
+            DEFAULT_PATCH,
+            DEFAULT_BUILD_NUMBER + 1,
+        )
 
 
-def generate_windows_version_info() -> None:
+def generate_windows_version_info(current_version: tuple[str, str, int, int, int, int]) -> None:
     """Generate the Windows VSVersionInfo file."""
-    _, _, major, minor, patch, build_number = get_version_numbers()
+    _, _, major, minor, patch, build_number = current_version
     special_build = get_git_commit_hash()
 
     prod_version = f"{major}.{minor}.{patch}.{build_number}"
@@ -171,9 +184,9 @@ VSVersionInfo(
         sys.exit(1)
 
 
-def generate_macos_version_info() -> None:
+def generate_macos_version_info(current_version: tuple[str, str, int, int, int, int]) -> None:
     """Generate the macOS Info.plist file."""
-    version_num_short, version_num_full, _, _, _, build_number = get_version_numbers()
+    version_num_short, version_num_full, _, _, _, build_number = current_version
     version_info = get_version_strings()
     special_build = get_git_commit_hash()
     git_branch = get_git_branch()
@@ -231,9 +244,9 @@ def generate_macos_version_info() -> None:
         sys.exit(1)
 
 
-def generate_app_version_info() -> None:
+def generate_app_version_info(current_version: tuple[str, str, int, int, int, int]) -> None:
     """Generate the Python version file."""
-    _, _, major, minor, patch, build_number = get_version_numbers()
+    _, _, major, minor, patch, build_number = current_version
     special_build = get_git_commit_hash()
     git_branch = get_git_branch()
 
@@ -262,9 +275,10 @@ __build_date__ = "{build_date}"
 
 def main() -> None:
     """Main function."""
-    generate_windows_version_info()
-    generate_macos_version_info()
-    generate_app_version_info()
+    current_version = get_version_numbers()
+    generate_windows_version_info(current_version)
+    generate_macos_version_info(current_version)
+    generate_app_version_info(current_version)
 
 
 if __name__ == "__main__":

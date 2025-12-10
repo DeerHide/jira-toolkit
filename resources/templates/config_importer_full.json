@@ -11,47 +11,98 @@
       "log_level": "INFO",
       "max_log_files": 5,
       "max_log_size_mb": 10
-    },
-    "version": "2.0.0"
+    }
   },
   "documentation": {
-    "active_fields": [
-      "jira.connection.site_address - Your Jira instance URL",
-      "jira.connection.auth.mode - basic | oauth",
-      "jira.connection.auth.email - Atlassian account email (env-ready)",
-      "jira.connection.auth.api_token - Atlassian API token (env-ready)",
-      "jira.project.key - Your Jira project key",
-      "jira.issuetypes - Issue types with hierarchy levels",
-      "jira.priorities - Valid priority levels",
-      "validation.fixers.disabled - Auto-fixers to disable",
-      "jira.cloud.estimate.multiply_by_60 - Jira Cloud estimate compatibility",
-      "output.estimate.unit - Output estimate unit (seconds/minutes)",
-      "validation.skip_rowtype - Skip row type validation",
-      "validation.skip_issuetypes - Skip specific issue types"
+    "description": "Jira Importer Toolkit Configuration File - Complete Reference",
+    "quick_start": [
+      "1. Copy this file to your project directory",
+      "2. Update jira.connection.site_address with your Jira URL (e.g., https://yourcompany.atlassian.net)",
+      "3. Set jira.connection.auth.email to your Atlassian account email",
+      "4. Set jira.connection.auth.api_token to your API token (get it from: https://id.atlassian.com/manage-profile/security/api-tokens)",
+      "5. Set jira.project.key to your Jira project key (e.g., 'PROJ')",
+      "6. Update jira.issuetypes and jira.priorities to match your Jira instance",
+      "7. Run: jira-importer.exe your-data.xlsx -c config.json"
     ],
-    "description": "Complete Jira Importer Toolkit Configuration File - Unified Structure",
-    "examples": {
-      "custom_validation": "Modify jira.priorities array",
-      "disable_auto_fix": "Set validation.fixers.disabled array",
-      "issue_type_hierarchy": "Configure jira.issuetypes with name and level",
-      "jira_cloud_compatibility": "Set jira.cloud.estimate.multiply_by_60 to true"
+    "required_settings": {
+      "jira_connection": {
+        "site_address": "Your Jira instance URL (e.g., https://yourcompany.atlassian.net)",
+        "auth_email": "Your Atlassian account email address",
+        "auth_api_token": "Your API token from Atlassian account settings. You can also use environment variable JIRA_API_TOKEN",
+        "auth_mode": "Set to 'basic' for email + API token authentication (currently the only supported method)"
+      },
+      "jira_project": {
+        "key": "Your Jira project key (e.g., 'PROJ', 'TEST'). Find it in your project URL or project settings"
+      },
+      "jira_issuetypes": {
+        "description": "List of issue types in your Jira with their hierarchy levels",
+        "format": "Array of objects with 'name' and 'level' properties",
+        "example": "Level 1 = highest (e.g., Initiative), Level 4 = lowest (e.g., Sub-Task)",
+        "important": "Names must match your Jira instance exactly (case-sensitive)"
+      },
+      "jira_priorities": {
+        "description": "List of valid priority values in your Jira",
+        "important": "Must match your Jira instance exactly (case-sensitive). Common values: Highest, High, Medium, Low, Lowest"
+      }
     },
-    "notes": [
-      "Copy this file to your project directory and update the values above",
-      "Use -c flag to specify custom config: jira-importer.exe data.xlsx -c config.json",
-      "All validation rules are now under 'validation.*' section (single source of truth)",
-      "Issue types and priorities are configured under 'jira.*' section",
-      "Issue types and priorities are case-sensitive and must match Jira exactly",
-      "Jira Cloud users may need jira.cloud.estimate.multiply_by_60: true",
-      "This configuration eliminates duplications and provides clear structure",
-      "Legacy 'app.validation.*' paths are no longer supported"
+    "optional_settings": {
+      "row_skipping": {
+        "skip_rowtype": "If true, rows with RowType='SKIP' will be ignored during processing",
+        "skip_issuetypes": "Array of issue type names to automatically skip (e.g., ['comment', 'note', 'skip'])"
+      },
+      "auto_fix": {
+        "fixers_disabled": "Array of problem codes to disable auto-fixing for. Example: ['project_key.mismatch', 'priority.missing']",
+        "note": "Only applies when --auto-fix flag is used. Leave empty array [] to enable all fixers"
+      },
+      "estimates": {
+        "multiply_by_60": "Set to true if you're using Jira Cloud and estimates need to be multiplied by 60 (legacy compatibility)",
+        "output_unit": "Unit for estimate output: 'seconds' or 'minutes' (default: 'seconds')",
+        "accept_integers_as": "How to interpret plain integer estimates: 'seconds' or 'minutes' (default: 'seconds')",
+        "fields": "Which columns to validate as estimates: ['estimate', 'origest'] or just one"
+      },
+      "custom_fields": {
+        "description": "Configure custom Jira fields you want to import",
+        "format": "Array of objects with 'name' (Excel column name), 'id' (Jira field ID like customfield_10125), and 'type' (text, number, date, select, or any)"
+      },
+      "application_behavior": {
+        "auto_open_page": "If true, automatically opens Jira page after CSV export (CSV mode only)",
+        "delete_enabled": "If true, automatically deletes temporary artifacts after processing",
+        "write_processing_meta": "If true, writes processing metadata back to Excel file",
+        "write_report_table": "If true, writes validation report table back to Excel file"
+      },
+      "logging": {
+        "console_output": "If true, shows log messages in console",
+        "log_level": "Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL",
+        "max_log_files": "Maximum number of log files to keep (oldest files are deleted)",
+        "max_log_size_mb": "Maximum size of each log file in megabytes"
+      }
+    },
+    "environment_variables": {
+      "description": "You can use environment variables instead of hardcoding sensitive values",
+      "JIRA_EMAIL": "Your Atlassian account email (alternative to jira.connection.auth.email)",
+      "JIRA_API_TOKEN": "Your API token (alternative to jira.connection.auth.api_token)",
+      "usage": "In config file, use: \"${ENV:JIRA_EMAIL}\" or \"${ENV:JIRA_API_TOKEN}\""
+    },
+    "common_examples": {
+      "skip_rows": "To skip rows with RowType='SKIP' and issue types 'comment' and 'note': Set skip_rowtype: true and skip_issuetypes: ['comment', 'note']",
+      "disable_specific_fixes": "To prevent auto-fixing priority issues: Set fixers.disabled: ['priority.missing']",
+      "jira_cloud_estimates": "If estimates are wrong in Jira Cloud: Set jira.cloud.estimate.multiply_by_60: true",
+      "custom_priorities": "To use different priority names: Update jira.priorities array to match your Jira instance exactly"
+    },
+    "important_notes": [
+      "This documentation section is for reference only - it is not read by the application",
+      "All validation rules are under 'validation.*' section",
+      "All Jira settings (issue types, priorities, custom fields) are under 'jira.*' section",
+      "Issue type and priority names are case-sensitive and must match your Jira instance exactly",
+      "You can store credentials securely using: jira-importer.exe --credentials run",
+      "For Excel-based configuration, use the Config sheet in your Excel file and run with -ce flag"
     ],
-    "usage": {
-      "app": "Application behavior and logging settings",
-      "jira": "Jira-specific connection and project settings",
-      "metadata": "Configuration file information and versioning",
-      "output": "Output format and unit settings",
-      "validation": "All validation rules and issue type definitions"
+    "section_descriptions": {
+      "app": "Application behavior settings (logging, artifacts, import options)",
+      "jira": "Jira connection, project, and validation settings (issue types, priorities, custom fields)",
+      "metadata": "Configuration file metadata (version, last updated date)",
+      "output": "Output format settings (estimate units, etc.)",
+      "validation": "Validation rules and auto-fix configuration"
     }
   },
   "jira": {
@@ -95,17 +146,8 @@
     }
   },
   "metadata": {
-    "description": "Complete Jira Importer Toolkit Configuration - Unified Structure",
-    "last_updated": "2025-01-27",
-    "migration_notes": [
-      "This configuration uses a unified structure with single source of truth",
-      "All validation rules are now under 'validation.*' section",
-      "Issue types and priorities are configured under 'jira.*' section",
-      "Legacy 'app.validation.*' paths are no longer supported",
-      "Eliminated all duplications for cleaner configuration management",
-      "Issue types and priorities are case-sensitive and must match Jira exactly"
-    ],
-    "version": 8
+    "last_updated": "2025-12-10",
+    "version": 7
   },
   "output": {
     "estimate": {

@@ -316,9 +316,9 @@ class ImportRunner:
         if not processor.enable_auto_fix and not self.options.dry_run:
             if result.report.errors > 0:
                 self.context.ui.warning("Auto-fix is disabled. Please fix the issues manually.")
-            self.context.ui.hint(
-                "You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag."
-            )
+                self.context.ui.hint(
+                    "You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag."
+                )
 
         # 3.5. Calculate critical problems once for reuse
         critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]

@@ -175,7 +175,11 @@ class App:
         )
         config_group_exclusive = config_group.add_mutually_exclusive_group()
         config_group_exclusive.add_argument(
-            "-ci", "--config-input", help="Get the configuration path from the input file location", action="store_true"
+            "-ci",
+            "--config-input",
+            # help="Get the configuration path from the input file location",
+            help=argparse.SUPPRESS,
+            action="store_true",
         )
         config_group_exclusive.add_argument(
             "-ce",
@@ -224,7 +228,8 @@ class App:
         output_group.add_argument(
             "--cloud-debug-payloads",
             action="store_true",
-            help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
+            help=argparse.SUPPRESS,
+            # help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
         )
 
     @staticmethod
@@ -233,9 +238,7 @@ class App:
             title="Confirmation Options", description="Control whether to auto-confirm prompts"
         )
         auto_yes_group = confirmation_group.add_mutually_exclusive_group()
-        auto_yes_group.add_argument(
-            "-y", "--auto-yes", "--force", default=None, action="store_true", help="Auto-yes all prompts"
-        )
+        auto_yes_group.add_argument("-y", "--auto-yes", default=None, action="store_true", help="Auto-yes all prompts")
         auto_yes_group.add_argument("-n", "--auto-no", default=None, action="store_true", help="Auto-no all prompts")
 
     @staticmethod
@@ -245,7 +248,8 @@ class App:
             "--enable-excel-rules",
             default=False,
             action="store_true",
-            help="Enable loading rules from Excel (scaffold only; safe to leave off).",
+            # help="Enable loading rules from Excel (scaffold only; safe to leave off).",
+            help=argparse.SUPPRESS,
         )
         parser.add_argument(
             "--auto-fix",
@@ -254,7 +258,10 @@ class App:
             help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).",
         )
         parser.add_argument(
-            "--no-report", action="store_true", help="Do not print the validation report (useful for CI/CD pipelines)."
+            "--no-report",
+            action="store_true",
+            # help="Do not print the validation report (useful for CI/CD pipelines)."
+            help=argparse.SUPPRESS,
         )
         parser.add_argument(
             "--fix-cloud-estimates",

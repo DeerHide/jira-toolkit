@@ -73,6 +73,7 @@ class IssueMapper:
         self._map_parent(fields, row, indices)
         self._map_estimate(fields, row, indices)
         self._map_assignee(fields, row, indices)
+        self._map_team(fields, row, indices)
 
         # Handle level 4 issue type conversion (must be after parent mapping)
         self._handle_level4_issuetype_conversion(fields, row, indices)
@@ -213,6 +214,19 @@ class IssueMapper:
         assignee_id = self._cell_str(row, indices.assignee)
         if assignee_id:
             fields["assignee"] = {"accountId": assignee_id}
+
+    def _map_team(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map Advanced Roadmaps Team field from row.
+
+        Args:
+            fields: Fields dictionary to update.
+            row: Row data.
+            indices: Column indices.
+        """
+        team_id = self._cell_str(row, indices.team)
+        if team_id:
+            # Built-in Advanced Roadmaps Team field
+            fields["team"] = {"id": team_id}
 
     def _handle_level4_issuetype_conversion(
         self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices

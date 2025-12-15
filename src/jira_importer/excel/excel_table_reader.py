@@ -20,6 +20,7 @@ from ..config.config_models import (
     IssueTypeConfig,
     PriorityConfig,
     SprintConfig,
+    TeamConfig,
 )
 from ..errors import ConfigurationError
 from .excel_io import ExcelWorkbookManager
@@ -58,6 +59,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
         return ExcelTableConfig(
             assignees=self._read_assignees(config_sheet),
+            teams=self._read_teams(config_sheet),
             sprints=self._read_sprints(config_sheet),
             fix_versions=self._read_fix_versions(config_sheet),
             components=self._read_components(config_sheet),
@@ -84,6 +86,28 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
         logger.debug(f"Read {len(assignees)} assignees from CfgAssignees table")
         return assignees
+
+    def _read_teams(self, sheet: str) -> list[TeamConfig]:
+        """Read CfgTeams table."""
+        try:
+            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgTeams")
+        except Exception:
+            # Table doesn't exist, return empty list
+            return []
+
+        teams: list[TeamConfig] = []
+
+        for row in table_data:
+            name = self._get_cell_value(row, "Team.Name")
+            id_value = self._get_cell_value(row, "Team.ID")
+
+            if name and id_value:
+                teams.append(TeamConfig(name=str(name), id=str(id_value)))
+            else:
+                logger.warning(f"Skipping incomplete team row: {row}")
+
+        logger.debug(f"Read {len(teams)} teams from CfgTeams table")
+        return teams
 
     def _read_sprints(self, sheet: str) -> list[SprintConfig]:
         """Read CfgSprints table."""

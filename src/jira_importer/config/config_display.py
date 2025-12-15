@@ -55,6 +55,7 @@ def display_table_config(config: Any) -> None:
         # Display each table type
         table_types = [
             ("Assignees", table_config.assignees),
+            ("Teams", getattr(table_config, "teams", None)),
             ("Sprints", table_config.sprints),
             ("Fix Versions", table_config.fix_versions),
             ("Components", table_config.components),

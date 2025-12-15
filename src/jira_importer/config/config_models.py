@@ -76,7 +76,12 @@ class AutoFieldValueConfig:
 
 @dataclass(slots=True, frozen=True)
 class TeamConfig:
-    """Configuration for team mapping."""
+    """Configuration for team mapping.
+
+    Attributes:
+        name: Human-friendly team name used in Excel (symbolic name).
+        id: Jira Cloud Team id (as used by the Advanced Roadmaps Team field).
+    """
 
     name: str
     id: str
@@ -251,6 +256,7 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
 
     # Table data - grouped by logical categories
     assignees: list[AssigneeConfig] | None = None
+    teams: list[TeamConfig] | None = None
     sprints: list[SprintConfig] | None = None
     fix_versions: list[FixVersionConfig] | None = None
     components: list[ComponentConfig] | None = None
@@ -264,6 +270,8 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
         """Initialize empty lists if None."""
         if self.assignees is None:
             object.__setattr__(self, "assignees", [])
+        if self.teams is None:
+            object.__setattr__(self, "teams", [])
         if self.sprints is None:
             object.__setattr__(self, "sprints", [])
         if self.fix_versions is None:
@@ -288,6 +296,14 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
     def get_assignee_by_id(self, assignee_id: str) -> AssigneeConfig | None:
         """Get assignee configuration by ID."""
         return next((a for a in (self.assignees or []) if a.id == assignee_id), None)
+
+    def get_team_by_name(self, team_name: str) -> TeamConfig | None:
+        """Get team configuration by name."""
+        return next((t for t in (self.teams or []) if t.name == team_name), None)
+
+    def get_team_by_id(self, team_id: str) -> TeamConfig | None:
+        """Get team configuration by ID."""
+        return next((t for t in (self.teams or []) if t.id == team_id), None)
 
     def get_sprint_by_name(self, sprint_name: str) -> SprintConfig | None:
         """Get sprint configuration by name."""
@@ -326,6 +342,10 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
         """Get all assignee names."""
         return [a.name for a in (self.assignees or [])]
 
+    def get_all_team_names(self) -> list[str]:
+        """Get all team names."""
+        return [t.name for t in (self.teams or [])]
+
     def get_all_sprint_names(self) -> list[str]:
         """Get all sprint names."""
         return [s.name for s in (self.sprints or [])]
@@ -354,6 +374,7 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
         """Convert to dictionary for compatibility with existing config system."""
         return {
             "assignees": [{"name": a.name, "id": a.id} for a in (self.assignees or [])],
+            "teams": [{"name": t.name, "id": t.id} for t in (self.teams or [])],
             "sprints": [{"name": s.name, "id": s.id} for s in (self.sprints or [])],
             "fix_versions": [{"name": f.name} for f in (self.fix_versions or [])],
             "components": [{"name": c.name} for c in (self.components or [])],

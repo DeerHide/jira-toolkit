@@ -379,6 +379,8 @@ class ImportProcessor:
             project_key=pos("project key"),
             assignee=pos("assignee"),
             assignee_name=pos("assignee.name"),
+            team=pos("team"),
+            team_name=pos("team.name"),
             description=pos("description"),
             parent=pos("parent"),
             epic_link=pos("epic link"),

@@ -94,12 +94,13 @@ def get_version_numbers() -> tuple[str, str, int, int, int, int]:
         if os.path.exists(counter_file):
             with open(counter_file, encoding="utf-8") as f:
                 data = json.load(f)
-                major = data.get("major", DEFAULT_MAJOR)
-                minor = data.get("minor", DEFAULT_MINOR)
-                patch = data.get("patch", DEFAULT_PATCH)
-                build_number = data.get("build_number", DEFAULT_BUILD_NUMBER) + 1
+                major = max(data.get("major", DEFAULT_MAJOR), DEFAULT_MAJOR)
+                minor = max(data.get("minor", DEFAULT_MINOR), DEFAULT_MINOR)
+                patch = max(data.get("patch", DEFAULT_PATCH), DEFAULT_PATCH)
+                current_build = max(data.get("build_number", DEFAULT_BUILD_NUMBER), DEFAULT_BUILD_NUMBER)
+                build_number = current_build + 1
         else:
-            major, minor, patch, build_number = DEFAULT_MAJOR, DEFAULT_MINOR, DEFAULT_PATCH, DEFAULT_BUILD_NUMBER
+            major, minor, patch, build_number = DEFAULT_MAJOR, DEFAULT_MINOR, DEFAULT_PATCH, DEFAULT_BUILD_NUMBER + 1
 
         version_data = {"major": major, "minor": minor, "patch": patch, "build_number": build_number}
         with open(counter_file, "w", encoding="utf-8") as f:

@@ -54,7 +54,6 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
 def main() -> int:
     """Main function for the Jira Importer application."""
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
-    ui.say(fmt.bold("Authors:"), fmt.default("Julien (@tom4897)"), fmt.default("Alain (@Nakool)"))
     ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
 
     # --- Initialization ---

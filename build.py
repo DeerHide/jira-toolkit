@@ -196,6 +196,11 @@ def build_executable(config, config_name) -> bool:
         else:
             pyinstaller_cmd.append("--onedir")
 
+        if sys.platform == "darwin":
+            pyinstaller_cmd.extend([
+                "--osx-bundle-identifier", "com.deerhide.jira-importer","--noupx","--optimize", "2",
+            ])
+
         pyinstaller_cmd.extend(
             [
                 "--console" if config["pyinstaller"]["console"] else "--windowed",
@@ -209,6 +214,7 @@ def build_executable(config, config_name) -> bool:
                 "src",  # Use local src directory
                 "--name",
                 config["pyinstaller"]["name"],
+                "--strip",  # no debug symbols (smaller binary)
             ]
         )
 

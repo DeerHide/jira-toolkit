@@ -21,7 +21,7 @@ distlib==0.4.0
     # via virtualenv
 et-xmlfile==2.0.0
     # via openpyxl
-filelock==3.20.0
+filelock==3.20.3
     # via virtualenv
 identify==2.6.15
     # via pre-commit
@@ -81,9 +81,11 @@ tqdm==4.67.1
     # via -r requirements.in
 tzdata==2025.2
     # via pandas
-urllib3==2.6.0
+urllib3==2.6.3
     # via
     #   -r requirements.in
     #   requests
-virtualenv==20.35.3
-    # via pre-commit
+virtualenv==20.36.1
+    # via
+    #   -r requirements.in
+    #   pre-commit

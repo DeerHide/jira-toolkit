@@ -21,3 +21,5 @@ keyring
 
 # Dev tooling
 pre-commit
+
+virtualenv>=20.36.1

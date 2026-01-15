@@ -48,7 +48,18 @@ class ExcelConfiguration:
         self.cfg_req = cfg_req
         self._workbook_manager: ExcelWorkbookManager | None = None
         self.content = self._load_config()
-        self.table_config: ExcelTableConfig | None = None
+        self.table_config: ExcelTableConfig | None = None  # happy linter
+        try:
+            if self._workbook_manager is not None:
+                logger.debug(f"Loading table configuration from sheet '{self.config_sheet}'")
+                table_reader = ExcelTableReader(self._workbook_manager)
+                self.table_config = table_reader.read_all_tables(self.config_sheet)
+            else:
+                self.table_config = None
+        except Exception as e:
+            # Graceful degradation: continue without table_config if loading fails
+            logger.warning(f"Could not load table configuration: {e}")
+            self.table_config = None
 
         if self.version_check():
             logger.critical("Wrong file config version or missing version key.")
@@ -155,6 +166,22 @@ class ExcelConfiguration:
         # Always use nested structure for Excel configurations since _build_nested_config creates it
         value: Any = self._get_nested_value(key)
 
+        if value is None:
+            # Check Auto Field Values table as fallback
+            # Try to load table_config if not already loaded
+            if self.table_config is None:
+                try:
+                    self.load_table_config()
+                except Exception:
+                    # If loading fails, continue without table_config
+                    pass
+
+            if self.table_config and self.table_config.auto_field_values:
+                auto_field_match = next((a for a in self.table_config.auto_field_values if a.name == key), None)
+                if auto_field_match:
+                    value = auto_field_match.value
+
+        # If value is still None after checking auto_field_values, return default
         if value is None:
             return default
 

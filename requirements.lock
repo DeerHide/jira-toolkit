@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=requirements.lock requirements.in
 #
+altgraph==0.17.5
+    # via pyinstaller
 certifi==2025.10.5
     # via requests
 cfgv==3.4.0
@@ -49,22 +51,38 @@ numpy==2.3.4
     # via pandas
 openpyxl==3.1.5
     # via -r requirements.in
+packaging==25.0
+    # via
+    #   pyinstaller
+    #   pyinstaller-hooks-contrib
 pandas==2.3.3
     # via -r requirements.in
+pefile==2024.8.26
+    # via
+    #   -r requirements.in
+    #   pyinstaller
 platformdirs==4.5.0
     # via virtualenv
 pre-commit==4.3.0
     # via -r requirements.in
 pygments==2.19.2
     # via rich
+pyinstaller==6.18.0
+    # via -r requirements.in
+pyinstaller-hooks-contrib==2025.11
+    # via pyinstaller
 python-dateutil==2.9.0.post0
     # via pandas
 pytz==2025.2
     # via pandas
 pywin32-ctypes==0.2.3
-    # via keyring
+    # via
+    #   keyring
+    #   pyinstaller
 pyyaml==6.0.3
-    # via pre-commit
+    # via
+    #   -r requirements.in
+    #   pre-commit
 requests==2.32.5
     # via -r requirements.in
 rich==14.2.0
@@ -89,3 +107,6 @@ virtualenv==20.36.1
     # via
     #   -r requirements.in
     #   pre-commit
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

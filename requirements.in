@@ -14,12 +14,18 @@ openpyxl
 
 # HTTP and API
 requests
-urllib3>=2.6.0
+urllib3>=2.6.3
 
 # Security and credentials
 keyring
 
+# Configuration
+PyYAML
+
 # Dev tooling
 pre-commit
+pyinstaller>=6.15.0
 
 virtualenv>=20.36.1
+
+pefile

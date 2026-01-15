@@ -344,6 +344,7 @@ graph LR
         B3[ProjectKeyFixer]
         B4[AssignIssueIdFixer]
         B5[AssigneeResolverFixer]
+        B6[TeamResolverFixer]
     end
 
     subgraph "Problem Codes"
@@ -354,6 +355,10 @@ graph LR
         C5[issueid.missing]
         C6[customfield.number.invalid]
         C7[customfield.date.invalid]
+        C8[assignee.display_name]
+        C9[assignee.empty_with_name]
+        C10[team.display_name]
+        C11[team.empty_with_name]
     end
 
     A1 --> C1
@@ -370,6 +375,10 @@ graph LR
     C3 --> B2
     C4 --> B3
     C5 --> B4
+    C8 --> B5
+    C9 --> B5
+    C10 --> B6
+    C11 --> B6
 ```
 
 ## 🔧 Component Details
@@ -384,6 +393,10 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`rules/`** - Validation rules (built-in + extensible for Excel-defined rules)
   - **`custom_field_rule.py`** - Custom field validation based on field type
 - **`fixes/`** - Auto-fix system for common issues
+  - **`builtin_fixes.py`** - Built-in fixers (PriorityNormalizeFixer, EstimateNormalizeFixer, ProjectKeyFixer, AssignIssueIdFixer)
+  - **`assignee_resolver.py`** - AssigneeResolverFixer for resolving assignee display names
+  - **`team_resolver.py`** - TeamResolverFixer for resolving team display names
+  - **`registry.py`** - FixRegistry for managing and applying fixers
 - **`sources/`** - Input readers for CSV and XLSX files
 - **`sinks/`** - Output writers (CSV, cloud integration)
 - **`reporting.py`** - Rich problem reporting with emojis and tables

@@ -239,6 +239,7 @@ Use structured tables in your Excel `Config` sheet:
 - `CfgComponents` - Component mapping
 - `CfgIssueTypes` - Issue type hierarchy
 - `CfgPriorities` - Priority mapping
+- `CfgTeams` - Team mapping
 
 ### Row Skipping
 

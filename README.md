@@ -334,8 +334,8 @@ Choose the configuration method that works best for your workflow:
 
 The tool helps address these common Jira import problems:
 
-- **Invalid Issue IDs**: Detects and fixes invalid or duplicate Issue ID formats
-- **Invalid Priorities**: Validates against allowed priority values and normalizes case
+- **Invalid Issue IDs**: Detects and fixes invalid or duplicate Issue ID formats ✅ Auto-fixable
+- **Invalid Priorities**: Validates against allowed priority values and normalizes case ✅ Auto-fixable
 - **Missing Parent Links**: Ensures Sub-tasks have required parent relationships
 - **Invalid Parent Links**: Validates parent-child hierarchy (e.g., Sub-tasks can't parent Epics)
 - **Unrecognized Components**: Validates components against your Jira project's component list
@@ -343,10 +343,12 @@ The tool helps address these common Jira import problems:
 - **Formatting Issues**: Fixes common Excel-to-CSV conversion problems (quotes, commas, encoding)
 - **Sprint Problems**: Validates sprint values and formats them correctly for Jira
 - **Fix Version Issues**: Ensures fix versions match your project's available versions
-- **Estimate Format Errors**: Normalizes time estimates to Jira's expected format (seconds)
-- **Project Key Mismatches**: Ensures Issue IDs match your configured project key
+- **Estimate Format Errors**: Normalizes time estimates to Jira's expected format (seconds) ✅ Auto-fixable
+- **Project Key Mismatches**: Ensures Issue IDs match your configured project key ✅ Auto-fixable
+- **Assignee Resolution**: Resolves assignee display names to Jira account IDs ✅ Auto-fixable
+- **Team Resolution**: Resolves team display names to Jira account IDs ✅ Auto-fixable
 
-All of these are automatically detected during validation, and many can be auto-fixed with the `--auto-fix` flag.
+All of these are automatically detected during validation. Issues marked with ✅ can be auto-fixed with the `--auto-fix` flag.
 
 ## Advanced Features
 

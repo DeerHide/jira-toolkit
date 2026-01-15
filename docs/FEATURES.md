@@ -34,6 +34,7 @@ This document covers the current features and capabilities of the Jira Importer 
   - `CfgPriorities`: Priority mapping
   - `CfgAutoFieldValues`: Auto-populated field values
   - `CfgCustomFields`: Custom field configuration (name, id, type)
+  - `CfgTeams`: Team mapping (name → ID)
 
 ### Command Line Interface
 
@@ -63,6 +64,7 @@ This document covers the current features and capabilities of the Jira Importer 
 - **Number fields**: Must be parseable as integer or float
 - **Date fields**: Must match supported date formats (YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY)
 - **Select fields**: Any string value (validation against allowed values coming soon)
+- **Any fields**: Any value type (no validation or transformation, passed through as-is)
 
 #### Configuration Methods
 
@@ -77,6 +79,58 @@ This document covers the current features and capabilities of the Jira Importer 
 - **Flexible configuration**: Support for both JSON and Excel-based configuration
 - **Cloud import support**: Custom fields are included in direct Jira Cloud imports
 - **CSV export support**: Custom fields are included in CSV exports for manual import
+
+### Auto-Fix System
+
+#### Built-in Fixers
+
+The toolkit includes 6 built-in auto-fixers that automatically resolve common validation issues:
+
+1. **PriorityNormalizeFixer**
+   - **Problem codes**: `priority.invalid`, `priority.missing`
+   - **Functionality**: Normalizes priority values to canonical labels (case-insensitive matching, numeric mapping)
+   - **Configuration**: `jira.priorities` list, `validation.priority.number_map` boolean
+
+2. **EstimateNormalizeFixer**
+   - **Problem codes**: `estimate.invalid_format`
+   - **Functionality**: Parses human-friendly estimates (e.g., "2h", "1w 2d 3h 30m") and normalizes to seconds or minutes
+   - **Configuration**: `validation.estimate.accept_integers_as`, `output.estimate.unit`, `time.h_per_day`, `time.wd_per_week`
+
+3. **ProjectKeyFixer**
+   - **Problem codes**: `project_key.missing`, `project_key.mismatch`
+   - **Functionality**: Sets or corrects project key from configuration
+   - **Configuration**: `jira.project.key`
+
+4. **AssignIssueIdFixer**
+   - **Problem codes**: `issueid.missing`, `issueid.invalid`
+   - **Functionality**: Assigns unique sequential Issue IDs when missing or invalid
+   - **Configuration**: `issueid.prefix`, `issueid.width`
+
+5. **AssigneeResolverFixer**
+   - **Problem codes**: `assignee.display_name`, `assignee.empty_with_name`
+   - **Functionality**: Resolves assignee display names to Jira account IDs using CfgAssignees table
+   - **Configuration**: `CfgAssignees` Excel table with Name → Account ID mapping
+
+6. **TeamResolverFixer**
+   - **Problem codes**: `team.display_name`, `team.empty_with_name`
+   - **Functionality**: Resolves team display names to Jira account IDs using CfgTeams table
+   - **Configuration**: `CfgTeams` Excel table with Name → Team ID mapping
+
+#### Usage
+
+Enable auto-fix with the `--auto-fix` flag:
+
+```bash
+jira-importer.exe your-data.xlsx --auto-fix
+jira-importer.exe your-data.xlsx --cloud --auto-fix
+```
+
+#### Fix Registry
+
+Fixers are registered by problem code in the `FixRegistry`. The system automatically applies fixes when:
+- Auto-fix is enabled (`--auto-fix` flag or configuration)
+- A problem code has a registered fixer
+- The fixer determines the fix is safe to apply
 
 ### Hierarchical Issue Types
 

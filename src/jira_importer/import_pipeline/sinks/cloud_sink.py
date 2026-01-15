@@ -368,7 +368,9 @@ def _collect_issues_with_summaries(
             )
         # Pass row_index (0-based) + 1 to get 1-based index (header = 1)
         # First data row is at index 0, so row_index + 1 = 2 (first data row)
-        payload = mapper.map_row(row, result.indices, custom_configs_by_id=custom_configs_by_id, row_index=row_index + 1)
+        payload = mapper.map_row(
+            row, result.indices, custom_configs_by_id=custom_configs_by_id, row_index=row_index + 1
+        )
         summary = payload.get("fields", {}).get("summary", "")
         all_issues.append((row_index, payload, summary, row))  # Include original row data
         if summary:

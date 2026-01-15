@@ -3,9 +3,28 @@
 
 Author:
     Julien (@tom4897)
+
+Dependencies:
+    Standard Library (no installation required):
+        - argparse, logging, os, subprocess, sys, zipfile, pathlib
+        - json (build_context), shutil (safe_file_operations)
+        - time (safe_file_operations), datetime (logger_manager)
+        - collections.abc, typing (build_context)
+
+    Third-Party (must be installed):
+        - PyInstaller: Required for building executables (checked at runtime)
+        - Dependencies from config["dependencies"]["required"]: check_dependencies()
+
+    Local Modules (project files):
+        - scripts.build_utils.build_context
+        - scripts.build_utils.build_utils
+        - scripts.build_utils.logger_manager
+        - scripts.build_utils.safe_file_operations
+        - scripts.generate_version (dynamically imported)
 """
 
 import argparse
+import importlib.util
 import logging
 import os
 import subprocess
@@ -33,12 +52,22 @@ def check_dependencies(config) -> None:
         _logger.info("⏭️  Dependency checking disabled in config")
         return
 
+    # Map package names to their import names (some packages have different import names)
+    # eg., "PyYAML" package imports as "yaml", "colorama" imports as "colorama"
+    import_name_map: dict[str, str] = {
+        "pyyaml": "yaml",
+        "py-yaml": "yaml",
+    }
+
     for dependency in config["dependencies"]["required"]:
+        # Get the import name (use mapped name if available, otherwise use lowercase)
+        import_name = import_name_map.get(dependency.lower(), dependency.lower())
         try:
-            __import__(dependency.lower())
+            __import__(import_name)
             _logger.info("✅ %s is available", dependency)
         except ImportError:
             _logger.warning("❌ %s not found. Installing...", dependency)
+            # Use original dependency name for pip install (not the import name)
             subprocess.check_call([sys.executable, "-m", "pip", "install", dependency.lower()])
 
 
@@ -118,6 +147,13 @@ def copy_build_files(config) -> bool:
 
 def build_executable(config, config_name) -> bool:
     """Build the executable using PyInstaller."""
+    # Check if PyInstaller is available
+    if importlib.util.find_spec("PyInstaller") is None:
+        _logger.error("❌ PyInstaller is not installed. Please install it first:")
+        _logger.error("   %s -m pip install pyinstaller", sys.executable)
+        _logger.error("   or: poetry install --with pyinstaller")
+        sys.exit(1)
+
     src_dir = config["directories"]["source"]
     # Look for the entry point script first
     main_script = Path(src_dir) / "jira_importer_main.py"
@@ -146,7 +182,6 @@ def build_executable(config, config_name) -> bool:
     # Change to temp directory for PyInstaller
     original_cwd = Path.cwd()
     os.chdir(str(temp_dir))
-
 
     try:
         pyinstaller_cmd = [
@@ -193,7 +228,6 @@ def build_executable(config, config_name) -> bool:
                 # Core package
                 "--hidden-import",
                 "jira_importer",
-
                 # Third-party dependencies that PyInstaller might miss
                 "--hidden-import",
                 "requests",
@@ -209,6 +243,16 @@ def build_executable(config, config_name) -> bool:
                 "keyring",
                 "--hidden-import",
                 "colorama",
+            ]
+        )
+
+        # Exclude dev dependencies that shouldn't be in the final executable
+        pyinstaller_cmd.extend(
+            [
+                "--exclude-module",
+                "pytest",
+                "--exclude-module",
+                "_pytest",
             ]
         )
 

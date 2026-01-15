@@ -63,6 +63,7 @@ def display_table_config(config: Any) -> None:
             ("Priorities", table_config.priorities),
             ("Ignore List", table_config.ignore_list),
             ("Auto Field Values", table_config.auto_field_values),
+            ("Custom Fields", table_config.custom_fields),
         ]
 
         for table_name, table_data in table_types:
@@ -74,6 +75,11 @@ def display_table_config(config: Any) -> None:
                     if table_name == "Auto Field Values" and hasattr(item, "name") and hasattr(item, "value"):
                         ui.say(f"  • {item.name}: {item.value}")
                         logger.debug(f"  {table_name} item: {item.name} = {item.value}")
+                    # Special handling for Custom Fields - show name, id, and type
+                    elif table_name == "Custom Fields" and hasattr(item, "name") and hasattr(item, "id"):
+                        field_type = getattr(item, "type", "unknown")
+                        ui.say(f"  • {item.name} ({item.id}) - {field_type}")
+                        logger.debug(f"  {table_name} item: {item.name} ({item.id}) - {field_type}")
                     elif hasattr(item, "name"):
                         ui.say(f"  • {item.name}")
                         logger.debug(f"  {table_name} item: {item.name}")

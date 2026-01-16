@@ -197,9 +197,15 @@ def build_executable(config, config_name) -> bool:
             pyinstaller_cmd.append("--onedir")
 
         if sys.platform == "darwin":
-            pyinstaller_cmd.extend([
-                "--osx-bundle-identifier", "com.deerhide.jira-importer","--noupx","--optimize", "2",
-            ])
+            pyinstaller_cmd.extend(
+                [
+                    "--osx-bundle-identifier",
+                    "com.deerhide.jira-importer",
+                    "--noupx",
+                    "--optimize",
+                    "2",
+                ]
+            )
 
         pyinstaller_cmd.extend(
             [

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 
+from ...errors import ValidationError
 from ..constants import (
     DEFAULT_ISSUE_TYPES,
     EPIC_NAMES,
@@ -26,12 +27,16 @@ class IssueType:
         # Normalize name
         self.name = self.name.strip()
         if not self.name:
-            raise ValueError("Issue type name cannot be empty")
+            raise ValidationError(
+                "Issue type name cannot be empty",
+                details={"field": "name", "value": self.name},
+            )
 
         # Validate level
         if not LEVEL_1_INITIATIVE <= self.level <= LEVEL_4_SUBTASK:
-            raise ValueError(
-                f"Issue type level must be between {LEVEL_1_INITIATIVE} and {LEVEL_4_SUBTASK}, got {self.level}"
+            raise ValidationError(
+                f"Issue type level must be between {LEVEL_1_INITIATIVE} and {LEVEL_4_SUBTASK}, got {self.level}",
+                details={"field": "level", "value": self.level, "min": LEVEL_1_INITIATIVE, "max": LEVEL_4_SUBTASK},
             )
 
 
@@ -46,7 +51,10 @@ class IssueTypesConfig:
         # Check for duplicate names (case-insensitive)
         names_lower = [it.name.lower() for it in self.issuetypes]
         if len(names_lower) != len(set(names_lower)):
-            raise ValueError("Duplicate issue type names are not allowed")
+            raise ValidationError(
+                "Duplicate issue type names are not allowed",
+                details={"issuetypes": [it.name for it in self.issuetypes]},
+            )
 
         # Build lookup maps
         self.name_to_level = {it.name.lower(): it.level for it in self.issuetypes}
@@ -59,7 +67,10 @@ class IssueTypesConfig:
 
         # Ensure at least one level 3 type exists (required for fallback)
         if not self.level_to_names.get(LEVEL_3_STORY):
-            raise ValueError(f"At least one level {LEVEL_3_STORY} issue type must be defined")
+            raise ValidationError(
+                f"At least one level {LEVEL_3_STORY} issue type must be defined",
+                details={"required_level": LEVEL_3_STORY, "available_levels": list(self.level_to_names.keys())},
+            )
 
     def level_of(self, name: str) -> int | None:
         """Get the level for an issue type name (case-insensitive)."""

@@ -7,6 +7,7 @@ Author:
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from rich_argparse import RichHelpFormatter
 
@@ -98,6 +99,7 @@ class App:
             if App._args.version:
                 logger.critical(f"  Version: {App._args.version}")
             logger.critical(f" args: {App._args}")
+            ui.error(f"Error code: {exit_code}")
             ui.error("Fatal event raised!")
             _str = "\n" + ui.fmt.kv("Input file", ui.fmt.path(App._args.input_file)) + "\n"
             _str += ui.fmt.kv("Configuration", ui.fmt.path(App._args.config)) + "\n"
@@ -108,7 +110,6 @@ class App:
             for arg, value in App._args.__dict__.items():
                 _str += ui.fmt.kv(arg, value) + "\n"
             ui.panel("Script failed with the following arguments:", _str)
-            ui.error(f"Error code: {exit_code}")
 
         logger.critical(message)
         sys.exit(exit_code)
@@ -128,9 +129,13 @@ class App:
 
         if "--credentials" in argv:
             mini = argparse.ArgumentParser(add_help=False)
-            mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear"], const="run")
+            mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear", "test"], const="run")
             parsed, _ = mini.parse_known_args(argv)
             if getattr(parsed, "credentials", None):
+                # For "test" action, we need full args parsing to get config options
+                # So skip fast-path and let the full parser handle it
+                if parsed.credentials == "test":
+                    return None
                 return argparse.Namespace(
                     credentials=parsed.credentials, input_file=None, version=False, show_config=False
                 )
@@ -151,7 +156,7 @@ class App:
             """,
             allow_abbrev=False,
         )
-        parser.add_argument("input_file", help="Excel XLSX file", default="import.xlsx")
+        parser.add_argument("input_file", nargs="?", help="Excel XLSX file", default="import.xlsx")
 
         App._add_config_args(parser)
         App._add_output_args(parser)
@@ -170,7 +175,11 @@ class App:
         )
         config_group_exclusive = config_group.add_mutually_exclusive_group()
         config_group_exclusive.add_argument(
-            "-ci", "--config-input", help="Get the configuration path from the input file location", action="store_true"
+            "-ci",
+            "--config-input",
+            # help="Get the configuration path from the input file location",
+            help=argparse.SUPPRESS,
+            action="store_true",
         )
         config_group_exclusive.add_argument(
             "-ce",
@@ -219,7 +228,8 @@ class App:
         output_group.add_argument(
             "--cloud-debug-payloads",
             action="store_true",
-            help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
+            help=argparse.SUPPRESS,
+            # help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
         )
 
     @staticmethod
@@ -228,9 +238,7 @@ class App:
             title="Confirmation Options", description="Control whether to auto-confirm prompts"
         )
         auto_yes_group = confirmation_group.add_mutually_exclusive_group()
-        auto_yes_group.add_argument(
-            "-y", "--auto-yes", "--force", default=None, action="store_true", help="Auto-yes all prompts"
-        )
+        auto_yes_group.add_argument("-y", "--auto-yes", default=None, action="store_true", help="Auto-yes all prompts")
         auto_yes_group.add_argument("-n", "--auto-no", default=None, action="store_true", help="Auto-no all prompts")
 
     @staticmethod
@@ -240,7 +248,8 @@ class App:
             "--enable-excel-rules",
             default=False,
             action="store_true",
-            help="Enable loading rules from Excel (scaffold only; safe to leave off).",
+            # help="Enable loading rules from Excel (scaffold only; safe to leave off).",
+            help=argparse.SUPPRESS,
         )
         parser.add_argument(
             "--auto-fix",
@@ -249,7 +258,10 @@ class App:
             help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).",
         )
         parser.add_argument(
-            "--no-report", action="store_true", help="Do not print the validation report (useful for CI/CD pipelines)."
+            "--no-report",
+            action="store_true",
+            # help="Do not print the validation report (useful for CI/CD pipelines)."
+            help=argparse.SUPPRESS,
         )
         parser.add_argument(
             "--fix-cloud-estimates",
@@ -263,10 +275,10 @@ class App:
         parser.add_argument(
             "--credentials",
             nargs="?",
-            choices=["run", "show", "clear"],
+            choices=["run", "show", "clear", "test"],
             const="run",
             metavar="ACTION",
-            help="Manage Jira API credentials: run (interactive setup), show (display current), clear (remove stored)",
+            help="Manage Jira API credentials: run (interactive setup), show (display current), clear (remove stored), test (verify connection)",
         )
 
     @staticmethod
@@ -280,3 +292,116 @@ class App:
         debug_group.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
         debug_group.add_argument("--show-config", help="Show configuration and exit", action="store_true")
         debug_group.add_argument("--dry-run", help="Process data but stop before writing output", action="store_true")
+
+    @staticmethod
+    def show_version() -> int:
+        """Handle --version flag and exit early.
+
+        Returns:
+            Exit code (always 0 for version display).
+        """
+        from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+
+        minimal_config = MinimalConfig()
+        artifact_manager = ArtifactManager(minimal_config)
+        app = App(artifact_manager)
+        app.print_version()
+        app.event_close(exit_code=0, cleanup=False)
+        return 0
+
+    @staticmethod
+    def show_config(args: argparse.Namespace) -> int:
+        """Handle --show-config flag and exit early.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            Exit code (0 on success, 1 on error).
+        """
+        from jira_importer.config.utils import (  # pylint: disable=import-outside-toplevel
+            determine_config_path,
+            display_config,
+        )
+        from jira_importer.errors import (  # pylint: disable=import-outside-toplevel
+            ConfigurationError,
+            format_error_for_display,
+        )
+
+        ui_instance, _ = ConsoleIO.getComponents()
+
+        try:
+            if not hasattr(args, "input_file") or not args.input_file:
+                # Provide dummy input_file for config determination
+                args.input_file = "dummy.xlsx"
+            config_path = determine_config_path(args)
+            display_config(config_path)
+            return 0
+        except ConfigurationError as exc:
+            # Domain configuration error: show a clear message
+            ui_instance.error(format_error_for_display(exc))
+            return 1
+        except Exception as exc:  # pylint: disable=broad-except
+            # Unexpected internal error
+            ui_instance.error(f"Failed to load configuration for show-config: {exc}")
+            return 1
+
+    @staticmethod
+    def graceful_exit(exit_code: int, do_cleanup: bool = False) -> None:
+        """Exit gracefully with cleanup using minimal config.
+
+        Args:
+            exit_code: Exit code to use.
+            do_cleanup: Whether to perform cleanup operations.
+        """
+        from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+
+        ui_instance, _ = ConsoleIO.getComponents()
+        ui_instance.lf()
+        minimal_config = MinimalConfig()
+        app = App(ArtifactManager(minimal_config))
+        app.event_close(exit_code=exit_code, cleanup=do_cleanup)
+
+    @staticmethod
+    def get_autoreply_from_args(args: argparse.Namespace) -> bool | None:
+        """Get the autoreply flag based on the command line arguments.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            True for -y/--yes, False for -n/--no, None otherwise.
+        """
+        if getattr(args, "auto_yes", False):
+            return True
+        if getattr(args, "auto_no", False):
+            return False
+        return None
+
+    @staticmethod
+    def get_output_dir_from_args(args: argparse.Namespace) -> Path:
+        """Get the output directory path based on the command line arguments.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            Output directory path.
+        """
+        if args.output:
+            return Path(args.output)
+        return Path(args.input_file).parent
+
+    @staticmethod
+    def get_output_target_from_args(args: argparse.Namespace) -> str:
+        """Get the output target based on the command line arguments.
+
+        Args:
+            args: Parsed command line arguments.
+
+        Returns:
+            Output target: "cloud" or "csv".
+        """
+        if getattr(args, "output_target_cloud", False):
+            return "cloud"
+        return "csv"

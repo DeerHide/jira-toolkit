@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from ...console import ConsoleIO
+from ...errors import FileReadError
 from ..models import HeaderSchema
 
 ui = ConsoleIO.getUI()
@@ -28,7 +29,10 @@ class CsvSource:
     def read(self) -> tuple[HeaderSchema, list[list[Any]]]:
         """Read the CSV file and return the HeaderSchema and rows."""
         if not self.path.exists():
-            raise FileNotFoundError(self.path)
+            raise FileReadError(
+                f"CSV file not found: {self.path}",
+                details={"file_path": str(self.path)},
+            )
 
         with self.path.open("r", encoding=self.encoding, newline=self.newline) as fh:
             reader = csv.reader(fh)
@@ -59,14 +63,25 @@ class CsvSource:
                         rows.append([c for c in row])
 
         # Keep normalization conservative (trim only). Your ColumnIndices resolver handles names.
-        # Also remove Excel-style numbered suffixes that might be present in CSV files
-        import re
+        # Handle Excel-style numbered suffixes (duplicates only) that might be present in CSV files
+        import re  # pylint: disable=import-outside-toplevel
 
         normalized_headers = []
+        seen_base_names: set[str] = set()
         for header in header_raw:
             normalized_name = header.strip()
-            # Remove numbered suffixes (e.g., "Labels1" -> "Labels", "Child-Issue2" -> "Child-Issue")
-            normalized_name = re.sub(r"\d+$", "", normalized_name)
+
+            # Check if this looks like Excel duplicate suffix: <base><digits>
+            # Only strip if the base name was already seen
+            match = re.match(r"^(.*?)(\d+)$", normalized_name)
+            if match:
+                base = match.group(1).strip()
+                if base and base in seen_base_names:
+                    # This is Excel's duplicate suffix - use base name
+                    normalized_name = base
+                # else: legitimate digits in name (e.g., "CF 123"), preserve them
+
+            seen_base_names.add(normalized_name)
             normalized_headers.append(normalized_name)
 
         schema = HeaderSchema(original=header_raw, normalized=normalized_headers)

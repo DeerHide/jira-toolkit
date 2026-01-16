@@ -10,7 +10,10 @@ import re
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..config.config_models import CustomFieldConfig
 
 # models definitions
 
@@ -108,6 +111,8 @@ class ColumnIndices:
     project_key: int | None = None
     assignee: int | None = None
     assignee_name: int | None = None
+    team: int | None = None
+    team_name: int | None = None
     description: int | None = None
     parent: int | None = None
     epic_link: int | None = None
@@ -121,6 +126,9 @@ class ColumnIndices:
 
     # Special (can be multiple)
     child_issue_indices: list[int] = field(default_factory=list)
+
+    # Custom fields mapping (field_id -> column_index)
+    custom_fields: dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, int | None]:
         """Dict view (useful when passing to generic helpers)."""
@@ -280,6 +288,8 @@ class ValidationContext:
     validation_issue_id_seen: MutableMapping[str, None] = field(default_factory=dict)
     # Maps issue_id -> (issue_type, row_index) for parent validation
     issue_data: MutableMapping[str, tuple[str, int]] = field(default_factory=dict)
+    # Maps field_id -> CustomFieldConfig for custom field validation
+    custom_field_configs: dict[str, CustomFieldConfig] | None = None
 
     def seen_issue_id(self, value: str) -> bool:
         """Returns True if value was seen before; otherwise records it and returns False.

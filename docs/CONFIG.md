@@ -45,7 +45,10 @@ The most important settings are:
   "jira": {
     "connection": {
       "site_address": "https://yourcompany.atlassian.net",
-      "api_token": "YOUR_API_TOKEN"
+      "auth": {
+        "email": "your-email@company.com",
+        "api_token": "YOUR_API_TOKEN"
+      }
     },
     "project": {
       "key": "PROJ",
@@ -142,6 +145,128 @@ For components, priorities, and other lists, make sure they match Jira exactly:
 }
 ```
 
+### Custom Fields Configuration
+
+The importer supports custom Jira fields with automatic validation based on field type. You can configure custom fields in JSON or Excel.
+
+#### JSON Configuration
+
+Add a `custom_fields` array to your JSON config:
+
+```json
+{
+  "jira": {
+    "custom_fields": [
+      {
+        "name": "Custom Text Field",
+        "id": "customfield_10125",
+        "type": "text"
+      },
+      {
+        "name": "Story Points",
+        "id": "customfield_10002",
+        "type": "number"
+      },
+      {
+        "name": "Due Date",
+        "id": "customfield_10130",
+        "type": "date"
+      },
+      {
+        "name": "Priority Level",
+        "id": "customfield_10140",
+        "type": "select"
+      },
+      {
+        "name": "Custom Any Field",
+        "id": "customfield_10150",
+        "type": "any"
+      }
+    ]
+  }
+}
+```
+
+**Field Configuration Properties:**
+
+- **`name`** (required): The column header name in your Excel file (must match exactly, case-insensitive)
+- **`id`** (required): The Jira custom field ID (format: `customfield_XXXXX`)
+- **`type`** (required): Field type - one of `"text"`, `"number"`, `"date"`, `"select"`, or `"any"`
+
+#### Excel Table Configuration
+
+Create a table named `CfgCustomFields` in your `Config` sheet with three columns:
+
+| Name | Id | Type |
+|------|----|----|
+| Custom Text Field | customfield_10125 | text |
+| Story Points | customfield_10002 | number |
+| Due Date | customfield_10130 | date |
+| Priority Level | customfield_10140 | select |
+| Custom Any Field | customfield_10150 | any |
+
+**Excel Table Requirements:**
+
+- Table name must be exactly `CfgCustomFields`
+- Column headers: `Name`, `Id`, `Type` (case-insensitive)
+- The `Name` column must match your Excel data column header exactly
+
+#### Supported Field Types
+
+| Type | Description | Validation | Example Values |
+|------|-------------|------------|----------------|
+| **text** | Text field | No validation (any string accepted) | "Important", "Urgent" |
+| **number** | Numeric field | Must be parseable as integer or float | `5`, `8.5`, `100` |
+| **date** | Date field | Must match: YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY | `2024-12-31`, `12/31/2024` |
+| **select** | Select field | Currently accepts any value (validation against allowed values coming soon) | "High", "Medium", "Low" |
+| **any** | Any field type | No validation or transformation (value passed through as-is) | Any value type |
+
+#### Finding Custom Field IDs
+
+To find your custom field IDs in Jira:
+
+1. Go to your Jira project settings
+2. Navigate to **Fields** or **Custom Fields**
+3. Click on a custom field to view its details
+4. The field ID appears in the URL or field details (format: `customfield_XXXXX`)
+
+Alternatively, you can:
+
+- Use the Jira REST API: `GET /rest/api/3/field` to list all fields
+- Check the browser developer tools when viewing a field in Jira
+
+#### Using Custom Fields in Excel
+
+Once configured, add columns to your data sheet matching the custom field names:
+
+```csv
+Summary,Priority,Issue Type,Custom Text Field,Story Points,Due Date
+Fix bug,High,Bug,Important,5,2024-12-31
+Add feature,Medium,Story,Urgent,8,2024-11-15
+```
+
+**Important Notes:**
+
+- Column names must match the `name` in your configuration (case-insensitive)
+- Empty cells are treated as "no value" and are valid
+- Date fields support multiple formats but must be consistent
+- Number fields accept both integers and decimals
+
+#### Validation Errors
+
+The importer validates custom field values and reports errors:
+
+- **Number fields**: Reports invalid number format errors
+- **Date fields**: Reports invalid date format errors with expected formats
+- **Text/Select fields**: Currently no validation (validation coming soon for select fields)
+
+Example error message:
+
+```text
+Invalid number value for custom field 'Story Points' (id: customfield_10002): 'abc'
+Row 5, Column: Story Points
+```
+
 ### Backward Compatibility
 
 The old format is still supported:
@@ -222,7 +347,7 @@ If you're getting "Missing jira.connection.site_address" errors:
 
 ## Full examples
 
-- Excel template with a `Config` sheet: `resources/templates/ImportTemplate_with_config.xlsx`
+- Excel template with a `Config` sheet: `resources/templates/ImportTemplate.xlsx`
 - JSON template: `resources/templates/config_importer.json`
 
 :_GeneratedFile_

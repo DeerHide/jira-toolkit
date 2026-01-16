@@ -6,6 +6,7 @@ Author:
 
 import logging
 import os
+import re
 import sys
 import time
 from typing import Any
@@ -21,29 +22,64 @@ except Exception:
 
 from .utils import get_logs_directory
 
+# Import sensitive terms from centralized constants
+try:
+    from .import_pipeline.cloud.constants import SENSITIVE_TERMS
+
+    _SENSITIVE_TERMS = SENSITIVE_TERMS
+except ImportError:
+    # Fallback if import fails (shouldn't happen in normal operation)
+    _SENSITIVE_TERMS = ("password", "api_token", "token", "secret", "client_secret", "access_token", "key", "auth")
+
 
 class RedactingFilter(logging.Filter):
     """Filter that redacts obvious secrets in log records.
 
     This is a best-effort safety net; primary redaction should happen at the source.
-    """
+    Uses regex patterns to identify and redact secret values in various formats.
 
-    SENSITIVE_TERMS = ("password", "api_token", "token", "secret", "client_secret", "access_token")
+    Email addresses are partially redacted: the local part (before @) is redacted
+    while the domain is kept visible for debugging purposes.
+    """
 
     def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
         """Hide secrets so they don't show in the logs."""
         try:
             msg = str(record.getMessage())
+            original_msg = msg
             lower = msg.lower()
-            if any(term in lower for term in self.SENSITIVE_TERMS):
-                # crude replacement to avoid leaking values; keep key context
-                for term in self.SENSITIVE_TERMS:
-                    # Replace patterns like "term=..." or '"term": "..."'
-                    msg = msg.replace(term, term)  # keep key as-is
+
+            # Email address redaction: redact local part (before @), keep domain
+            # Matches email addresses in various formats: user@domain.com, "user@domain.com", etc.
+            email_pattern = re.compile(r"\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b", re.IGNORECASE)
+            msg = email_pattern.sub(r"***@\2", msg)
+
+            # Check if any sensitive terms are present
+            if any(term in lower for term in _SENSITIVE_TERMS):
+                # Pattern 1: key=value (e.g., "token=abc123", "api_token=xyz")
+                for term in _SENSITIVE_TERMS:
+                    # Match: term=value (value can contain alphanumeric, dash, underscore, dot)
+                    pattern = re.compile(rf"\b{re.escape(term)}\s*=\s*([^\s,;)\]]+)", re.IGNORECASE)
+                    msg = pattern.sub(rf"{term}=[REDACTED]", msg)
+
+                # Pattern 2: JSON-like "key": "value" or 'key': 'value'
+                for term in _SENSITIVE_TERMS:
+                    # Match: "term": "value" or 'term': 'value'
+                    pattern = re.compile(rf'["\']?{re.escape(term)}["\']?\s*:\s*["\']([^"\']+)["\']', re.IGNORECASE)
+                    msg = pattern.sub(rf'"{term}": "[REDACTED]"', msg)
+
+                # Pattern 3: key: value (colon format, no quotes)
+                for term in _SENSITIVE_TERMS:
+                    # Match: term: value (value until whitespace, comma, semicolon, or end)
+                    pattern = re.compile(rf"\b{re.escape(term)}\s*:\s*([^\s,;)\]]+)", re.IGNORECASE)
+                    msg = pattern.sub(rf"{term}: [REDACTED]", msg)
+
+            # If message was modified, update the record
+            if msg != original_msg:
                 record.msg = "[REDACTED] " + msg
                 record.args = ()
         except Exception:
-            # Never block logging
+            # Never block logging - if redaction fails, log the original message
             pass
         return True
 
@@ -91,9 +127,13 @@ class LoggingConfig:
         self.is_tty = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
         # Check if file logging is enabled
-        self.file_logging_enabled = self.config and self.config.get_value(
-            "app.logging.write_to_file", default=DEFAULT_WRITE_TO_FILE
-        )
+        # If config is None, use default (True) to ensure errors are logged
+        if self.config is None:
+            self.file_logging_enabled = DEFAULT_WRITE_TO_FILE
+        else:
+            self.file_logging_enabled = self.config.get_value(
+                "app.logging.write_to_file", default=DEFAULT_WRITE_TO_FILE
+            )
 
         # Check if console output is enabled
         self.console_output_enabled = (
@@ -119,8 +159,15 @@ class LoggingConfig:
 
     def get_file_settings(self) -> dict:
         """Get file logging settings from config."""
-        if not self.file_logging_enabled or not self.config:
+        if not self.file_logging_enabled:
             return {}
+
+        # If config is None, return defaults
+        if not self.config:
+            return {
+                "max_size_mb": DEFAULT_MAX_LOG_SIZE_MB,
+                "max_log_files": DEFAULT_MAX_LOG_FILES,
+            }
 
         return {
             "max_size_mb": self.config.get_value("app.logging.max_log_size_mb", default=DEFAULT_MAX_LOG_SIZE_MB),
@@ -256,8 +303,20 @@ def add_file_logging(config: Any):
     """Add file handler to existing root logger if enabled in config."""
     logging_config = LoggingConfig(config=config)
 
+    if not logging_config.file_logging_enabled:
+        return
+
     try:
         root_logger = logging.getLogger()
+
+        # Remove existing file handlers to avoid duplicates
+        from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
+
+        for handler in root_logger.handlers[:]:
+            if isinstance(handler, RotatingFileHandler):
+                root_logger.removeHandler(handler)
+                handler.close()  # Properly close the old handler
+
         file_handler = _create_file_handler(logging_config, root_logger.level)
         file_handler.addFilter(RedactingFilter())
         root_logger.addHandler(file_handler)

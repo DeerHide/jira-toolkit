@@ -18,6 +18,12 @@ DEFAULT_HEADERS: Final[dict[str, str]] = {
 HTTP_SUCCESS_MIN: Final[int] = 200
 HTTP_SUCCESS_MAX: Final[int] = 299
 
+HTTP_OK: Final[int] = 200
+HTTP_UNAUTHORIZED: Final[int] = 401
+HTTP_FORBIDDEN: Final[int] = 403
+HTTP_NOT_FOUND: Final[int] = 404
+HTTP_TOO_MANY_REQUESTS: Final[int] = 429
+
 HTTP_SERVER_ERROR_MIN: Final[int] = 500
 HTTP_SERVER_ERROR_MAX: Final[int] = 599
 
@@ -60,3 +66,16 @@ AUTH_EMAIL_KEY: Final[str] = "jira.connection.auth.email"
 AUTH_TOKEN_KEY: Final[str] = "jira.connection.auth.api_token"
 AUTH_TOKEN_EXPIRES_KEY: Final[str] = "jira.connection.auth.api_token_expires_on"  # ISO date YYYY-MM-DD
 AUTH_TOKEN_INPUT_DATE_KEY: Final[str] = "jira.connection.auth.api_token_input_date"  # ISO date YYYY-MM-DD
+
+# Sensitive terms for secret redaction across the codebase
+# Consolidated from: log.py, config_display.py, json_config.py
+SENSITIVE_TERMS: Final[tuple[str, ...]] = (
+    "password",
+    "api_token",
+    "token",
+    "secret",
+    "client_secret",
+    "access_token",
+    "key",
+    "auth",
+)

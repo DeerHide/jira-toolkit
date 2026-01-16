@@ -31,8 +31,11 @@ src/jira_importer/               # Main application package
 │   ├── config_factory.py       # Configuration factory
 │   ├── config_view.py           # Typed config access
 │   ├── config_models.py         # Configuration data models
+│   ├── config_display.py        # Configuration display utilities
 │   ├── excel_config.py         # Excel-based configuration
 │   ├── json_config.py          # JSON configuration
+│   ├── constants.py            # Configuration constants
+│   ├── utils.py                # Configuration utilities
 │   └── models/                  # Configuration models
 │       └── issuetypes.py        # Issue type hierarchy models
 ├── excel/                       # Excel processing
@@ -93,9 +96,12 @@ graph TD
     B4 --> B4A[config_factory.py]
     B4 --> B4B[config_view.py]
     B4 --> B4C[config_models.py]
-    B4 --> B4D[excel_config.py]
-    B4 --> B4E[json_config.py]
-    B4 --> B4F[models/]
+    B4 --> B4D[config_display.py]
+    B4 --> B4E[excel_config.py]
+    B4 --> B4F[json_config.py]
+    B4 --> B4G[constants.py]
+    B4 --> B4H[utils.py]
+    B4 --> B4I[models/]
 
     B5 --> B5A[excel_io.py]
     B5 --> B5B[excel_table_reader.py]
@@ -222,45 +228,47 @@ flowchart TD
 graph TB
     subgraph "Main Application"
         A[__main__.py] --> B[App]
-        B --> C[ImportProcessor]
+        B --> C[ImportRunner]
+        C --> D[ImportProcessor]
     end
 
     subgraph "Import Pipeline"
-        C --> D[Source Readers]
-        C --> E[Validator]
-        C --> F[Output Sinks]
+        D --> E[Source Readers]
+        D --> F[Validator]
+        D --> G[Output Sinks]
 
-        D --> D1[CsvSource]
-        D --> D2[XlsxSource]
+        E --> E1[CsvSource]
+        E --> E2[XlsxSource]
 
-        E --> E1[JiraImportValidator]
-        E1 --> E2[RuleRegistry]
-        E1 --> E3[FixRegistry]
+        F --> F1[JiraImportValidator]
+        F1 --> F2[RuleRegistry]
+        F1 --> F3[FixRegistry]
 
-        E2 --> E4[Built-in Rules]
-        E3 --> E5[Built-in Fixers]
+        F2 --> F4[Built-in Rules]
+        F3 --> F5[Built-in Fixers]
 
-    F --> F1[CsvSink]
-    F --> F2[CloudSink]
+        G --> G1[CsvSink]
+        G --> G2[CloudSink]
 
     subgraph "Cloud Integration"
-        F2 --> F2A[JiraCloudClient]
-        F2 --> F2B[IssueMapper]
-        F2 --> F2C[MetadataCache]
-        F2 --> F2D[BasicAuthProvider]
-        F2 --> F2E[BulkProcessor]
-        F2 --> F2F[CredentialManager]
-        F2 --> F2G[SecretsResolver]
+        G2 --> H1[JiraCloudClient]
+        G2 --> H2[IssueMapper]
+        G2 --> H3[MetadataCache]
+        G2 --> H4[BasicAuthProvider]
+        G2 --> H5[BulkProcessor]
+        G2 --> H6[CredentialManager]
+        G2 --> H7[SecretsResolver]
     end
     end
 
     subgraph "Supporting Components"
-        G[ConfigView] --> C
-        H[ExcelWorkbookManager] --> D2
-        I[ProblemReporter] --> C
-        J[Console UI] --> C
-        K[CredentialManager] --> F2
-        L[ExcelTableReader] --> D2
+        I1[ConfigView] --> D
+        I2[ExcelWorkbookManager] --> E2
+        I3[ProblemReporter] --> C
+        I4[CloudReportReporter] --> C
+        I5[Console UI] --> C
+        I6[CredentialManager] --> G2
+        I7[ExcelTableReader] --> E2
     end
 
     subgraph "Data Models"
@@ -271,11 +279,11 @@ graph TB
         M5[ValidationResult]
     end
 
-    C --> M1
-    C --> M2
-    C --> M3
-    E1 --> M4
-    E1 --> M5
+    D --> M1
+    D --> M2
+    D --> M3
+    F1 --> M4
+    F1 --> M5
 ```
 
 ### Data Flow Through Validation
@@ -326,13 +334,17 @@ graph LR
         A4[IssueIdPresenceRule]
         A5[EstimateFormatRule]
         A6[ProjectKeyConsistencyRule]
+        A7[ParentLinkValidationRule]
+        A8[CustomFieldValidationRule]
     end
 
     subgraph "Auto-fixes"
         B1[PriorityNormalizeFixer]
-        B2[EstimateFormatFixer]
+        B2[EstimateNormalizeFixer]
         B3[ProjectKeyFixer]
-        B4[SummaryTrimFixer]
+        B4[AssignIssueIdFixer]
+        B5[AssigneeResolverFixer]
+        B6[TeamResolverFixer]
     end
 
     subgraph "Problem Codes"
@@ -340,6 +352,13 @@ graph LR
         C2[priority.invalid]
         C3[estimate.format]
         C4[project_key.mismatch]
+        C5[issueid.missing]
+        C6[customfield.number.invalid]
+        C7[customfield.date.invalid]
+        C8[assignee.display_name]
+        C9[assignee.empty_with_name]
+        C10[team.display_name]
+        C11[team.empty_with_name]
     end
 
     A1 --> C1
@@ -348,11 +367,18 @@ graph LR
     A4 --> C1
     A5 --> C3
     A6 --> C4
+    A4 --> C5
+    A8 --> C6
+    A8 --> C7
 
-    C1 --> B4
     C2 --> B1
     C3 --> B2
     C4 --> B3
+    C5 --> B4
+    C8 --> B5
+    C9 --> B5
+    C10 --> B6
+    C11 --> B6
 ```
 
 ## 🔧 Component Details
@@ -365,7 +391,12 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`models.py`** - Data structures and interfaces for the pipeline
 - **`validator.py`** - Runs validation rules and auto-fixes
 - **`rules/`** - Validation rules (built-in + extensible for Excel-defined rules)
+  - **`custom_field_rule.py`** - Custom field validation based on field type
 - **`fixes/`** - Auto-fix system for common issues
+  - **`builtin_fixes.py`** - Built-in fixers (PriorityNormalizeFixer, EstimateNormalizeFixer, ProjectKeyFixer, AssignIssueIdFixer)
+  - **`assignee_resolver.py`** - AssigneeResolverFixer for resolving assignee display names
+  - **`team_resolver.py`** - TeamResolverFixer for resolving team display names
+  - **`registry.py`** - FixRegistry for managing and applying fixers
 - **`sources/`** - Input readers for CSV and XLSX files
 - **`sinks/`** - Output writers (CSV, cloud integration)
 - **`reporting.py`** - Rich problem reporting with emojis and tables
@@ -375,14 +406,21 @@ The main processing logic - handles validation, fixes, and data transformation:
 - **`config_factory.py`** - Unified configuration loading from multiple sources
 - **`config_view.py`** - Typed configuration access with validation
 - **`config_models.py`** - Configuration data models and structures
+  - **`CustomFieldConfig`** - Custom field configuration model (name, id, type)
+  - **`parse_custom_fields()`** - Parse custom fields from JSON config
+  - **`get_custom_field_configs()`** - Get custom fields from JSON or Excel config
+- **`config_display.py`** - Configuration display utilities
 - **`excel_config.py`** - Excel-based configuration handling
 - **`json_config.py`** - JSON configuration file processing
+- **`constants.py`** - Configuration constants
+- **`utils.py`** - Configuration utilities
 - **`models/issuetypes.py`** - Issue type hierarchy models
 
 ### Excel Processing (`excel/`)
 
 - **`excel_io.py`** - Enhanced Excel workbook management
 - **`excel_table_reader.py`** - Structured table configuration reader
+  - **`_read_custom_fields()`** - Reads `CfgCustomFields` table from Excel
 - Direct XLSX processing (no intermediate CSV conversion)
 - Metadata writing and processing reports
 
@@ -406,11 +444,13 @@ The main processing logic - handles validation, fixes, and data transformation:
 
 ### Cloud Integration (`import_pipeline/cloud/`)
 
-- **`auth.py`** - Authentication providers (Basic Auth, OAuth 2.0 scaffolded)
+- **`auth.py`** - Authentication providers (Basic Auth fully implemented; OAuth 2.0 scaffolded but not functional)
 - **`client.py`** - HTTP client wrapper for Jira Cloud REST API v3
 - **`credential_manager.py`** - Advanced credential management with keyring integration
 - **`secrets.py`** - Secrets resolution (keyring → env → config → prompt)
 - **`mappers.py`** - Data mapping from normalized rows to Jira issue payloads
+  - **`_map_custom_fields()`** - Maps custom field values to Jira API format
+  - **`_transform_custom_value()`** - Transforms custom field values based on type
 - **`metadata.py`** - Jira metadata caching (projects, fields, issue types)
 - **`bulk.py`** - Batch processing utilities for efficient imports
 - **`constants.py`** - Cloud-specific constants and configuration
@@ -449,7 +489,7 @@ The main processing logic - handles validation, fixes, and data transformation:
 - Direct Jira Cloud API integration ✅ **Implemented**
 - Batch processing capabilities ✅ **Implemented**
 - Import templates for common project types
-- OAuth 2.0 authentication (scaffolded)
+- OAuth 2.0 authentication (scaffolded, not yet functional - only Basic Auth is currently supported)
 - Advanced credential management ✅ **Implemented**
 
 ### Recent Improvements

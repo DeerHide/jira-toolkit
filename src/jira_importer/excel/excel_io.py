@@ -7,6 +7,7 @@ Author:
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +17,7 @@ from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from openpyxl.worksheet.worksheet import Worksheet  # type: ignore[import-untyped]
 
 from ..console import ConsoleIO
+from ..errors import FileReadError, FileWriteError, ProcessingError
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
@@ -71,10 +73,24 @@ class ExcelWorkbookManager:
     def save(self, out_path: str | Path | None = None) -> Path:
         """Save workbook to disk. If out_path is None, overwrite original. Returns the path written."""
         if self._wb is None:
-            raise RuntimeError("Workbook not loaded. Call load() first.")
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "save", "file_path": str(self.path)},
+            )
         target = Path(out_path) if out_path else self.path
         target.parent.mkdir(parents=True, exist_ok=True)
-        self._wb.save(str(target))
+        try:
+            self._wb.save(str(target))
+        except PermissionError as exc:
+            raise FileWriteError(
+                f"Permission denied while writing Excel file: {target}",
+                details={"file_path": str(target), "original_error": str(exc)},
+            ) from exc
+        except OSError as exc:
+            raise FileWriteError(
+                f"Failed to write Excel file: {target}",
+                details={"file_path": str(target), "original_error": str(exc), "error_type": type(exc).__name__},
+            ) from exc
         return target
 
     def close(self) -> None:
@@ -95,7 +111,10 @@ class ExcelWorkbookManager:
             ws = self._get_or_create_ws(sheet.lower(), replace=False)
             logger.warning(f"Worksheet '{sheet}' not found in '{self.path.name}'. Creating a new one.")
         if ws is None:
-            raise RuntimeError(f"Worksheet '{sheet}' not found in '{self.path.name}'.")
+            raise FileReadError(
+                f"Worksheet '{sheet}' not found in '{self.path.name}'.",
+                details={"file_path": str(self.path), "worksheet": sheet},
+            )
         rows_iter = ws.iter_rows(values_only=True)
 
         header: list[str] | None = None
@@ -106,7 +125,7 @@ class ExcelWorkbookManager:
             row = list(raw or [])
             if self._is_empty_row(row):
                 continue
-            header = [self._normalize_header_cell(c) for c in row]
+            header = self._normalize_header_row(row)
             break
 
         if header is None:
@@ -264,7 +283,10 @@ class ExcelWorkbookManager:
             row_dict = {}
             for i, value in enumerate(row_values):
                 if i < len(headers) and headers[i] is not None:
-                    row_dict[headers[i]] = value
+                    # Only add non-empty header names (skip empty strings)
+                    header_name = str(headers[i]).strip()
+                    if header_name:
+                        row_dict[header_name] = value
             table_data.append(row_dict)
 
         logger.debug(f"Read {len(table_data)} rows from Excel table '{table_name}'")
@@ -365,16 +387,25 @@ class ExcelWorkbookManager:
     # Internals
     def _get_ws(self, title: str, *, must_exist: bool = True) -> Worksheet | None:
         if self._wb is None:
-            raise RuntimeError("Workbook not loaded. Call load() first.")
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "_get_ws", "file_path": str(self.path), "worksheet": title},
+            )
         ws = self._wb[title] if title in self._wb.sheetnames else None
         if ws is None and must_exist:
             logger.error(f"Worksheet '{title}' not found in '{self._wb.sheetnames}'.")
-            raise KeyError(f"Worksheet '{title}' not found in '{self.path.name}'.")
+            raise FileReadError(
+                f"Worksheet '{title}' not found in '{self.path.name}'.",
+                details={"file_path": str(self.path), "worksheet": title, "available_sheets": self._wb.sheetnames},
+            )
         return ws
 
     def _get_or_create_ws(self, title: str, *, replace: bool) -> Worksheet:
         if self._wb is None:
-            raise RuntimeError("Workbook not loaded. Call load() first.")
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "_get_or_create_ws", "file_path": str(self.path), "worksheet": title},
+            )
         if title in self._wb.sheetnames:
             if replace:
                 index = self._wb.sheetnames.index(title)
@@ -395,18 +426,58 @@ class ExcelWorkbookManager:
 
     @staticmethod
     def _normalize_header_cell(val: Any) -> str:
-        # Keep case/spacing under your control; do not lowercase by default.
+        """Normalize a single header cell value.
+
+        Kept for future use.
+
+        Args:
+            val: Header cell value.
+
+        Returns:
+            Normalized header name.
+        """
         if val is None:
             return ""
+        return str(val).strip()
 
-        # Convert to string and strip whitespace
-        header_name = str(val).strip()
+    def _normalize_header_row(self, row: list[Any]) -> list[str]:
+        """Normalize header row, preserving legitimate digits but collapsing Excel duplicate suffixes.
 
-        # Remove Excel's automatic numbered suffixes for duplicate column names
-        # This handles Excel's behavior of adding numbers to duplicate column names
-        # Pattern matches a number at the end of the string (e.g., "1", "12", "123")
-        import re
+        First applies basic normalization to each cell, then detects and collapses
+        Excel's auto-suffixed duplicate columns. Only strips trailing digits when
+        the base name (without digits) was already seen in the same header row.
 
-        header_name = re.sub(r"\d+$", "", header_name)
+        This preserves legitimate field names like "CF123" while handling Excel's
+        auto-suffixed duplicates like "Labels", "Labels1", "Labels2".
 
-        return header_name
+        Args:
+            row: List of header cell values.
+
+        Returns:
+            List of normalized header names.
+        """
+        normalized: list[str] = []
+        seen_base_names: set[str] = set()
+
+        for cell in row:
+            # Apply basic normalization first
+            name = self._normalize_header_cell(cell)
+            if not name:
+                normalized.append(name)
+                seen_base_names.add(name)
+                continue
+
+            # Check if this looks like Excel duplicate suffix: <base><digits>
+            # Only strip if the base name was already seen
+            match = re.match(r"^(.*?)(\d+)$", name)
+            if match:
+                base = match.group(1).strip()
+                if base and base in seen_base_names:
+                    # This is Excel's duplicate suffix - use base name
+                    name = base
+                # else: legitimate digits in name (e.g., "CF 123"), preserve them
+
+            seen_base_names.add(name)
+            normalized.append(name)
+
+        return normalized

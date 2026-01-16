@@ -52,7 +52,7 @@ if test_response.status_code == HTTP_OK:
 
 ### Authentication Providers
 
-Currently supports Basic Authentication:
+Currently supports Basic Authentication (OAuth 2.0 is scaffolded but not functional):
 
 ```python
 from ..cloud.auth import BasicAuthProvider
@@ -165,6 +165,72 @@ class IssueMapper:
         # Convert row data to Jira issue format
         pass
 ```
+
+### Custom Fields Mapping
+
+Custom fields are automatically mapped from Excel columns to Jira issue payloads based on their configured type:
+
+```python
+def _map_custom_fields(
+    self,
+    fields: dict[str, Any],
+    row: Sequence[Any],
+    indices: ColumnIndices,
+    custom_configs_by_id: dict[str, CustomFieldConfig],
+) -> None:
+    """Map custom fields from row data to Jira fields dict."""
+    for field_id, col_idx in indices.custom_fields.items():
+        cfg = custom_configs_by_id.get(field_id)
+        if cfg is None:
+            continue
+
+        raw = row[col_idx]
+        transformed = self._transform_custom_value(raw, cfg)
+        if transformed is not None:
+            fields[field_id] = transformed
+```
+
+**Value Transformation by Type:**
+
+- **Text fields**: Passed through as string (empty values are skipped)
+- **Number fields**: Converted to integer or float based on value
+- **Date fields**: Converted to ISO 8601 format (`YYYY-MM-DD`) for Jira API
+- **Select fields**: Passed through as string (must match allowed values in Jira)
+- **Any fields**: Passed through as-is without any transformation or validation
+
+**Example Mapping:**
+
+```python
+# Excel row data
+row = ["Fix bug", "High", "Bug", "Important", "5", "2024-12-31"]
+# Custom field configs
+custom_fields = [
+    CustomFieldConfig(name="Notes", id="customfield_10125", type="text"),
+    CustomFieldConfig(name="Story Points", id="customfield_10002", type="number"),
+    CustomFieldConfig(name="Due Date", id="customfield_10130", type="date"),
+]
+
+# Resulting Jira payload
+{
+    "fields": {
+        "summary": "Fix bug",
+        "priority": {"name": "High"},
+        "issuetype": {"name": "Bug"},
+        "customfield_10125": "Important",  # Text field
+        "customfield_10002": 5,            # Number field
+        "customfield_10130": "2024-12-31"  # Date field (ISO format)
+    }
+}
+```
+
+**Configuration Requirements:**
+
+Custom fields must be configured in either:
+
+- JSON config: `jira.custom_fields` array
+- Excel table: `CfgCustomFields` table in Config sheet
+
+The `name` in the configuration must match the Excel column header (case-insensitive).
 
 ### Metadata Caching
 
@@ -343,7 +409,7 @@ python -m pytest tests/integration/test_cloud_integration.py -v
 
 ### Planned Features
 
-- **OAuth 2.0 support**: For enterprise Jira instances
+- **OAuth 2.0 support**: For enterprise Jira instances (currently scaffolded but not functional - only Basic Auth is supported)
 - **Retry mechanisms**: Automatic retry for transient failures
 - **Progress tracking**: Real-time progress updates for large imports
 - **Validation caching**: Cache validation results across runs

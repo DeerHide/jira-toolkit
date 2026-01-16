@@ -123,6 +123,10 @@ The tool supports:
 - **Auto-fixing**: Automatically fix common issues (with `--auto-fix` flag)
 - **Hierarchical Support**: Handle Initiatives, Epics, Stories, and Sub-tasks with proper relationships
   - Custom types and their levels can be configured in the configuration files (JSON configuration recommended)
+- **Custom Fields Support**: Import and validate custom Jira fields (text, number, date, select, any)
+  - Configure custom fields in JSON config or Excel tables
+  - Automatic validation based on field type
+  - Supports both CSV export and direct cloud import
 
 ### Input/Output Example
 
@@ -153,6 +157,95 @@ Implement API endpoint,Low,Sub-Task,Add new feature,3,28800,backend
 - **Label Columns**: Multiple label columns (`labels0`, `labels1`, `labels89724`, etc.) are automatically merged into a single `labels` column
 
 The tool validates, fixes issues, assigns missing Issue IDs, normalizes formats, and generates a clean CSV file ready for Jira's Bulk Create page.
+
+### Custom Fields
+
+The tool supports importing custom Jira fields from your Excel data. Custom fields are automatically detected and validated based on their configured type.
+
+**Supported Field Types:**
+
+- **Text**: Any string value (no validation)
+- **Number**: Must be parseable as integer or float
+- **Date**: Must be in format YYYY-MM-DD, MM/DD/YYYY, or DD/MM/YYYY
+- **Select**: Any string value (validation against allowed values is planned for future release)
+- **Any**: Any value type (no validation or transformation, passed through as-is)
+
+**Configuration:**
+
+You can configure custom fields in two ways:
+
+1. **JSON Configuration** (recommended for programmatic setup):
+
+```json
+{
+  "jira": {
+    "custom_fields": [
+      {
+        "name": "Custom Text Field",
+        "id": "customfield_10125",
+        "type": "text"
+      },
+      {
+        "name": "Story Points",
+        "id": "customfield_10002",
+        "type": "number"
+      },
+      {
+        "name": "Due Date",
+        "id": "customfield_10130",
+        "type": "date"
+      },
+      {
+        "name": "Priority Level",
+        "id": "customfield_10140",
+        "type": "select"
+      },
+      {
+        "name": "Custom Any Field",
+        "id": "customfield_10150",
+        "type": "any"
+      }
+    ]
+  }
+}
+```
+
+2. **Excel Table Configuration** (recommended for Excel-based workflows):
+
+   - Create a table named `CfgCustomFields` in your `Config` sheet
+   - Columns: `Name`, `Id`, `Type`
+   - The `Name` column must match your Excel data column header exactly (case-sentitive)
+
+**Excel Example:**
+
+In your data sheet, add columns matching the custom field names:
+
+```csv
+Summary,Priority,Issue Type,Custom Text Field,Story Points,Due Date
+Fix bug,High,Bug,Important,5,2024-12-31
+Add feature,Medium,Story,Urgent,8,2024-11-15
+```
+
+**Finding Custom Field IDs:**
+
+To find your custom field IDs in Jira:
+
+1. Go to your Jira project settings
+2. Navigate to "Fields" or "Custom Fields"
+3. Click on a custom field to view its details
+4. The field ID appears in the URL or field details (format: `customfield_XXXXX`)
+
+**Validation:**
+
+Custom fields are automatically validated:
+
+- **Text fields**: No validation (any value accepted)
+- **Number fields**: Must be a valid number (integer or decimal)
+- **Date fields**: Must match supported date formats
+- **Select fields**: Currently accepts any value (validation against allowed values coming soon)
+- **Any fields**: No validation or transformation (value passed through as-is)
+
+Validation errors are reported with clear messages indicating the field name, expected format, and row number.
 
 ### Row Skipping
 
@@ -241,8 +334,8 @@ Choose the configuration method that works best for your workflow:
 
 The tool helps address these common Jira import problems:
 
-- **Invalid Issue IDs**: Detects and fixes invalid or duplicate Issue ID formats
-- **Invalid Priorities**: Validates against allowed priority values and normalizes case
+- **Invalid Issue IDs**: Detects and fixes invalid or duplicate Issue ID formats ✅ Auto-fixable
+- **Invalid Priorities**: Validates against allowed priority values and normalizes case ✅ Auto-fixable
 - **Missing Parent Links**: Ensures Sub-tasks have required parent relationships
 - **Invalid Parent Links**: Validates parent-child hierarchy (e.g., Sub-tasks can't parent Epics)
 - **Unrecognized Components**: Validates components against your Jira project's component list
@@ -250,10 +343,12 @@ The tool helps address these common Jira import problems:
 - **Formatting Issues**: Fixes common Excel-to-CSV conversion problems (quotes, commas, encoding)
 - **Sprint Problems**: Validates sprint values and formats them correctly for Jira
 - **Fix Version Issues**: Ensures fix versions match your project's available versions
-- **Estimate Format Errors**: Normalizes time estimates to Jira's expected format (seconds)
-- **Project Key Mismatches**: Ensures Issue IDs match your configured project key
+- **Estimate Format Errors**: Normalizes time estimates to Jira's expected format (seconds) ✅ Auto-fixable
+- **Project Key Mismatches**: Ensures Issue IDs match your configured project key ✅ Auto-fixable
+- **Assignee Resolution**: Resolves assignee display names to Jira account IDs ✅ Auto-fixable
+- **Team Resolution**: Resolves team display names to Jira account IDs ✅ Auto-fixable
 
-All of these are automatically detected during validation, and many can be auto-fixed with the `--auto-fix` flag.
+All of these are automatically detected during validation. Issues marked with ✅ can be auto-fixed with the `--auto-fix` flag.
 
 ## Advanced Features
 

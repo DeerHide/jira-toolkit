@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 from .. import CFG_REQ_DEFAULT
+from ..errors import ConfigurationError
 from .excel_config import ExcelConfiguration
 from .json_config import JsonConfiguration
 
@@ -39,13 +40,15 @@ class ConfigurationFactory:
             JsonConfiguration or ExcelConfiguration object
 
         Raises:
-            ValueError: If file extension is not supported
-            FileNotFoundError: If file does not exist
+            ConfigurationError: If file extension is not supported or file does not exist
         """
         file_path = Path(path)
 
         if not file_path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {path}")
+            raise ConfigurationError(
+                f"Configuration file not found: {path}",
+                details={"file_path": str(path), "operation": "config_loading"},
+            )
 
         file_extension = file_path.suffix.lower()
 
@@ -56,8 +59,9 @@ class ConfigurationFactory:
         elif file_extension in {".xlsx", ".xlsm"}:
             return ExcelConfiguration(path, config_sheet=config_sheet, cfg_req=cfg_req)
         else:
-            raise ValueError(
-                f"Unsupported configuration file format: {file_extension}. Supported formats: .json, .xlsx, .xlsm"
+            raise ConfigurationError(
+                f"Unsupported configuration file format: {file_extension}. Supported formats: .json, .xlsx, .xlsm",
+                details={"file_path": str(path), "file_extension": file_extension},
             )
 
     @staticmethod
@@ -79,7 +83,7 @@ class ConfigurationFactory:
             JsonConfiguration or ExcelConfiguration object from primary or fallback path
 
         Raises:
-            FileNotFoundError: If neither primary nor fallback file exists
+            ConfigurationError: If neither primary nor fallback file exists
         """
         # Try primary path first
         if Path(primary_path).exists():
@@ -95,7 +99,14 @@ class ConfigurationFactory:
         error_msg = f"Configuration file not found: {primary_path}"
         if fallback_path:
             error_msg += f" (fallback: {fallback_path})"
-        raise FileNotFoundError(error_msg)
+        raise ConfigurationError(
+            error_msg,
+            details={
+                "primary_path": str(primary_path),
+                "fallback_path": str(fallback_path) if fallback_path else None,
+                "operation": "config_loading_with_fallback",
+            },
+        )
 
     @staticmethod
     def is_excel_config(path: str) -> bool:

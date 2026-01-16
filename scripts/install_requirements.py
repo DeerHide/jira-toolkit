@@ -42,7 +42,7 @@ def main() -> int:
         except (subprocess.CalledProcessError, FileNotFoundError):
             print("⚠ Skipping lock file regeneration (pip-tools not available)")
 
-    # installl requirements
+    # install requirements
     if requirements_lock.exists():
         requirements_file = requirements_lock
     elif requirements_txt.exists():

@@ -20,7 +20,7 @@ try:
 except Exception:
     pass
 
-from .utils import get_logs_directory
+from .paths import get_logs_directory
 
 # Import sensitive terms from centralized constants
 try:

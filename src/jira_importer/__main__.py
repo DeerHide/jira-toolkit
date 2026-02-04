@@ -31,7 +31,8 @@ from jira_importer.errors import (
 from jira_importer.fileops import FileManager, FileValidator
 from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
-from jira_importer.utils import get_executable_dir, get_logs_directory, load_config_for_input, open_browser
+from jira_importer.paths import get_executable_dir, get_logs_directory
+from jira_importer.utils import load_config_for_input, open_browser
 
 # Suppress specific warnings from openpyxl
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")

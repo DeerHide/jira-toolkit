@@ -37,7 +37,7 @@ def _sanitize_relative_path(relative_path: str) -> Path:
     - Reject control characters
     - Apply lightweight length limits to avoid abuse
     """
-    from .errors import ValidationError
+    from .errors import ValidationError  # pylint: disable=import-outside-toplevel
 
     if not isinstance(relative_path, str):
         raise ValidationError(
@@ -106,33 +106,6 @@ def resource_path(relative_path: str) -> str:
 
 
 # Usage: config_path = resource_path('config_importer.json')
-
-
-def get_executable_dir() -> str:
-    """Return the directory where the script or compiled executable resides."""
-    if getattr(sys, "frozen", False):
-        # Running as a PyInstaller bundle
-        exe_dir = os.path.dirname(sys.executable)
-    else:
-        # Running from source
-        exe_dir = os.path.dirname(os.path.abspath(__file__))
-    return exe_dir
-
-
-def get_logs_directory() -> str:
-    """Get or create the logs directory next to the executable or script."""
-    exe_dir = get_executable_dir()
-    logs_dir = os.path.join(exe_dir, "jira_importer_logs")
-
-    try:
-        os.makedirs(logs_dir, exist_ok=True)
-        return logs_dir
-    except (PermissionError, OSError):
-        import tempfile
-
-        temp_logs_dir = os.path.join(tempfile.gettempdir(), "jira-toolkit", "logs")
-        os.makedirs(temp_logs_dir, exist_ok=True)
-        return temp_logs_dir
 
 
 def find_config_path(

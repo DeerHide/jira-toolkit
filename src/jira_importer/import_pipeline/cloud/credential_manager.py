@@ -420,7 +420,7 @@ def setup_credentials_interactive(ui, cfg: ConfigView) -> dict[str, Any]:
 
 def clear_credentials(ui) -> None:
     """Remove credentials from keyring and show env var unset instructions."""
-    from .secrets import delete_secret_in_keyring
+    from .secrets import delete_secret_in_keyring  # pylint: disable=import-outside-toplevel
 
     keys_to_delete = [
         EMAIL_KEY,

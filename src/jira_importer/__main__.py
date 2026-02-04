@@ -131,7 +131,7 @@ def main() -> int:
         ui.debug("Debug mode is enabled.")
 
     artifact_manager = ArtifactManager(config)
-    file_manager = FileManager(artifact_manager, config)
+    file_manager = FileManager(config)
     app = App(artifact_manager)
 
     logger.info(f"Version: {app.version_info}")

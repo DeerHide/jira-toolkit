@@ -12,7 +12,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from .artifacts import ArtifactManager
 from .console import ConsoleIO
 
 logger = logging.getLogger(__name__)
@@ -28,9 +27,8 @@ class FileManager:
     - Deleting files with logging
     """
 
-    def __init__(self, artifact_manager: ArtifactManager | None = None, config: object | None = None) -> None:
+    def __init__(self, config: object | None = None) -> None:
         """Initialize the FileManager."""
-        self.artifact_manager = artifact_manager
         self.config = config
 
     def _notify(self, ui: Any | None, artifact_cb: Callable[[str], None] | None, csv_path: Path) -> None:  # pylint: disable=W0621

@@ -11,6 +11,7 @@ import threading
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import TracebackType
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class ArtifactManager:
     - Can restrict tracking to a base directory (if provided)
     """
 
-    def __init__(self, config, base_dir: str | Path | None = None):
+    def __init__(self, config: Any, base_dir: str | Path | None = None):
         """Initialize the ArtifactManager."""
         self._artifacts: set[Path] = set()
         # Coerce to bool so None -> False
@@ -31,17 +32,20 @@ class ArtifactManager:
         self._base_dir: Path | None = Path(base_dir).resolve() if base_dir is not None else None
         self._lock = threading.Lock()
 
-    def _normalize(self, file_path: str | Path) -> Path:
+    def _normalize(self, file_path: str | Path) -> Path | None:
+        """Normalize a file path."""
+        if not file_path:
+            return None
         path = Path(file_path).resolve()
+        if self._base_dir and not (path == self._base_dir or self._base_dir in path.parents):
+            logger.warning("Refusing to track artifact outside base_dir: %s", path)
+            return None
         return path
 
     def add(self, file_path: str | Path) -> None:
         """Add an artifact to the tracking set."""
-        if not file_path:
-            return
         path = self._normalize(file_path)
-        if self._base_dir and not (path == self._base_dir or self._base_dir in path.parents):
-            logger.warning("Refusing to track artifact outside base_dir: %s", path)
+        if path is None:
             return
         with self._lock:
             if path not in self._artifacts:
@@ -56,6 +60,8 @@ class ArtifactManager:
     def remove(self, file_path: str | Path) -> None:
         """Remove an artifact from the tracking set."""
         path = self._normalize(file_path)
+        if path is None:
+            return
         with self._lock:
             self._artifacts.discard(path)
 
@@ -78,7 +84,7 @@ class ArtifactManager:
             os.chmod(path, 0o700)
             func(path)
         except Exception:
-            logger.error("Failed to remove path during rmtree: %s", path)
+            logger.exception("Failed to remove path during rmtree: %s", path)
             logger.error("Exception info: %s", exc_info)
 
     def delete_all(self, include_dirs: bool = False, dry_run: bool = False) -> dict[str, int]:
@@ -90,9 +96,20 @@ class ArtifactManager:
 
         Returns a summary dict with counts of deleted/skipped/errors.
         """
-        if not self.delete_enabled and not dry_run:
-            logger.info("Artifact deletion is disabled in configuration.")
-            return {"deleted": 0, "skipped": len(self._artifacts), "errors": 0}
+        if not self.delete_enabled:
+            with self._lock:
+                artifact_count = len(self._artifacts)
+            if not dry_run:
+                logger.info(
+                    "Artifact deletion is disabled in configuration. Skipping deletion of %d artifact(s).",
+                    artifact_count,
+                )
+            else:
+                logger.info(
+                    "Artifact deletion is disabled in configuration. Would skip deletion of %d artifact(s) in dry-run mode.",
+                    artifact_count,
+                )
+            return {"deleted": 0, "skipped": artifact_count, "errors": 0}
 
         deleted = 0
         skipped = 0

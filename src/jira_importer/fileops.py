@@ -18,18 +18,12 @@ from .console import ConsoleIO
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
 
-try:
-    import pandas as pd  # type: ignore[import-untyped]
-except Exception:  # pragma: no cover
-    pd = None  # type: ignore[assignment] # pylint: disable=invalid-name
-
 
 class FileManager:
     """Manage file operations and integrate with `ArtifactManager`.
 
     Responsibilities:
     - Writing CSV files with progress and atomic replace to avoid partial files
-    - Converting XLSX to CSV (formatting unchanged per design)
     - Generating output filenames based on input path, extension and suffix
     - Deleting files with logging
     """

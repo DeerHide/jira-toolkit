@@ -77,6 +77,7 @@ THEME = Theme(
     }
 )
 
+# TODO: JT-251 - Move traceback installation outside of the top level
 install_rich_traceback(show_locals=False, width=120, extra_lines=2, word_wrap=True, theme="monokai")
 # console = Console(theme=THEME, highlight=True, soft_wrap=False)
 

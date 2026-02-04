@@ -19,22 +19,18 @@ from jira_importer.artifacts import ArtifactManager
 from jira_importer.config.minimal_config import MinimalConfigForCredentials
 from jira_importer.config.utils import load_configuration_with_error_handling
 from jira_importer.console import ConsoleIO
+from jira_importer.constants import CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
 from jira_importer.errors import ErrorResponse, JiraAuthError, ProcessingError, format_error_for_display, log_exception
 from jira_importer.fileops import FileManager
 from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
 from jira_importer.utils import get_executable_dir, get_logs_directory, load_config_for_input, open_browser
 
-# Global variables
-debug_mode = False  # pylint: disable=invalid-name
-
-
 # Suppress specific warnings from openpyxl
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
-ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
-fmt = ui.fmt  # pylint: disable=invalid-name
+ui, fmt = ConsoleIO.getComponents()
 
 
 def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
@@ -70,14 +66,14 @@ def main() -> int:
         return App.show_config(args)
 
     # Handle --credentials mode early (like --version)
-    if hasattr(args, "credentials") and args.credentials:
+    if hasattr(args, "credentials") and args.credentials in CREDENTIALS_ACTIONS:
         from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
             run_credentials_cli,
         )
 
         # For "test" action, we need the actual config to get site_address
         # For other actions (run, show, clear), minimal config is sufficient
-        if args.credentials == "test":
+        if args.credentials == CREDENTIALS_ACTION_TEST:
             # Set up logging first (needed for config loading)
             setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
             logger = logging.getLogger(__name__)

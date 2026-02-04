@@ -46,7 +46,7 @@ THEME = Theme(
         "warning.light": "yellow",
         "error.light": "red",
         "debug.light": "magenta",
-        "wip.light": " yellow",
+        "wip.light": "yellow",
         "progress.light": "cyan",
         # Code-ish bits
         "key": "bold white",
@@ -78,14 +78,14 @@ THEME = Theme(
 )
 
 install_rich_traceback(show_locals=False, width=120, extra_lines=2, word_wrap=True, theme="monokai")
-console = Console(theme=THEME, highlight=True, soft_wrap=False)
+# console = Console(theme=THEME, highlight=True, soft_wrap=False)
 
 
 @dataclass(frozen=True)
 class ConsoleStyle:  # pylint: disable=too-many-instance-attributes
     """Console style configuration."""
 
-    prefix_info: str = "ℹ️ "
+    prefix_info: str = "ℹ️ "  # noqa: RUF001
     prefix_success: str = "✅ "
     prefix_warning: str = "⚠️ "
     prefix_error: str = "❌ "
@@ -259,7 +259,7 @@ class ConsoleUI:
         self, _console: Console | None = None, style: ConsoleStyle = STYLE, formatter: Fmt | None = None
     ) -> None:
         """Initialize the ConsoleUI."""
-        self.c = _console or console
+        self.c = _console or Console(theme=THEME, highlight=True, soft_wrap=False)
         self.style = style
         self.fmt = formatter or Fmt(self.c)
 
@@ -271,64 +271,64 @@ class ConsoleUI:
 
     # --- Messages
     def success(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[success]{self.style.prefix_success if prefix else ''} {msg}[/]")
+        self.c.print(f"[success]{self.style.prefix_success if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def info(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[info]{self.style.prefix_info if prefix else ''} {msg}[/]")
+        self.c.print(f"[info]{self.style.prefix_info if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def warning(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[warning]{self.style.prefix_warning if prefix else ''} {msg}[/]")
+        self.c.print(f"[warning]{self.style.prefix_warning if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def error(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[error]{self.style.prefix_error if prefix else ''} {msg}[/]")
+        self.c.print(f"[error]{self.style.prefix_error if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def debug(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[debug]{self.style.prefix_debug if prefix else ''} {msg}[/]")
+        self.c.print(f"[debug]{self.style.prefix_debug if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def wip(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[wip]{self.style.prefix_wip if prefix else ''} {msg}[/]")
+        self.c.print(f"[wip]{self.style.prefix_wip if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def warning_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[warning.light]{self.style.prefix_warning if prefix else ''} {msg}[/]")
+        self.c.print(f"[warning.light]{self.style.prefix_warning if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def error_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[error.light]{self.style.prefix_error if prefix else ''} {msg}[/]")
+        self.c.print(f"[error.light]{self.style.prefix_error if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def info_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[info.light]{self.style.prefix_info if prefix else ''} {msg}[/]")
+        self.c.print(f"[info.light]{self.style.prefix_info if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def success_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[success.light]{self.style.prefix_success if prefix else ''} {msg}[/]")
+        self.c.print(f"[success.light]{self.style.prefix_success if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def debug_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[debug.light]{self.style.prefix_debug if prefix else ''} {msg}[/]")
+        self.c.print(f"[debug.light]{self.style.prefix_debug if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def progress_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
-        self.c.print(f"[progress.light]{self.style.prefix_progress if prefix else ''} {msg}[/]")
+        self.c.print(f"[progress.light]{self.style.prefix_progress if prefix else ''} {self.fmt.esc(msg)}[/]")
 
     def hint(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[hint]{msg}[/]")
+        self.c.print(f"[hint]{self.fmt.esc(msg)}[/]")
 
     def example(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[example]{msg}[/]")
+        self.c.print(f"[example]{self.fmt.esc(msg)}[/]")
 
     def default(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[default]{msg}[/]")
+        self.c.print(f"[default]{self.fmt.esc(msg)}[/]")
 
     def choice(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[choice]{msg}[/]")
+        self.c.print(f"[choice]{self.fmt.esc(msg)}[/]")
 
     def hotkey(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[hotkey]{msg}[/]")
+        self.c.print(f"[hotkey]{self.fmt.esc(msg)}[/]")
 
     def required(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[required]{msg}[/]")
+        self.c.print(f"[required]{self.fmt.esc(msg)}[/]")
 
     def danger(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[danger]{msg}[/]")
+        self.c.print(f"[danger]{self.fmt.esc(msg)}[/]")
 
     def note(self, msg: str) -> None:  # noqa: D102
-        self.c.print(f"[note]{msg}[/]")
+        self.c.print(f"[note]{self.fmt.esc(msg)}[/]")
 
     # --- Panels (for grouped info / summaries)
     def panel(
@@ -344,7 +344,7 @@ class ConsoleUI:
         """Render a panel with a title and body."""
         panel = Panel(
             Align(body, "left"),
-            title=f"[title]{title}[/]" if title else None,
+            title=f"[title]{self.fmt.esc(title)}[/]" if title else None,
             title_align=title_align,
             border_style=style,
             expand=expand,
@@ -363,7 +363,7 @@ class ConsoleUI:
         """Render a panel that always spans the console width."""
         panel = Panel(
             Align(body, "center"),
-            title=f"[title]{title}[/]" if title else None,
+            title=f"[title]{self.fmt.esc(title)}[/]" if title else None,
             title_align=title_align,
             border_style=style,
             expand=True,  # Force it to occupy console width
@@ -376,7 +376,7 @@ class ConsoleUI:
         Example:
         ─────────────────────  ◆  PROJECT SETUP  ◆  ─────────────────────
         """
-        chip = f" {icon} {self.fmt.t_h1(text.upper())} {icon} "
+        chip = f" {icon} {self.fmt.esc(self.fmt.t_h1(text.upper()))} {icon} "
         # console.rule centers and stretches to width
         self.c.rule(chip, style="rule.h1")
 
@@ -387,7 +387,7 @@ class ConsoleUI:
         • Configuration
         ─────────────────────────────────────────
         """
-        self.c.print(f"{icon} {self.fmt.t_h2(text)}")
+        self.c.print(f"{icon} {self.fmt.esc(self.fmt.t_h2(text))}")
         self.c.rule(style="rule.h2")
 
     def title_h3(self, text: str, *, icon: str = "→") -> None:
@@ -397,7 +397,7 @@ class ConsoleUI:
         → Credentials
         ─────────────
         """
-        self.c.print(f"{icon} {self.fmt.t_h3(text)}")
+        self.c.print(f"{icon} {self.fmt.esc(self.fmt.t_h3(text))}")
         self.c.rule(style="rule.h3")
 
     def title_banner(self, text: str, *, sub: str | None = None, icon: str = "🚀") -> None:
@@ -408,9 +408,9 @@ class ConsoleUI:
             sub: Subtext to display below the banner.
             icon: Icon to display in the banner.
         """
-        body = f"{icon} {self.fmt.t_h2(text)}"
+        body = f"{icon} {self.fmt.esc(self.fmt.t_h2(text))}"
         if sub:
-            body += f"\n{self.fmt.t_note(sub)}"
+            body += f"\n{self.fmt.esc(self.fmt.t_note(self.fmt.esc(sub)))}"
         panel = Panel(
             Align.center(body),
             border_style="accent",
@@ -431,7 +431,7 @@ class ConsoleUI:
         for i, p in enumerate(parts):
             crumbed.append(self.fmt.crumb(p))
             if i < len(parts) - 1:
-                crumbed.append(f" {self.fmt.crumb_sep(sep)} ")
+                crumbed.append(f" {self.fmt.esc(self.fmt.crumb_sep(sep))} ")
         self.c.print("".join(crumbed))
 
     # Tables
@@ -447,7 +447,7 @@ class ConsoleUI:
             t.add_column(col)
         for i, row in enumerate(rows):
             style = self.style.table_alt_row_style if i % 2 else self.style.table_row_style
-            t.add_row(*row, style=style)
+            t.add_row(*[self.fmt.esc(r) for r in row], style=style)
         self.c.print(t)
 
     # Progress
@@ -569,11 +569,11 @@ class ConsoleUI:
 
         while True:
             # Build prompt components
-            hint_part = f" {self.fmt.hint(hint)}" if hint else ""
-            def_part = f" {self.fmt.default(f'(default: {default})')}" if default else ""
-            req_mark = f" {self.fmt.required('*')}" if required else ""
+            hint_part = f" {self.fmt.esc(self.fmt.hint(hint))}" if hint else ""
+            def_part = f" {self.fmt.esc(self.fmt.default(f'(default: {default})'))}" if default else ""
+            req_mark = f" {self.fmt.esc(self.fmt.required('*'))}" if required else ""
 
-            prompt_text = f"{self.fmt.prompt(question)}{req_mark}{hint_part}{def_part}: "
+            prompt_text = f"{self.fmt.esc(self.fmt.prompt(question))}{req_mark}{hint_part}{def_part}: "
 
             try:
                 response = self.c.input(prompt_text).strip()

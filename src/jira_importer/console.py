@@ -77,10 +77,6 @@ THEME = Theme(
     }
 )
 
-# TODO: JT-251 - Move traceback installation outside of the top level
-install_rich_traceback(show_locals=False, width=120, extra_lines=2, word_wrap=True, theme="monokai")
-# console = Console(theme=THEME, highlight=True, soft_wrap=False)
-
 
 @dataclass(frozen=True)
 class ConsoleStyle:  # pylint: disable=too-many-instance-attributes
@@ -712,6 +708,9 @@ class ConsoleUI:
         self.c.print(markdown)
 
 
+_TRACEBACK_INSTALLED = False
+
+
 class ConsoleIO:
     """Factory class for console instances with singleton-like behavior."""
 
@@ -721,7 +720,11 @@ class ConsoleIO:
     @classmethod
     def getConsole(cls) -> Console:  # pylint: disable=invalid-name
         """Get the console instance, creating it if needed."""
+        global _TRACEBACK_INSTALLED  # pylint: disable=global-statement
         if cls._console_instance is None:
+            if not _TRACEBACK_INSTALLED:
+                install_rich_traceback(show_locals=False, width=120, extra_lines=2, word_wrap=True, theme="monokai")
+                _TRACEBACK_INSTALLED = True
             cls._console_instance = Console(theme=THEME, highlight=True, soft_wrap=False)
         return cls._console_instance
 

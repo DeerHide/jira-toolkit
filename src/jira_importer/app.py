@@ -278,7 +278,7 @@ class App:
             choices=["run", "show", "clear", "test"],
             const="run",
             metavar="ACTION",
-            help="Manage Jira API credentials: run (interactive setup), show (display current), clear (remove stored), test (verify connection)",
+            help="Manage Jira API credentials. Default action is 'run' if no action specified. Actions: run (interactive setup), show (display current), clear (remove stored), test (verify connection)",
         )
 
     @staticmethod

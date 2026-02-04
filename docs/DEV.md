@@ -152,8 +152,8 @@ src/jira_importer/               # Main application package
 │       ├── metadata.py          # Jira metadata caching
 │       ├── bulk.py              # Batch processing utilities
 │       └── constants.py         # Cloud-specific constants
-├── fileops.py                   # File operations
-├── artifacts.py                 # Artifact management
+├── fileops.py                   # File operations, path generation, validation
+├── artifacts.py                 # Artifact management (delegates deletion to fileops)
 ├── console.py                   # Rich console UI
 ├── log.py                       # Logging utilities
 ├── utils.py                     # Utility functions

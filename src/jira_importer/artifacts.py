@@ -5,13 +5,12 @@ Author:
 """
 
 import logging
-import os
-import shutil
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from pathlib import Path
-from types import TracebackType
 from typing import Any
+
+from jira_importer.fileops import FileOperations
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +30,7 @@ class ArtifactManager:
         self.delete_enabled: bool = bool(config.get_value("app.artifacts.delete_enabled"))
         self._base_dir: Path | None = Path(base_dir).resolve() if base_dir is not None else None
         self._lock = threading.Lock()
+        self._file_operations = FileOperations()
 
     def _normalize(self, file_path: str | Path) -> Path | None:
         """Normalize a file path."""
@@ -75,18 +75,6 @@ class ArtifactManager:
         with self._lock:
             self._artifacts.clear()
 
-    def _rmtree_onexc(
-        self, func: Callable[[str], None], path: str, exc_info: tuple[type[BaseException], BaseException, TracebackType]
-    ) -> None:
-        """Handle errors during rmtree."""
-        # Best-effort: try to make read-only files writable and retry
-        try:
-            os.chmod(path, 0o700)
-            func(path)
-        except Exception:
-            logger.exception("Failed to remove path during rmtree: %s", path)
-            logger.error("Exception info: %s", exc_info)
-
     def delete_all(self, include_dirs: bool = False, dry_run: bool = False) -> dict[str, int]:
         """Delete all tracked artifacts.
 
@@ -126,19 +114,24 @@ class ArtifactManager:
                         skipped += 1
                         logger.info("Dry-run: would delete %s", path)
                     else:
+                        success = False
                         if path.is_file() or path.is_symlink():
                             # Avoid rmtree on directory symlinks
-                            path.unlink()
+                            success = self._file_operations.delete(str(path))
                         elif include_dirs and path.is_dir() and not path.is_symlink():
-                            shutil.rmtree(path, onerror=self._rmtree_onexc)  # pylint: disable=deprecated-argument
+                            success = self._file_operations.delete_tree(path)
                         else:
                             skipped += 1
                             logger.debug("Skipping non-file artifact: %s", path)
                             self._artifacts.discard(path)
                             continue
 
-                        deleted += 1
-                        logger.info("Deleted artifact: %s", path)
+                        if success:
+                            deleted += 1
+                            logger.info("Deleted artifact: %s", path)
+                        else:
+                            errors += 1
+                            logger.error("Failed to delete artifact '%s'", path)
 
                     self._artifacts.discard(path)
                 except FileNotFoundError:

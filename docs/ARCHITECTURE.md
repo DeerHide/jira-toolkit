@@ -432,9 +432,11 @@ The main processing logic - handles validation, fixes, and data transformation:
 
 ### File Operations (`fileops.py`)
 
-- Excel to CSV conversion (legacy path)
-- File path management
-- Output file generation
+- **FileOperations** - Low-level filesystem deletion: single-file delete and directory-tree delete with read-only retry (`onexc`). Central place for all removal; used by `ArtifactManager` for artifact cleanup.
+- **PathGenerator** - Output filename generation from input path, extension and suffix (e.g. `_jira_ready.csv`).
+- **FileValidator** - Input path validation (exists, is file); raises `InputFileError`; no UI or exit logic.
+- **FileManager** - Orchestrates the three; optional console UI for user-facing messages (e.g. "file does not exist").
+- No Excel/CSV conversion (handled by `excel/` and pipeline sources).
 
 ### Logging (`log.py`)
 

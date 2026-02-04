@@ -20,8 +20,15 @@ from jira_importer.config.minimal_config import MinimalConfigForCredentials
 from jira_importer.config.utils import load_configuration_with_error_handling
 from jira_importer.console import ConsoleIO
 from jira_importer.constants import CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
-from jira_importer.errors import ErrorResponse, JiraAuthError, ProcessingError, format_error_for_display, log_exception
-from jira_importer.fileops import FileManager
+from jira_importer.errors import (
+    ErrorResponse,
+    InputFileError,
+    JiraAuthError,
+    ProcessingError,
+    format_error_for_display,
+    log_exception,
+)
+from jira_importer.fileops import FileManager, FileValidator
 from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
 from jira_importer.utils import get_executable_dir, get_logs_directory, load_config_for_input, open_browser
@@ -131,7 +138,7 @@ def main() -> int:
         ui.debug("Debug mode is enabled.")
 
     artifact_manager = ArtifactManager(config)
-    file_manager = FileManager(config)
+    file_manager = FileManager(config, ui=ui)
     app = App(artifact_manager)
 
     logger.info(f"Version: {app.version_info}")
@@ -190,7 +197,14 @@ def main() -> int:
     xlsx_file = args.input_file
     in_path = Path(xlsx_file)
 
-    FileManager.validate_input_file(in_path, xlsx_file, logger)
+    try:
+        FileValidator.validate(in_path, xlsx_file, logger)
+    except InputFileError as exc:
+        log_exception(logger, exc, context="Input file validation")
+        ui.error(format_error_for_display(exc))
+        logger.critical("Input file validation failed: %s", format_error_for_display(exc))
+        app.event_close(exit_code=2, cleanup=False)
+        return 2
 
     output_filename: str = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
     output_filepath: Path = output_dir_path / output_filename

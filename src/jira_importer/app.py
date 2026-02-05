@@ -11,6 +11,8 @@ from pathlib import Path
 
 from rich_argparse import RichHelpFormatter
 
+from jira_importer.constants import CREDENTIALS_ACTION_RUN, CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
+
 from . import DEFAULT_CONFIG_FILENAME
 from .artifacts import ArtifactManager
 from .console import ConsoleIO
@@ -129,12 +131,12 @@ class App:
 
         if "--credentials" in argv:
             mini = argparse.ArgumentParser(add_help=False)
-            mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear", "test"], const="run")
+            mini.add_argument("--credentials", nargs="?", choices=CREDENTIALS_ACTIONS, const=CREDENTIALS_ACTION_RUN)
             parsed, _ = mini.parse_known_args(argv)
             if getattr(parsed, "credentials", None):
                 # For "test" action, we need full args parsing to get config options
                 # So skip fast-path and let the full parser handle it
-                if parsed.credentials == "test":
+                if parsed.credentials == CREDENTIALS_ACTION_TEST:
                     return None
                 return argparse.Namespace(
                     credentials=parsed.credentials, input_file=None, version=False, show_config=False
@@ -275,8 +277,8 @@ class App:
         parser.add_argument(
             "--credentials",
             nargs="?",
-            choices=["run", "show", "clear", "test"],
-            const="run",
+            choices=CREDENTIALS_ACTIONS,
+            const=CREDENTIALS_ACTION_RUN,
             metavar="ACTION",
             help="Manage Jira API credentials. Default action is 'run' if no action specified. Actions: run (interactive setup), show (display current), clear (remove stored), test (verify connection)",
         )

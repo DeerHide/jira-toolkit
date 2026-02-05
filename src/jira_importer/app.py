@@ -9,7 +9,7 @@ import logging
 import sys
 from pathlib import Path
 
-from rich_argparse import RichHelpFormatter
+from rich_argparse import RawDescriptionRichHelpFormatter
 
 from jira_importer.constants import CREDENTIALS_ACTION_RUN, CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
 
@@ -130,9 +130,11 @@ class App:
             if parsed.version:
                 return argparse.Namespace(version=True, input_file=None)
 
-        if "--credentials" in argv:
+        if "--credentials" in argv or "-creds" in argv:
             mini = argparse.ArgumentParser(add_help=False)
-            mini.add_argument("--credentials", nargs="?", choices=CREDENTIALS_ACTIONS, const=CREDENTIALS_ACTION_RUN)
+            mini.add_argument(
+                "-creds", "--credentials", nargs="?", choices=CREDENTIALS_ACTIONS, const=CREDENTIALS_ACTION_RUN
+            )
             parsed, _ = mini.parse_known_args(argv)
             if getattr(parsed, "credentials", None):
                 # For "test" action, we need full args parsing to get config options
@@ -152,15 +154,18 @@ class App:
         if _PARSER is not None:
             return _PARSER
 
+        epilog_lines = [
+            "Examples:",
+            fmt.italic("\tjira-importer dataset.xlsx --config config_importer.json -auto-yes"),
+            fmt.italic("\tjira-importer dataset.xlsx --config-excel -auto-yes --auto-fix"),
+            fmt.italic("\tjira-importer dataset.xlsx -ce -y -af -dr"),
+        ]
+        epilog_str = "\n".join(epilog_lines)
         parser = argparse.ArgumentParser(
             prog="jira-importer",
             description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",
-            formatter_class=RichHelpFormatter,
-            epilog="""
-            Examples:
-            jira-importer dataset.xlsx -c config_importer.json -d -y
-            jira-importer dataset.xlsx -ce -y --auto-fix
-            """,
+            formatter_class=RawDescriptionRichHelpFormatter,
+            epilog=(epilog_str),
             allow_abbrev=False,
         )
         parser.add_argument("input_file", nargs="?", help="Excel XLSX file", default="import.xlsx")
@@ -216,24 +221,23 @@ class App:
             "-o",
             "--output",
             default=None,
-            help="Output CSV path (default: <input>.processed.csv)",
+            help="Output CSV path (default: <input>_jira_ready.csv in the same directory as the Excel file)",
             type=str,
         )
+        # Jira Cloud API output target (V3)
         output_group_exclusive.add_argument(
-            "-oi",
-            "--output-is-input",
-            default=None,
-            help=argparse.SUPPRESS,
-            # help="Output CSV path in the input file location (default: <input>.processed.csv)",
-            action="store_true",
-        )
-        output_group_exclusive.add_argument(
+            "-cl",
             "--cloud",
             dest="output_target_cloud",
             action="store_true",
-            help="Shortcut to select Jira Cloud API as the output target",
+            help="Use Jira Cloud API V3 as the output target (imports directly into your Jira Cloud instance instead of creating a CSV file)",
+        )
+        # Hidden option to select Jira API as the output target (used for internal testing with the Jira API V2)
+        output_group_exclusive.add_argument(
+            "-api", "--api", dest="output_target_api", action="store_true", help=argparse.SUPPRESS
         )
         output_group.add_argument(
+            "-cld",
             "--cloud-debug-payloads",
             action="store_true",
             help=argparse.SUPPRESS,
@@ -251,8 +255,9 @@ class App:
 
     @staticmethod
     def _add_feature_flags(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
+        parser.add_argument("-ds", "--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
         parser.add_argument(
+            "-eer",
             "--enable-excel-rules",
             default=False,
             action="store_true",
@@ -260,18 +265,21 @@ class App:
             help=argparse.SUPPRESS,
         )
         parser.add_argument(
+            "-af",
             "--auto-fix",
             default=False,
             action="store_true",
             help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).",
         )
         parser.add_argument(
+            "-nr",
             "--no-report",
             action="store_true",
             # help="Do not print the validation report (useful for CI/CD pipelines)."
             help=argparse.SUPPRESS,
         )
         parser.add_argument(
+            "-fce",
             "--fix-cloud-estimates",
             default=False,
             action="store_true",
@@ -281,6 +289,7 @@ class App:
     @staticmethod
     def _add_credentials_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
+            "-creds",
             "--credentials",
             nargs="?",
             choices=CREDENTIALS_ACTIONS,
@@ -298,8 +307,10 @@ class App:
         """Add debug-specific arguments that are hidden from main help."""
         debug_group = parser.add_argument_group("Debug Options")
         debug_group.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
-        debug_group.add_argument("--show-config", help="Show configuration and exit", action="store_true")
-        debug_group.add_argument("--dry-run", help="Process data but stop before writing output", action="store_true")
+        debug_group.add_argument("-sc", "--show-config", help="Show configuration and exit", action="store_true")
+        debug_group.add_argument(
+            "-dr", "--dry-run", help="Process data but stop before writing output", action="store_true"
+        )
 
     @staticmethod
     def show_version() -> int:

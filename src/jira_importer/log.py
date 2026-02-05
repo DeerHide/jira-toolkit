@@ -26,10 +26,33 @@ from .paths import get_logs_directory
 try:
     from .import_pipeline.cloud.constants import SENSITIVE_TERMS
 
-    _SENSITIVE_TERMS = SENSITIVE_TERMS
+    _SENSITIVE_TERMS: tuple[str, ...] = SENSITIVE_TERMS
 except ImportError:
     # Fallback if import fails (shouldn't happen in normal operation)
     _SENSITIVE_TERMS = ("password", "api_token", "token", "secret", "client_secret", "access_token", "key", "auth")
+
+
+# Precompiled patterns
+EMAIL_PATTERN = re.compile(
+    r"\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b",
+    re.IGNORECASE,
+)
+
+_KEY_VALUE_PATTERNS = {
+    term: re.compile(rf"\b{re.escape(term)}\s*=\s*([^\s,;)\]]+)", re.IGNORECASE) for term in _SENSITIVE_TERMS
+}
+
+_JSON_PATTERNS = {
+    term: re.compile(
+        rf'["\']?{re.escape(term)}["\']?\s*:\s*["\']([^"\']*)["\']',
+        re.IGNORECASE,
+    )
+    for term in _SENSITIVE_TERMS
+}
+
+_COLON_PATTERNS = {
+    term: re.compile(rf"\b{re.escape(term)}\s*:\s*([^\s,;)\]]+)", re.IGNORECASE) for term in _SENSITIVE_TERMS
+}
 
 
 class RedactingFilter(logging.Filter):
@@ -51,31 +74,19 @@ class RedactingFilter(logging.Filter):
 
             # Email address redaction: redact local part (before @), keep domain
             # Matches email addresses in various formats: user@domain.com, "user@domain.com", etc.
-            email_pattern = re.compile(r"\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b", re.IGNORECASE)
-            msg = email_pattern.sub(r"***@\2", msg)
+            msg = EMAIL_PATTERN.sub(r"***@\2", msg)
 
             # Check if any sensitive terms are present
             if any(term in lower for term in _SENSITIVE_TERMS):
-                # Pattern 1: key=value (e.g., "token=abc123", "api_token=xyz")
+                # Apply all redaction patterns for each sensitive term using precompiled regexes
                 for term in _SENSITIVE_TERMS:
-                    # Match: term=value (value can contain alphanumeric, dash, underscore, dot)
-                    pattern = re.compile(rf"\b{re.escape(term)}\s*=\s*([^\s,;)\]]+)", re.IGNORECASE)
-                    msg = pattern.sub(rf"{term}=[REDACTED]", msg)
-
-                # Pattern 2: JSON-like "key": "value" or 'key': 'value'
-                for term in _SENSITIVE_TERMS:
-                    # Match: "term": "value" or 'term': 'value'
-                    pattern = re.compile(rf'["\']?{re.escape(term)}["\']?\s*:\s*["\']([^"\']+)["\']', re.IGNORECASE)
-                    msg = pattern.sub(rf'"{term}": "[REDACTED]"', msg)
-
-                # Pattern 3: key: value (colon format, no quotes)
-                for term in _SENSITIVE_TERMS:
-                    # Match: term: value (value until whitespace, comma, semicolon, or end)
-                    pattern = re.compile(rf"\b{re.escape(term)}\s*:\s*([^\s,;)\]]+)", re.IGNORECASE)
-                    msg = pattern.sub(rf"{term}: [REDACTED]", msg)
+                    msg = _KEY_VALUE_PATTERNS[term].sub(rf"{term}=[REDACTED]", msg)
+                    msg = _JSON_PATTERNS[term].sub(rf'"{term}": "[REDACTED]"', msg)
+                    msg = _COLON_PATTERNS[term].sub(rf"{term}: [REDACTED]", msg)
 
             # If message was modified, update the record
             if msg != original_msg:
+                # Replace original message with redacted version and clear args to avoid re-formatting
                 record.msg = "[REDACTED] " + msg
                 record.args = ()
         except Exception:
@@ -157,7 +168,7 @@ class LoggingConfig:
 
         return DEFAULT_LOG_LEVEL
 
-    def get_file_settings(self) -> dict:
+    def get_file_settings(self) -> dict[str, int]:
         """Get file logging settings from config."""
         if not self.file_logging_enabled:
             return {}
@@ -174,7 +185,7 @@ class LoggingConfig:
             "max_log_files": self.config.get_value("app.logging.max_log_files", default=DEFAULT_MAX_LOG_FILES),
         }
 
-    def validate_file_settings(self) -> list:
+    def validate_file_settings(self) -> list[str]:
         """Validate file logging settings."""
         if not self.file_logging_enabled:
             return []

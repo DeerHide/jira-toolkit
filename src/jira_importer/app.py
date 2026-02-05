@@ -28,6 +28,8 @@ except ImportError:
 ui, fmt = ConsoleIO.getComponents()
 logger = logging.getLogger(__name__)
 
+_PARSER: argparse.ArgumentParser | None = None
+
 
 class App:
     """App class."""
@@ -72,7 +74,10 @@ class App:
     def event_close(self, exit_code: int = 0, cleanup: bool = True) -> None:
         """Event close, when the script is finished."""
         if cleanup:
-            self.artifact_manager.delete_all()
+            try:
+                self.artifact_manager.delete_all()
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Failed to clean up artifacts during shutdown")
         logger.info("Jira Importer finished.")
         sys.exit(exit_code)
 
@@ -88,30 +93,26 @@ class App:
         logger.debug("event_fatal")
 
         # Show arguments if available
-        if App._args:
-            logger.critical("Script failed with the following arguments - Error code: %s", exit_code)
-            logger.critical(f"  Input file: {App._args.input_file}")
-            logger.critical(f"  Configuration: {App._args.config}")
-            logger.critical(f"  Debug mode: {App._args.debug}")
-            # logging.critical(f"  Import to cloud: {App._args.import_to_cloud}")
-            if App._args.config_default:
-                logger.critical(f"  Config default: {App._args.config_default}")
-            if App._args.config_input:
-                logger.critical(f"  Config input: {App._args.config_input}")
-            if App._args.version:
-                logger.critical(f"  Version: {App._args.version}")
-            logger.critical(f" args: {App._args}")
-            ui.error(f"Error code: {exit_code}")
-            ui.error("Fatal event raised!")
-            _str = "\n" + ui.fmt.kv("Input file", ui.fmt.path(App._args.input_file)) + "\n"
-            _str += ui.fmt.kv("Configuration", ui.fmt.path(App._args.config)) + "\n"
-            _str += ui.fmt.kv("Debug mode", App._args.debug) + "\n"
-            _str += ui.fmt.kv("Version", App._args.version) + "\n"
-            _str += ui.fmt.kv("Config default", App._args.config_default) + "\n"
-            _str += ui.fmt.kv("Config input", App._args.config_input) + "\n"
-            for arg, value in App._args.__dict__.items():
-                _str += ui.fmt.kv(arg, value) + "\n"
-            ui.panel("Script failed with the following arguments:", _str)
+        if App._args is not None:
+            try:
+                logger.critical("Script failed with the following arguments - Error code: %s", exit_code)
+                for name, value in vars(App._args).items():
+                    logger.critical("  %s: %r", name, value)
+
+                ui.error(f"Error code: {exit_code}")
+                ui.error("Fatal event raised!")
+
+                lines: list[str] = []
+                for name, value in vars(App._args).items():
+                    display_value = value
+                    if isinstance(value, str) and (name.endswith("file") or name.endswith("path")):
+                        display_value = ui.fmt.path(value)
+                    lines.append(ui.fmt.kv(name, display_value))
+
+                details = "\n" + "\n".join(lines)
+                ui.panel("Script failed with the following arguments:", details)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Failed while reporting fatal arguments")
 
         logger.critical(message)
         sys.exit(exit_code)
@@ -147,6 +148,10 @@ class App:
     @staticmethod
     def _build_parser() -> argparse.ArgumentParser:
         """Construct and return the main ArgumentParser."""
+        global _PARSER  # pylint: disable=global-statement
+        if _PARSER is not None:
+            return _PARSER
+
         parser = argparse.ArgumentParser(
             prog="jira-importer",
             description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",
@@ -168,7 +173,8 @@ class App:
         App._add_misc_args(parser)
         App._add_debug_args(parser)
 
-        return parser
+        _PARSER = parser
+        return _PARSER
 
     @staticmethod
     def _add_config_args(parser: argparse.ArgumentParser) -> None:
@@ -333,10 +339,11 @@ class App:
         ui_instance, _ = ConsoleIO.getComponents()
 
         try:
-            if not hasattr(args, "input_file") or not args.input_file:
+            args_for_config = argparse.Namespace(**vars(args))
+            if not hasattr(args_for_config, "input_file") or not args_for_config.input_file:
                 # Provide dummy input_file for config determination
-                args.input_file = "dummy.xlsx"
-            config_path = determine_config_path(args)
+                args_for_config.input_file = "dummy.xlsx"
+            config_path = determine_config_path(args_for_config)
             display_config(config_path)
             return 0
         except ConfigurationError as exc:
@@ -356,13 +363,17 @@ class App:
             exit_code: Exit code to use.
             do_cleanup: Whether to perform cleanup operations.
         """
-        from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+        try:
+            from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
 
-        ui_instance, _ = ConsoleIO.getComponents()
-        ui_instance.lf()
-        minimal_config = MinimalConfig()
-        app = App(ArtifactManager(minimal_config))
-        app.event_close(exit_code=exit_code, cleanup=do_cleanup)
+            ui_instance, _ = ConsoleIO.getComponents()
+            ui_instance.lf()
+            minimal_config = MinimalConfig()
+            app = App(ArtifactManager(minimal_config))
+            app.event_close(exit_code=exit_code, cleanup=do_cleanup)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("graceful_exit failed; forcing process exit")
+            sys.exit(exit_code)
 
     @staticmethod
     def get_autoreply_from_args(args: argparse.Namespace) -> bool | None:
@@ -391,7 +402,7 @@ class App:
             Output directory path.
         """
         if args.output:
-            return Path(args.output)
+            return Path(args.output).parent
         return Path(args.input_file).parent
 
     @staticmethod

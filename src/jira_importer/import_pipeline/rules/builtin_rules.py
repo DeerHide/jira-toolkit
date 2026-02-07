@@ -407,9 +407,19 @@ class ParentLinkValidationRule(IRowRule):
             if self._is_jira_key(parent_value):
                 return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
 
-            # Try to resolve parent from issue_data
+            # Try to resolve parent from issue_data (keyed by Issue ID from the sheet)
             issue_data = getattr(ctx, "issue_data", {})
-            if parent_value in issue_data:
+            if parent_value not in issue_data:
+                problems.append(
+                    Problem(
+                        code="parent_link.not_found",
+                        message=f"Parent ID '{parent_value}' does not exist in the dataset (no row with this Issue ID).",
+                        severity=ProblemSeverity.CRITICAL,
+                        row_index=ctx.row_index,
+                        col_key="parent",
+                    )
+                )
+            else:
                 parent_type, _ = issue_data[parent_value]
                 parent_level = get_issue_type_level(cfg_get, parent_type)
 

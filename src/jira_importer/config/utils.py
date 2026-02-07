@@ -75,7 +75,7 @@ def display_config(config_file: str, *, args: Any = None) -> None:
     logger = logging.getLogger(__name__)
 
     # Get UI components
-    ui = ConsoleIO.getUI()
+    ui = ConsoleIO.get_ui()
     fmt = ui.fmt
 
     try:
@@ -155,7 +155,7 @@ def load_configuration_with_error_handling(
     from jira_importer.app import App  # pylint: disable=import-outside-toplevel
     from jira_importer.errors import format_error_for_display, log_exception  # pylint: disable=import-outside-toplevel
 
-    ui_instance = ConsoleIO.getUI()
+    ui_instance = ConsoleIO.get_ui()
 
     config_path = determine_config_path(args)
     try:

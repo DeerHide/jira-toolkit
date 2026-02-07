@@ -64,7 +64,7 @@ class App:
             return self._ui, self._fmt
         if self._ui is not None:
             return self._ui, self._ui.fmt
-        ui, fmt = ConsoleIO.getComponents()
+        ui, fmt = ConsoleIO.get_components()
         return ui, fmt
 
     @staticmethod
@@ -153,7 +153,7 @@ class App:
     @staticmethod
     def _get_ui_fmt_static() -> tuple[Any, Any]:
         """Return (ui, fmt) from ConsoleIO singleton. For use in static methods."""
-        return ConsoleIO.getComponents()
+        return ConsoleIO.get_components()
 
     @staticmethod
     def _preparse_shortcuts(argv: list[str]) -> argparse.Namespace | None:
@@ -386,7 +386,7 @@ class App:
             format_error_for_display,
         )
 
-        ui_instance, _ = ConsoleIO.getComponents()
+        ui_instance, _ = ConsoleIO.get_components()
 
         try:
             args_for_config = argparse.Namespace(**vars(args))
@@ -416,7 +416,7 @@ class App:
         try:
             from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
 
-            ui_instance, _ = ConsoleIO.getComponents()
+            ui_instance, _ = ConsoleIO.get_components()
             ui_instance.lf()
             minimal_config = MinimalConfig()
             app = App(ArtifactManager(minimal_config))

@@ -17,7 +17,7 @@ from .constants import ASCII_CONTROL_MAX, MAX_RELATIVE_PATH_LEN
 from .excel.excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
-ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
+ui = ConsoleIO.get_ui()  # pylint: disable=invalid-name
 fmt = ui.fmt
 
 

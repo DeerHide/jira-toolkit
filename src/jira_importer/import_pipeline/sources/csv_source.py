@@ -14,7 +14,7 @@ from ...console import ConsoleIO
 from ...errors import FileReadError
 from ..models import HeaderSchema
 
-ui = ConsoleIO.getUI()
+ui = ConsoleIO.get_ui()
 
 
 class CsvSource:

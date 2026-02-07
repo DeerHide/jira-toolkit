@@ -714,10 +714,10 @@ class ConsoleIO:
     _ui_instance: ConsoleUI | None = None
 
     @classmethod
-    def getConsole(cls) -> Console:  # pylint: disable=invalid-name
+    def get_console(cls) -> Console:
         """Get the raw Rich Console instance, creating it if needed.
 
-        Prefer getUI() for application code; use this only when you need
+        Prefer get_ui() for application code; use this only when you need
         the low-level Console (e.g. for Rich primitives not wrapped by ConsoleUI).
         """
         global _TRACEBACK_INSTALLED  # pylint: disable=global-statement
@@ -729,19 +729,19 @@ class ConsoleIO:
         return cls._console_instance
 
     @classmethod
-    def getUI(cls) -> ConsoleUI:  # pylint: disable=invalid-name
+    def get_ui(cls) -> ConsoleUI:
         """Get the ConsoleUI instance, creating it if needed.
 
         This is the preferred entry point for application code (output, prompts, panels).
         """
         if cls._ui_instance is None:
-            console = cls.getConsole()
+            console = cls.get_console()
             cls._ui_instance = ConsoleUI(_console=console, style=STYLE, formatter=Fmt(console))
         return cls._ui_instance
 
     @classmethod
-    def getComponents(cls) -> tuple[ConsoleUI, Fmt]:  # pylint: disable=invalid-name # noqa: D102
-        ui = cls.getUI()
+    def get_components(cls) -> tuple[ConsoleUI, Fmt]:  # noqa: D102
+        ui = cls.get_ui()
         return ui, ui.fmt
 
     @classmethod

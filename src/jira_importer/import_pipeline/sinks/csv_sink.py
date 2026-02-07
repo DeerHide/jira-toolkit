@@ -20,7 +20,7 @@ from .sink_utils import times60_estimates_inplace
 
 logger = logging.getLogger(__name__)
 
-ui = ConsoleIO.getUI()
+ui = ConsoleIO.get_ui()
 
 
 def write_csv(

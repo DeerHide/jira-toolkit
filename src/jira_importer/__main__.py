@@ -38,7 +38,7 @@ from jira_importer.utils import load_config_for_input, open_browser
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
-ui, fmt = ConsoleIO.getComponents()
+ui, fmt = ConsoleIO.get_components()
 
 
 def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:

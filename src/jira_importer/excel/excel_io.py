@@ -20,7 +20,7 @@ from ..console import ConsoleIO
 from ..errors import FileReadError, FileWriteError, ProcessingError
 
 logger = logging.getLogger(__name__)
-ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
+ui = ConsoleIO.get_ui()  # pylint: disable=invalid-name
 
 
 @dataclass(slots=True)

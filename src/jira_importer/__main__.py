@@ -143,7 +143,7 @@ def main() -> int:
 
     artifact_manager = ArtifactManager(config)
     file_manager = FileManager(config, ui=ui)
-    app = App(artifact_manager)
+    app = App(artifact_manager, ui=ui, fmt=fmt)
 
     logger.info(f"Version: {app.version_info}")
 

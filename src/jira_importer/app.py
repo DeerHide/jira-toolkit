@@ -8,6 +8,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 from rich_argparse import RawDescriptionRichHelpFormatter
 
@@ -25,7 +26,6 @@ except ImportError:
     __git_branch__ = "local"
     __build_date__ = "2035-01-01"
 
-ui, fmt = ConsoleIO.getComponents()
 logger = logging.getLogger(__name__)
 
 _PARSER: argparse.ArgumentParser | None = None
@@ -34,13 +34,38 @@ _PARSER: argparse.ArgumentParser | None = None
 class App:
     """App class."""
 
-    def __init__(self, artifact_manager: ArtifactManager):
-        """Initialize the App class."""
+    def __init__(
+        self,
+        artifact_manager: ArtifactManager,
+        *,
+        ui: Any = None,
+        fmt: Any = None,
+    ):
+        """Initialize the App class.
+
+        Args:
+            artifact_manager: Manager for temporary/output artifacts.
+            ui: Optional console UI instance (for dependency injection / tests).
+            fmt: Optional formatter instance (for dependency injection / tests).
+                When ui is provided, fmt is typically ui.fmt; if only ui is set,
+                fmt is resolved from ui when needed.
+        """
         self.artifact_manager = artifact_manager
+        self._ui = ui
+        self._fmt = fmt
         self.version_info = __version_info__
         self.git_revision = __git_revision__
         self.git_branch = __git_branch__
         self.build_date = __build_date__
+
+    def _get_ui_fmt(self) -> tuple[Any, Any]:
+        """Return (ui, fmt): injected instances or ConsoleIO singleton."""
+        if self._ui is not None and self._fmt is not None:
+            return self._ui, self._fmt
+        if self._ui is not None:
+            return self._ui, self._ui.fmt
+        ui, fmt = ConsoleIO.getComponents()
+        return ui, fmt
 
     @staticmethod
     def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -60,6 +85,7 @@ class App:
 
     def print_version(self) -> None:
         """Print the version of the App, as declared during the build process."""
+        ui, _ = self._get_ui_fmt()
         ui.say(f"Jira Importer {self.version_info}")
         ui.say(f"Git revision: {self.git_revision}")
         ui.say(f"Git branch: {self.git_branch}")
@@ -77,6 +103,7 @@ class App:
 
     def event_abort(self, exit_code: int = -1, message: str = "Execution aborted.") -> None:
         """Event abort, when the script is aborted."""
+        ui, _ = self._get_ui_fmt()
         ui.error(message)
         logger.critical(message)
         self.event_close(exit_code=exit_code)
@@ -99,6 +126,7 @@ class App:
         logger.debug("event_fatal")
 
         if args is not None:
+            ui, fmt = App._get_ui_fmt_static()
             try:
                 logger.critical("Script failed with the following arguments - Error code: %s", exit_code)
                 for name, value in vars(args).items():
@@ -111,8 +139,8 @@ class App:
                 for name, value in vars(args).items():
                     display_value = value
                     if isinstance(value, str) and (name.endswith("file") or name.endswith("path")):
-                        display_value = ui.fmt.path(value)
-                    lines.append(ui.fmt.kv(name, display_value))
+                        display_value = fmt.path(value)
+                    lines.append(fmt.kv(name, display_value))
 
                 details = "\n" + "\n".join(lines)
                 ui.panel("Script failed with the following arguments:", details)
@@ -121,6 +149,11 @@ class App:
 
         logger.critical(message)
         sys.exit(exit_code)
+
+    @staticmethod
+    def _get_ui_fmt_static() -> tuple[Any, Any]:
+        """Return (ui, fmt) from ConsoleIO singleton. For use in static methods."""
+        return ConsoleIO.getComponents()
 
     @staticmethod
     def _preparse_shortcuts(argv: list[str]) -> argparse.Namespace | None:
@@ -159,6 +192,7 @@ class App:
         if _PARSER is not None:
             return _PARSER
 
+        _, fmt = App._get_ui_fmt_static()
         epilog_lines = [
             "Examples:",
             fmt.italic("\tjira-importer dataset.xlsx --config config_importer.json -auto-yes"),

@@ -57,6 +57,9 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
 
 def main() -> int:
     """Main function for the Jira Importer application."""
+    # Set up minimal logging before parse_args so parser errors and early failures are visible
+    setup_logger(logging.INFO, None)
+
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
 
@@ -82,7 +85,7 @@ def main() -> int:
         # For "test" action, we need the actual config to get site_address
         # For other actions (run, show, clear), minimal config is sufficient
         if args.credentials == CREDENTIALS_ACTION_TEST:
-            # Set up logging first (needed for config loading)
+            # Apply -d level before config load (logging already configured at start of main)
             setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
             logger = logging.getLogger(__name__)
 
@@ -109,7 +112,7 @@ def main() -> int:
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
     autoreply = App.get_autoreply_from_args(args)
 
-    # Set up basic logging early (before config loading) so we can log errors
+    # Apply log level from -d before config load (logging already set up at start of main)
     setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
     logger = logging.getLogger(__name__)
 

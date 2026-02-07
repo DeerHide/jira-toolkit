@@ -148,10 +148,10 @@ class LoggingConfig:
             )
 
         # Check if console output is enabled
+        # When config is None (early bootstrap, credentials, show-config), enable console
+        # so that parser errors and early failures are visible; config load will reapply later.
         self.console_output_enabled = (
-            self.config.get_value("app.logging.console_output", default=DEFAULT_CONSOLE_OUTPUT)
-            if self.config
-            else DEFAULT_CONSOLE_OUTPUT
+            self.config.get_value("app.logging.console_output", default=DEFAULT_CONSOLE_OUTPUT) if self.config else True
         )
 
     def _resolve_level(self) -> int:
@@ -331,7 +331,6 @@ def _create_file_handler(logging_config: LoggingConfig, level: int) -> logging.H
     max_bytes = max_size_mb * 1024 * 1024
 
     # Create rotating file handler
-    from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
 
     file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=max_log_files, encoding="utf-8")
     file_formatter = logging.Formatter(FILE_FORMAT, datefmt=FILE_DATE)
@@ -352,7 +351,6 @@ def add_file_logging(config: Any):
         root_logger = logging.getLogger()
 
         # Remove existing file handlers to avoid duplicates
-        from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
 
         for handler in root_logger.handlers[:]:
             if isinstance(handler, RotatingFileHandler):

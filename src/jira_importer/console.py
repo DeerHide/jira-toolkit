@@ -735,7 +735,8 @@ class ConsoleIO:
         This is the preferred entry point for application code (output, prompts, panels).
         """
         if cls._ui_instance is None:
-            cls._ui_instance = ConsoleUI(_console=cls.getConsole(), style=STYLE, formatter=Fmt(cls.getConsole()))
+            console = cls.getConsole()
+            cls._ui_instance = ConsoleUI(_console=console, style=STYLE, formatter=Fmt(console))
         return cls._ui_instance
 
     @classmethod

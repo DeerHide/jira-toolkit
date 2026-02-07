@@ -264,6 +264,7 @@ def main() -> int:
         App.event_fatal(
             exit_code=3,
             message="An unexpected internal error occurred in the processor, please check the logs for details.",
+            args=args,
         )
         return 3
     finally:

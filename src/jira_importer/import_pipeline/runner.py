@@ -219,7 +219,7 @@ class ImportRunner:
                 self.context.ui.error("Critical team errors found - cannot proceed with cloud import:")
                 for error in critical_team_errors:
                     self.context.ui.error(f"  Row {error.row_index}: {error.message}")
-            App.event_fatal(exit_code=4, message="Critical assignee/team errors prevent cloud import")
+            App.event_fatal(exit_code=4, message="Critical assignee/team errors prevent cloud import", args=None)
 
         try:
             # Write payloads if debug mode is enabled or cloud debug flag is set
@@ -259,7 +259,7 @@ class ImportRunner:
             # Unexpected internal error during cloud import
             if self.context.logger:
                 self.context.logger.exception("Cloud import failed: %s", exc)
-            App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}")
+            App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}", args=None)
 
         # non-zero exit if there were errors (so CI can gate)
         result_code = self._calculate_exit_code(result)

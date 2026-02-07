@@ -63,11 +63,13 @@ def determine_config_path(args: Any) -> str:
     return config_path
 
 
-def display_config(config_file: str) -> None:
+def display_config(config_file: str, *, args: Any = None) -> None:
     """Display configuration from the specified file in a user-friendly format.
 
     Args:
-        config_file: Path to the configuration file to display
+        config_file: Path to the configuration file to display.
+        args: Optional parsed CLI arguments; when provided and a fatal error occurs,
+            they are passed to event_fatal for diagnosis output.
     """
     setup_logger(logging.DEBUG, None)  # Use debug level for config check
     logger = logging.getLogger(__name__)
@@ -134,7 +136,7 @@ def display_config(config_file: str) -> None:
         logger.error(f"Configuration loading failed: {exc}")
         from jira_importer.app import App  # pylint: disable=import-outside-toplevel
 
-        App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}")
+        App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}", args=args)
 
 
 def load_configuration_with_error_handling(

@@ -34,9 +34,6 @@ _PARSER: argparse.ArgumentParser | None = None
 class App:
     """App class."""
 
-    # Class variable to store command line arguments
-    _args = None
-
     def __init__(self, artifact_manager: ArtifactManager):
         """Initialize the App class."""
         self.artifact_manager = artifact_manager
@@ -59,10 +56,7 @@ class App:
             return fast_args
 
         parser = App._build_parser()
-        args = parser.parse_args(provided_argv)
-        # Store args in class variable for access by event_fatal
-        App._args = args
-        return args
+        return parser.parse_args(provided_argv)
 
     def print_version(self) -> None:
         """Print the version of the App, as declared during the build process."""
@@ -88,22 +82,33 @@ class App:
         self.event_close(exit_code=exit_code)
 
     @staticmethod
-    def event_fatal(exit_code: int = -1, message: str = "Fatal error!") -> None:
-        """Event fatal, when the script is finished with a fatal error."""
+    def event_fatal(
+        exit_code: int = -1,
+        message: str = "Fatal error!",
+        *,
+        args: argparse.Namespace | None = None,
+    ) -> None:
+        """Event fatal, when the script is finished with a fatal error.
+
+        Args:
+            exit_code: Process exit code.
+            message: Fatal error message.
+            args: Optional parsed CLI arguments; when provided, they are logged and
+                shown in a panel to aid diagnosis.
+        """
         logger.debug("event_fatal")
 
-        # Show arguments if available
-        if App._args is not None:
+        if args is not None:
             try:
                 logger.critical("Script failed with the following arguments - Error code: %s", exit_code)
-                for name, value in vars(App._args).items():
+                for name, value in vars(args).items():
                     logger.critical("  %s: %r", name, value)
 
                 ui.error(f"Error code: {exit_code}")
                 ui.error("Fatal event raised!")
 
                 lines: list[str] = []
-                for name, value in vars(App._args).items():
+                for name, value in vars(args).items():
                     display_value = value
                     if isinstance(value, str) and (name.endswith("file") or name.endswith("path")):
                         display_value = ui.fmt.path(value)
@@ -355,7 +360,7 @@ class App:
                 # Provide dummy input_file for config determination
                 args_for_config.input_file = "dummy.xlsx"
             config_path = determine_config_path(args_for_config)
-            display_config(config_path)
+            display_config(config_path, args=args)
             return 0
         except ConfigurationError as exc:
             # Domain configuration error: show a clear message

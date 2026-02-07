@@ -225,7 +225,13 @@ class ExcelWorkbookManager:
             rules.append({header[i]: r[i] if i < len(r) else None for i in range(len(header))})
         return rules
 
-    def read_table(self, *, sheet: str, table_name: str) -> list[dict[str, Any]]:
+    def read_table(
+        self,
+        *,
+        sheet: str,
+        table_name: str,
+        optional: bool = False,
+    ) -> list[dict[str, Any]]:
         """Read a structured table from Excel sheet.
 
         This method supports both Excel's "Format as Table" feature and
@@ -234,6 +240,7 @@ class ExcelWorkbookManager:
         Args:
             sheet: Name of the sheet containing the table
             table_name: Name of the table (e.g., 'CfgAssignees')
+            optional: If True, missing table is logged at DEBUG and returns [].
 
         Returns:
             List of dictionaries representing table rows
@@ -248,7 +255,7 @@ class ExcelWorkbookManager:
             return self._read_excel_table(ws, table_name)
 
         # Fallback to text-based table search for backward compatibility
-        return self._read_text_based_table(sheet, table_name)
+        return self._read_text_based_table(sheet, table_name, optional=optional)
 
     def _read_excel_table(self, ws, table_name: str) -> list[dict[str, Any]]:
         """Read data from an actual Excel table object.
@@ -292,12 +299,18 @@ class ExcelWorkbookManager:
         logger.debug(f"Read {len(table_data)} rows from Excel table '{table_name}'")
         return table_data
 
-    def _read_text_based_table(self, sheet: str, table_name: str) -> list[dict[str, Any]]:
+    def _read_text_based_table(
+        self,
+        sheet: str,
+        table_name: str,
+        optional: bool = False,
+    ) -> list[dict[str, Any]]:
         """Read data from text-based table (backward compatibility).
 
         Args:
             sheet: Name of the sheet containing the table
             table_name: Name of the table to find
+            optional: If True, missing table is logged at DEBUG and returns [].
 
         Returns:
             List of dictionaries representing table rows
@@ -319,7 +332,10 @@ class ExcelWorkbookManager:
                 break
 
         if table_start is None:
-            logger.warning(f"Table '{table_name}' not found in sheet '{sheet}'")
+            if optional:
+                logger.debug(f"Table '{table_name}' not found in sheet '{sheet}' (optional)")
+            else:
+                logger.warning(f"Table '{table_name}' not found in sheet '{sheet}'")
             return []
 
         if table_columns is None:

@@ -203,6 +203,97 @@ def parse_custom_fields(cfg_view: Any) -> list[CustomFieldConfig]:
     return custom_fields
 
 
+def parse_teams(cfg_view: Any) -> list[TeamConfig]:
+    """Parse team definitions from JSON config.
+
+    Args:
+        cfg_view: Configuration view (ConfigView instance or dict).
+
+    Returns:
+        List of TeamConfig instances.
+
+    Raises:
+        ConfigurationError: If invalid entry or missing required fields.
+    """
+    from .config_view import ConfigView
+
+    if not isinstance(cfg_view, ConfigView):
+        cfg_view = ConfigView(cfg_view)
+
+    jira_data = cfg_view.get("jira", {})
+    if isinstance(jira_data, dict):
+        teams_data = jira_data.get("teams", [])
+    else:
+        teams_data = cfg_view.get("jira.teams", [])
+
+    if not teams_data or not isinstance(teams_data, list):
+        return []
+
+    teams: list[TeamConfig] = []
+    seen_ids: dict[str, TeamConfig] = {}
+    seen_names: dict[str, TeamConfig] = {}
+
+    def normalize_name(name: str) -> str:
+        return name.strip().lower()
+
+    for item in teams_data:
+        if not isinstance(item, dict):
+            raise ConfigurationError(
+                f"Invalid team definition: expected dict, got {type(item).__name__}",
+                details={"team_data": item},
+            )
+
+        name = str(item.get("name", "")).strip()
+        team_id = str(item.get("id", "")).strip()
+
+        if not name:
+            raise ConfigurationError(
+                "Team definition missing 'name'",
+                details={"team_data": item},
+            )
+
+        if not team_id:
+            raise ConfigurationError(
+                f"Team definition missing 'id' for team '{name}'",
+                details={"team_data": item, "name": name},
+            )
+
+        if team_id in seen_ids:
+            raise ConfigurationError(
+                f"Duplicate team id '{team_id}' found in JSON config. "
+                f"First definition: '{seen_ids[team_id].name}', "
+                f"Second definition: '{name}'",
+                details={
+                    "team_id": team_id,
+                    "first_name": seen_ids[team_id].name,
+                    "second_name": name,
+                    "source": "JSON",
+                },
+            )
+
+        normalized_name = normalize_name(name)
+        if normalized_name in seen_names:
+            existing = seen_names[normalized_name]
+            if existing.id != team_id:
+                raise ConfigurationError(
+                    f"Team name '{name}' is defined for multiple ids in JSON: "
+                    f"'{existing.id}' and '{team_id}'",
+                    details={
+                        "team_name": name,
+                        "first_id": existing.id,
+                        "second_id": team_id,
+                        "source": "JSON",
+                    },
+                )
+
+        cfg = TeamConfig(name=name, id=team_id)
+        teams.append(cfg)
+        seen_ids[team_id] = cfg
+        seen_names[normalized_name] = cfg
+
+    return teams
+
+
 def get_custom_field_configs(config: Any, cfg_view: Any) -> list[CustomFieldConfig]:
     """Get custom field configs from the appropriate source based on config type.
 
@@ -210,6 +301,8 @@ def get_custom_field_configs(config: Any, cfg_view: Any) -> list[CustomFieldConf
     This function simply accesses the appropriate source:
     - ExcelConfiguration: Use config.table_config.custom_fields (from CfgCustomFields table)
     - JsonConfiguration: Use parse_custom_fields(cfg_view) (from jira.custom_fields in JSON)
+
+    For the same pattern for teams, use get_team_configs().
 
     Args:
         config: Configuration object (JsonConfiguration or ExcelConfiguration).
@@ -244,6 +337,45 @@ def get_custom_field_configs(config: Any, cfg_view: Any) -> list[CustomFieldConf
 
     # JSON config mode: parse from JSON
     return parse_custom_fields(cfg_view)
+
+
+def get_team_configs(config: Any, cfg_view: Any) -> list[TeamConfig]:
+    """Get team configs from the appropriate source based on config type.
+
+    Mirrors get_custom_field_configs: one entry point for both Excel and JSON config.
+    - ExcelConfiguration: Use config.table_config.teams (from CfgTeams table)
+    - JsonConfiguration: Use parse_teams(cfg_view) (from jira.teams in JSON)
+
+    Args:
+        config: Configuration object (JsonConfiguration or ExcelConfiguration).
+        cfg_view: Configuration view for accessing JSON values.
+
+    Returns:
+        List of TeamConfig instances from the active config source.
+    """
+    from .config_view import ConfigView
+    from .excel_config import ExcelConfiguration
+
+    if not isinstance(cfg_view, ConfigView):
+        cfg_view = ConfigView(cfg_view)
+
+    # Excel config mode: use table config
+    if isinstance(config, ExcelConfiguration):
+        if config.table_config is None:
+            try:
+                config.load_table_config()
+            except ConfigurationError:
+                raise
+            except Exception as e:
+                logger.warning(f"Could not load table config for teams: {e}")
+                return []
+        table_config = config.get_table_config()
+        if table_config and table_config.teams:
+            return table_config.teams
+        return []
+
+    # JSON config mode: parse from JSON
+    return parse_teams(cfg_view)
 
 
 @dataclass(slots=True)

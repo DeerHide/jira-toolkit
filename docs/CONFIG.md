@@ -211,6 +211,26 @@ Create a table named `CfgCustomFields` in your `Config` sheet with three columns
 - Column headers: `Name`, `Id`, `Type` (case-insensitive)
 - The `Name` column must match your Excel data column header exactly
 
+#### Team mapping (JSON)
+
+When using a JSON config file, you can define team name-to-ID mapping with `jira.teams`. This mirrors the Excel `CfgTeams` table and is used for team resolution during validation and auto-fix.
+
+```json
+{
+  "jira": {
+    "teams": [
+      { "name": "Backend", "id": "12345" },
+      { "name": "Frontend", "id": "67890" }
+    ]
+  }
+}
+```
+
+- **`name`** (required): Human-friendly team name (e.g. used in your Excel Team column).
+- **`id`** (required): Jira Cloud Team id (as used by the Advanced Roadmaps Team field).
+
+Each entry must have both `name` and `id`. Duplicate IDs or duplicate names (case-insensitive) are not allowed. When using Excel config, use the `CfgTeams` table on the Config sheet instead.
+
 #### Supported Field Types
 
 | Type | Description | Validation | Example Values |

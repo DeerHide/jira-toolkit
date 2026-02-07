@@ -111,11 +111,16 @@ def display_config(config_file: str, *, args: Any = None) -> None:
             ui.say(fmt.warning("No configuration content found"))
             logger.warning("No configuration content found")
 
-        # Display table configuration if available (Excel only)
+        # Display table configuration if available (Excel or JSON with jira.teams etc.)
         if hasattr(config, "load_table_config"):
             try:
-                # Load table configuration for Excel files
-                table_config = config.load_table_config()
+                config.load_table_config()
+            except Exception as exc:
+                ui.say(fmt.warning(f"Could not load table configuration: {exc}"))
+                logger.warning(f"Could not load table configuration: {exc}")
+        if hasattr(config, "get_table_config"):
+            try:
+                table_config = config.get_table_config()
                 if table_config:
                     logger.info("Displaying table configuration")
                     ui.lf()
@@ -125,8 +130,8 @@ def display_config(config_file: str, *, args: Any = None) -> None:
                 else:
                     logger.info("No table configuration available")
             except Exception as exc:
-                ui.say(fmt.warning(f"Could not load table configuration: {exc}"))
-                logger.warning(f"Could not load table configuration: {exc}")
+                ui.say(fmt.warning(f"Could not display table configuration: {exc}"))
+                logger.warning(f"Could not display table configuration: {exc}")
 
         ui.lf()
         ui.success("Configuration successfully loaded!")

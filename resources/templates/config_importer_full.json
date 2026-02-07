@@ -134,6 +134,10 @@
       { "name": "CF Date", "id": "customfield_10123", "type": "date" },
       { "name": "CF Any Value", "id": "customfield_10127", "type": "any" }
     ],
+    "teams": [
+      { "name": "Backend", "id": "12345" },
+      { "name": "Frontend", "id": "67890" }
+    ],
     "priorities": [
       "Highest",
       "High",

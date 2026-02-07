@@ -23,9 +23,6 @@ from rich.table import Table
 from rich.theme import Theme
 from rich.traceback import install as install_rich_traceback
 
-# TODO: Add a light theme for the console
-# TODO: Add a dark theme for the console
-# TODO: Invert light/bold styles logic
 THEME = Theme(
     {
         # Base tones
@@ -34,7 +31,7 @@ THEME = Theme(
         "title": "bold white",
         "accent": "bold cyan",
         "accent.dim": "cyan",
-        # Message kinds
+        # Message types
         "info": "cyan",
         "success": "bold green",
         "warning": "bold yellow",
@@ -104,10 +101,9 @@ STYLE = ConsoleStyle()
 
 
 class Fmt:  # pylint: disable=too-many-public-methods
-    """Centralized markup helpers that.
+    """Centralized markup helpers that use only theme or Rich built-in styles.
 
     - Use only styles defined in the Theme (or Rich built-ins like 'bold', 'italic')
-    - Fail fast on typos / undefined styles
     """
 
     _BUILTINS: ClassVar[set[str]] = {"bold", "italic", "underline", "reverse", "strike", "dim"}
@@ -719,7 +715,11 @@ class ConsoleIO:
 
     @classmethod
     def getConsole(cls) -> Console:  # pylint: disable=invalid-name
-        """Get the console instance, creating it if needed."""
+        """Get the raw Rich Console instance, creating it if needed.
+
+        Prefer getUI() for application code; use this only when you need
+        the low-level Console (e.g. for Rich primitives not wrapped by ConsoleUI).
+        """
         global _TRACEBACK_INSTALLED  # pylint: disable=global-statement
         if cls._console_instance is None:
             if not _TRACEBACK_INSTALLED:
@@ -730,7 +730,10 @@ class ConsoleIO:
 
     @classmethod
     def getUI(cls) -> ConsoleUI:  # pylint: disable=invalid-name
-        """Get the UI instance, creating it if needed."""
+        """Get the ConsoleUI instance, creating it if needed.
+
+        This is the preferred entry point for application code (output, prompts, panels).
+        """
         if cls._ui_instance is None:
             cls._ui_instance = ConsoleUI(_console=cls.getConsole(), style=STYLE, formatter=Fmt(cls.getConsole()))
         return cls._ui_instance
@@ -742,6 +745,10 @@ class ConsoleIO:
 
     @classmethod
     def reset(cls) -> None:
-        """Reset all instances (useful for testing)."""
+        """Reset console and UI instances (useful for testing).
+
+        Only clears the cached Console and ConsoleUI instances. Does not
+        uninstall the Rich traceback hook (that is process-wide and remains).
+        """
         cls._console_instance = None
         cls._ui_instance = None

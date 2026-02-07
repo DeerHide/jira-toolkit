@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import time
+from logging.handlers import RotatingFileHandler
 from typing import Any
 
 import colorlog
@@ -245,11 +246,41 @@ def _setup_console_logging(level: int, is_tty: bool) -> None:
     root_logger.addHandler(console_handler)
 
 
+def _reapply_console_handlers(logging_config: LoggingConfig) -> None:
+    """Reapply only console/null handlers from config, leaving file handlers intact.
+
+    Used when setup_logger is called again with config after an initial setup with
+    config=None, so that app.logging.console_output from config is applied
+    """
+    root_logger = logging.getLogger()
+
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, RotatingFileHandler):
+            continue
+        if isinstance(handler, logging.NullHandler):
+            root_logger.removeHandler(handler)
+        elif getattr(handler, "stream", None) in (sys.stderr, sys.stdout):
+            root_logger.removeHandler(handler)
+
+    if logging_config.console_output_enabled:
+        console_handler = _create_console_handler(logging_config.level, logging_config.is_tty)
+        console_handler.addFilter(RedactingFilter())
+        root_logger.addHandler(console_handler)
+        root_logger.propagate = True
+    else:
+        root_logger.addHandler(logging.NullHandler())
+        root_logger.propagate = False
+
+
 def setup_logger(level_override: int | None = None, config: Any | None = None) -> None:
     """Setup the root logger with console output."""
     global _CONFIGURED  # pylint: disable=global-statement
     if _CONFIGURED:
-        if level_override is not None:
+        if config is not None:
+            logging_config = LoggingConfig(level_override, config)
+            _set_levels(logging_config.level)
+            _reapply_console_handlers(logging_config)
+        elif level_override is not None:
             _set_levels(level_override)
         return
 

@@ -365,6 +365,7 @@ class ParentLinkValidationRule(IRowRule):
     """Validate parent-child links based on issue type hierarchy.
 
     Rules:
+    - Parent ID cannot equal the issue's own Issue ID (no self-reference).
     - Level 1 (Initiative) can parent levels 2, 3, 4
     - Level 2 (Epic) can parent levels 3, 4
     - Level 3 (Story/Task/Bug) can parent level 4 only
@@ -378,6 +379,7 @@ class ParentLinkValidationRule(IRowRule):
 
         # Get current issue info
         issue_type = _cell_str(row, indices.issuetype)
+        issue_id = _cell_str(row, indices.issue_id)
         parent_value = _cell_str(row, indices.parent) if indices.parent else ""
 
         if not issue_type:
@@ -407,6 +409,19 @@ class ParentLinkValidationRule(IRowRule):
             if self._is_jira_key(parent_value):
                 return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
 
+            # Issue cannot be its own parent
+            if not _is_empty(issue_id) and parent_value == issue_id:
+                problems.append(
+                    Problem(
+                        code="parent_link.self_reference",
+                        message=f"Parent ID '{parent_value}' cannot be the same as the issue's own Issue ID '{issue_id}'.",
+                        severity=ProblemSeverity.CRITICAL,
+                        row_index=ctx.row_index,
+                        col_key="parent",
+                    )
+                )
+                return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
+
             # Try to resolve parent from issue_data (keyed by Issue ID from the sheet)
             issue_data = getattr(ctx, "issue_data", {})
             if parent_value not in issue_data:
@@ -428,7 +443,7 @@ class ParentLinkValidationRule(IRowRule):
                     problems.append(
                         Problem(
                             code="parent_link.unsupported",
-                            message=f"Invalid parent-child links: {issue_type} (level {child_level}) cannot have {parent_type} (level {parent_level}) as parent. Parent must be at a higher level in the hierarchy.",
+                            message=f"Invalid parent-child links: {issue_type} (id {issue_id}, level {child_level}) cannot have {parent_type} (id {parent_value}, level {parent_level}) as parent. Parent must be at a higher level in the hierarchy.",
                             severity=ProblemSeverity.CRITICAL,
                             row_index=ctx.row_index,
                             col_key="parent",

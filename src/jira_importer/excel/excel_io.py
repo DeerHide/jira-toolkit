@@ -139,7 +139,7 @@ class ExcelWorkbookManager:
         # Add progress tracking if UI is available
         if ui and hasattr(ui, "progress"):
             with ui.progress() as progress:
-                task = progress.add_task("Processing Excel data", total=total_rows)
+                task = progress.add_task(f"Processing Excel {sheet}", total=total_rows)
 
                 for raw in rows_list:
                     row = list(raw or [])

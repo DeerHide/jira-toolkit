@@ -45,14 +45,16 @@ def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
     logger.debug("Jira Importer initialized.")
     logger.debug(f"Configuration loaded: {config.path}")
     logger.debug(f"Input file: {args.input_file}")
-    logger.debug(fmt.kv("Input file", fmt.path(args.input_file)))
-    logger.debug(fmt.kv("Configuration", fmt.path(args.config)))
-    logger.debug(fmt.kv("Debug mode", args.debug))
-    logger.debug(fmt.kv("Version", args.version))
-    logger.debug(fmt.kv("Config default", args.config_default))
-    logger.debug(fmt.kv("Config input", args.config_input))
-    logger.debug(fmt.kv("Config excel", args.config_excel))
-    logger.debug(fmt.kv("args", str(args)))
+    logger.debug(f"Logs directory: {get_logs_directory()}")
+    logger.debug(f"Executable directory: {get_executable_dir()}")
+    logger.debug(f"Input file: {args.input_file}")
+    logger.debug(f"Configuration: {args.config}")
+    logger.debug(f"Debug mode: {args.debug}")
+    logger.debug(f"Version: {args.version}")
+    logger.debug(f"Config default: {args.config_default}")
+    logger.debug(f"Config input: {args.config_input}")
+    logger.debug(f"Config excel: {args.config_excel}")
+    logger.debug(f"args: {args!s}")
 
 
 def main() -> int:
@@ -135,8 +137,6 @@ def main() -> int:
 
     # Add file logging if enabled in config
     add_file_logging(config)
-    logger.debug(f"Logs directory: {get_logs_directory()}")
-    logger.debug(f"Executable directory: {get_executable_dir()}")
 
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")

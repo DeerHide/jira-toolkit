@@ -42,19 +42,26 @@ ui, fmt = ConsoleIO.get_components()
 
 
 def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
+    """Emit structured debug information about startup configuration.
+
+    This is intended purely for developers/support, not end users. It avoids
+    Rich styling and keeps messages concise so they are readable in log files.
+    """
     logger.debug("Jira Importer initialized.")
-    logger.debug(f"Configuration loaded: {config.path}")
-    logger.debug(f"Input file: {args.input_file}")
-    logger.debug(f"Logs directory: {get_logs_directory()}")
-    logger.debug(f"Executable directory: {get_executable_dir()}")
-    logger.debug(f"Input file: {args.input_file}")
-    logger.debug(f"Configuration: {args.config}")
-    logger.debug(f"Debug mode: {args.debug}")
-    logger.debug(f"Version: {args.version}")
-    logger.debug(f"Config default: {args.config_default}")
-    logger.debug(f"Config input: {args.config_input}")
-    logger.debug(f"Config excel: {args.config_excel}")
-    logger.debug(f"args: {args!s}")
+    logger.debug("Configuration loaded from: %s", getattr(config, "path", "<unknown>"))
+    logger.debug("Input file: %s", args.input_file)
+    logger.debug("Logs directory: %s", get_logs_directory())
+    logger.debug("Executable directory: %s", get_executable_dir())
+    logger.debug(
+        "CLI flags: debug=%s version=%s config_default=%s config_input=%s config_excel=%s config=%s",
+        getattr(args, "debug", False),
+        getattr(args, "version", False),
+        getattr(args, "config_default", False),
+        getattr(args, "config_input", False),
+        getattr(args, "config_excel", False),
+        getattr(args, "config", None),
+    )
+    logger.debug("Full args namespace: %s", args)
 
 
 def main() -> int:

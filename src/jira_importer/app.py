@@ -339,7 +339,7 @@ class App:
 
     @staticmethod
     def _add_misc_args(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("-v", "--version", help="Show version", action="store_true")
+        parser.add_argument("--version", help="Show version", action="store_true")
 
     @staticmethod
     def _add_debug_args(parser: argparse.ArgumentParser) -> None:

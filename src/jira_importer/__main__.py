@@ -154,10 +154,16 @@ def main() -> int:
 
     logger.info(f"Version: {app.version_info}")
 
-    logger.info(f"Input: {args.input_file}")
-    ui.say(f"Excel file: {fmt.path(args.input_file)}")
-    logger.info(f"Config: {config_path}")
-    ui.say(f"Configuration file: {fmt.path(config_path)}")
+    config_is_embedded = Path(config_path).resolve() == Path(args.input_file).resolve()
+
+    if config_is_embedded:
+        logger.info(f"Data source: {args.input_file} (config embedded)")
+        ui.say(f"Data source: {fmt.path(args.input_file)} {fmt.accent('(config embedded)')}")
+    else:
+        logger.info(f"Data source: {args.input_file}")
+        ui.say(f"Data source: {fmt.path(args.input_file)}")
+        logger.info(f"Config file: {config_path}")
+        ui.say(f"Config file: {fmt.path(config_path)}")
 
     _show_debug_info(args, config, logger)
 

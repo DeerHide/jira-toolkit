@@ -313,12 +313,23 @@ class ImportRunner:
         # 1. Create and run processor
         processor = self._create_processor()
         result = processor.process()
-
-        # 2. Report problems
+        # 2. Report problems (console + logs)
         if not self.options.no_report:
-            ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=False)).render(result)
+            report_options = ReportOptions(show_details=True, show_aggregate_by_code=False)
         else:
-            ProblemReporter(options=ReportOptions(show_details=False, show_aggregate_by_code=True)).render(result)
+            report_options = ReportOptions(show_details=False, show_aggregate_by_code=True)
+
+        reporter = ProblemReporter(options=report_options)
+        reporter.render(result)
+        if self.context.logger:
+            # Always log full report: both aggregate and details, without truncation
+            for line in reporter.build_plain_report_lines(
+                result,
+                no_truncate=True,
+                force_show_aggregate=True,
+                force_show_details=True,
+            ):
+                self.context.logger.info(line)
 
         # 3. Handle auto-fix warnings
         if not processor.enable_auto_fix and not self.options.dry_run:

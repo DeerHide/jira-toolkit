@@ -308,6 +308,44 @@ class ImportRunner:
         # non-zero exit if there were errors (so CI can gate)
         return self._calculate_exit_code(result)
 
+    def _log_run_summary(self, result: ProcessorResult) -> None:
+        """Log a concise, structured summary of the run to the logger."""
+        if not self.context.logger:
+            return
+
+        # Row counts from processor metadata, with safe fallbacks
+        rows_in = getattr(result, "original_row_count", None)
+        rows_out = getattr(result, "processed_row_count", None)
+        skipped = getattr(result, "skipped_row_count", None)
+
+        if rows_out is None:
+            rows_out = len(result.rows)
+        if skipped is None:
+            skipped = 0
+        if rows_in is None:
+            rows_in = rows_out + skipped
+
+        if self.context.output_target == "csv" and self.context.output_filepath is not None:
+            output_info = str(self.context.output_filepath)
+        elif self.context.output_target == "cloud":
+            output_info = "Jira Cloud API"
+        else:
+            output_info = ""
+
+        self.context.logger.info(
+            "Run summary: rows_in=%s rows_out=%s skipped=%s errors=%s warnings=%s fixes=%s "
+            "target=%s dry_run=%s output=%s",
+            rows_in,
+            rows_out,
+            skipped,
+            result.report.errors,
+            result.report.warnings,
+            result.report.fixes,
+            self.context.output_target,
+            self.options.dry_run,
+            output_info,
+        )
+
     def run(self) -> int:
         """Execute the complete pipeline and return exit code."""
         # 1. Create and run processor
@@ -330,6 +368,9 @@ class ImportRunner:
                 force_show_details=True,
             ):
                 self.context.logger.info(line)
+
+            # Log concise summary line for downstream consumers
+            self._log_run_summary(result)
 
         # 3. Handle auto-fix warnings
         if not processor.enable_auto_fix and not self.options.dry_run:

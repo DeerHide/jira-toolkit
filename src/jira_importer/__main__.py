@@ -68,6 +68,10 @@ def main() -> int:
     """Main function for the Jira Importer application."""
     # Set up minimal logging before parse_args so parser errors and early failures are visible
     setup_logger(logging.INFO, None)
+    args = App.parse_args()
+
+    quiet_mode = getattr(args, "quiet", False)
+    ui.set_quiet(quiet_mode)
 
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
@@ -75,7 +79,8 @@ def main() -> int:
     # --- Initialization ---
     ui.lf()
     ui.progress_light("Initializing Jira Importer")
-    args = App.parse_args()
+    if quiet_mode:
+        ui.say_quiet("Jira Importer started in quiet mode...")
 
     # Handle version flag early, before any configuration loading
     if args.version:
@@ -144,10 +149,6 @@ def main() -> int:
 
     # Add file logging if enabled in config
     add_file_logging(config)
-
-    # Set quiet mode for console output
-    quiet_mode = getattr(args, "quiet", False)
-    ui.set_quiet(quiet_mode)
 
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")

@@ -72,6 +72,53 @@ class ImportRunner:
         """
         return 0 if result.report.errors == 0 else 1
 
+    def _build_outcome_summary(
+        self,
+        result: ProcessorResult,
+        *,
+        prefix: str,
+        output: str | None = None,
+        extra: list[str] | None = None,
+    ) -> str:
+        """Build a single human-readable sentence summarizing the run outcome.
+
+        Args:
+            result: The processor result containing row counts and report.
+            prefix: Prefix for the summary (e.g., "Done", "Done (dry-run)").
+            output: Optional output target description (e.g., file path or "Jira Cloud API").
+            extra: Optional list of additional status strings to include (e.g., ["10 created", "2 failed"]).
+
+        Returns:
+            A formatted summary string like "Done: 6 input rows → 5 output rows (1 skipped, 2 auto-fixes). Output: path"
+        """
+        rows_in = getattr(result, "original_row_count", None)
+        rows_out = getattr(result, "processed_row_count", None)
+        skipped = getattr(result, "skipped_row_count", None)
+
+        if rows_out is None:
+            rows_out = len(result.rows)
+        if skipped is None:
+            skipped = 0
+        if rows_in is None:
+            rows_in = rows_out + skipped
+
+        extras: list[str] = []
+        if skipped:
+            extras.append(f"{skipped} skipped")
+        if result.report.fixes:
+            extras.append(f"{result.report.fixes} auto-fixes")
+        if extra:
+            extras.extend(extra)
+
+        summary = f"{prefix}: {rows_in} input rows → {rows_out} output rows"
+        if extras:
+            summary += f" ({', '.join(extras)})"
+        if output:
+            summary += f". Output: {output}"
+        else:
+            summary += "."
+        return summary
+
     def _display_issue_summary(self, result: ProcessorResult, critical_problems: list[Problem]) -> None:
         """Display a concise summary of issues before prompting.
 
@@ -194,6 +241,12 @@ class ImportRunner:
                 self.context.ui.hint("Dry-run completed with warnings. Review before running the import.")
             self.context.ui.hint("Remove --dry-run flag to run with actual output")
 
+        # Outcome summary line
+        summary = self._build_outcome_summary(result, prefix="Done (dry-run)")
+        self.context.ui.say(summary)
+        if self.context.logger:
+            self.context.logger.info("Dry-run outcome: %s", summary)
+
         result_code = self._calculate_exit_code(result)
         self.context.ui.lf()
         self.context.ui.full_panel(self.context.ui.fmt.success("Dry-run complete. You can close this window now."))
@@ -264,6 +317,26 @@ class ImportRunner:
 
         # non-zero exit if there were errors (so CI can gate)
         result_code = self._calculate_exit_code(result)
+
+        # Human-friendly one-line outcome summary for cloud runs
+        extras: list[str] = []
+        if report.created:
+            extras.append(f"{report.created} created")
+        if report.failed:
+            extras.append(f"{report.failed} failed")
+        if report.batches:
+            extras.append(f"{report.batches} batches")
+
+        summary = self._build_outcome_summary(
+            result,
+            prefix="Done",
+            output="Jira Cloud API",
+            extra=extras,
+        )
+        self.context.ui.say(summary)
+        if self.context.logger:
+            self.context.logger.info("Cloud run outcome: %s", summary)
+
         # End after cloud path
         self.context.ui.lf()
         self.context.ui.full_panel(self.context.ui.fmt.success("Processing complete. You can close this window now."))
@@ -300,11 +373,23 @@ class ImportRunner:
             raise ValueError("output_filepath is required for CSV output")
 
         write_csv(
-            result, self.context.output_filepath, config=temp_config if temp_config is not None else self.context.config
+            result,
+            self.context.output_filepath,
+            config=temp_config if temp_config is not None else self.context.config,
         )
         self.context.ui.say(f"Output Import CSV Ready → {self.context.ui.fmt.path(str(self.context.output_filepath))}")
         if self.context.logger:
             self.context.logger.info("Wrote output CSV → %s", self.context.output_filepath)
+
+        # Human-friendly one-line outcome summary
+        summary = self._build_outcome_summary(
+            result,
+            prefix="Done",
+            output=str(self.context.output_filepath),
+        )
+        self.context.ui.say(summary)
+        if self.context.logger:
+            self.context.logger.info("Run outcome: %s", summary)
 
         # non-zero exit if there were errors (so CI can gate)
         return self._calculate_exit_code(result)

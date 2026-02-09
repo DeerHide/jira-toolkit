@@ -14,6 +14,7 @@ from .models import Problem, ProblemSeverity, ProcessorResult
 from .sinks.cloud_sink import CloudSubmitReport
 
 # Emojis consistent with the rest of the tool
+EMO_SUCCESS = "✅ "
 EMO_ERROR = "❌ "
 EMO_WARN = "⚠️ "
 EMO_FIX = "🔧 "
@@ -71,6 +72,12 @@ class ProblemReporter:
         w = result.report.warnings
         f = result.report.fixes
         total = len(result.problems)
+        if e == 0 and w == 0:
+            if total == 0:
+                return f"{EMO_SUCCESS} No issues found."
+            return f"{EMO_SUCCESS} No blocking issues.  {EMO_FIX} {f}  • total findings: {total}"
+        if e == 0:
+            return f"{EMO_SUCCESS} No errors.  {EMO_WARN} {w}  {EMO_FIX} {f}  • total findings: {total}"
         return f"{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}  • total findings: {total}"
 
     def build_plain_report_lines(
@@ -184,11 +191,15 @@ class ProblemReporter:
         w = result.report.warnings
         f = result.report.fixes
         total = len(result.problems)
-        if total > 0:
+        if e == 0 and w == 0:
+            if total == 0:
+                return f"[bold]{EMO_SUCCESS} No issues found.[/bold]"
             return (
-                f"[bold]{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}[/bold]  • total findings: [bold]{total}[/bold]"
+                f"[bold]{EMO_SUCCESS} No blocking issues.[/bold]  {EMO_FIX} {f}  • total findings: [bold]{total}[/bold]"
             )
-        return "[bold]No issues found[/bold]"
+        if e == 0:
+            return f"[bold]{EMO_SUCCESS} No errors.[/bold]  {EMO_WARN} {w}  {EMO_FIX} {f}  • total findings: [bold]{total}[/bold]"
+        return f"[bold]{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}[/bold]  • total findings: [bold]{total}[/bold]"
 
     # internals, plain rendering
     def _render_plain(self, result: ProcessorResult) -> None:

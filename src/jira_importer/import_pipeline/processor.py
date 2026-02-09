@@ -246,7 +246,13 @@ class ImportProcessor:
                     problems.extend(result.problems)
 
             if skipped_rows > 0:
-                logger.info(f"Skipped {skipped_rows} rows (RowType = {ROW_TYPE_SKIP} or Issue Type in skip list)")
+                row_word = "row" if skipped_rows == 1 else "rows"
+                logger.info(
+                    "Skipped %s %s (RowType=%s or issue type in skip list)",
+                    skipped_rows,
+                    row_word,
+                    ROW_TYPE_SKIP,
+                )
 
             logger.debug("Build processor result")
             report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)

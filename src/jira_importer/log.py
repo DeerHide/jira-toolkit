@@ -340,7 +340,7 @@ def _create_file_handler(logging_config: LoggingConfig, level: int) -> logging.H
     return file_handler
 
 
-def add_file_logging(config: Any):
+def add_file_logging(config: Any, *, announce: bool = True) -> None:
     """Add file handler to existing root logger if enabled in config."""
     logging_config = LoggingConfig(config=config)
 
@@ -361,8 +361,9 @@ def add_file_logging(config: Any):
         file_handler.addFilter(RedactingFilter())
         root_logger.addHandler(file_handler)
 
-        log_file = getattr(file_handler, "baseFilename", "unknown")
-        root_logger.info(f"File logging enabled: {log_file}")
+        if announce:
+            log_file = getattr(file_handler, "baseFilename", "unknown")
+            root_logger.info("File logging enabled: %s", log_file)
 
     except Exception as e:
         logging.getLogger().error(f"File logging setup failed: {e}")

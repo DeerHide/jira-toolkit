@@ -126,7 +126,7 @@ def main() -> int:
     logger = logging.getLogger(__name__)
 
     try:
-        add_file_logging(None)
+        add_file_logging(None, announce=False)
     except Exception:  # pylint: disable=broad-except
         # File logging is best-effort; ignore failures here
         pass

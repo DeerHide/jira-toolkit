@@ -318,6 +318,12 @@ class App:
             help=argparse.SUPPRESS,
         )
         parser.add_argument(
+            "-q",
+            "--quiet",
+            action="store_true",
+            help="Minimal output: only errors, warnings, and one outcome line.",
+        )
+        parser.add_argument(
             "-fce",
             "--fix-cloud-estimates",
             default=False,

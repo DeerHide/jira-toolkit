@@ -255,72 +255,126 @@ class ConsoleUI:
         self.c = _console or Console(theme=THEME, highlight=True, soft_wrap=False)
         self.style = style
         self.fmt = formatter or Fmt(self.c)
+        self._quiet: bool = False
+
+    def set_quiet(self, quiet: bool) -> None:
+        """Set quiet mode."""
+        self._quiet = quiet
+
+    def say_quiet(self, msg: str) -> None:
+        """Print a message unconditionally, even in quiet mode.
+
+        This is intended for the final outcome summary line that should always be visible.
+        """
+        self.c.print(msg)
 
     def say(self, *parts: str, sep: str = " ") -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(sep.join(parts))
 
     def lf(self) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print("")
 
     # --- Messages
     def success(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[success]{self.style.prefix_success if prefix else ''} {msg}[/]")
 
     def info(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[info]{self.style.prefix_info if prefix else ''} {msg}[/]")
 
     def warning(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        # Warning is NOT suppressed in quiet mode - errors and warnings should always be visible
         self.c.print(f"[warning]{self.style.prefix_warning if prefix else ''} {msg}[/]")
 
     def error(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        # Error is NOT suppressed in quiet mode - errors and warnings should always be visible
         self.c.print(f"[error]{self.style.prefix_error if prefix else ''} {msg}[/]")
 
     def debug(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[debug]{self.style.prefix_debug if prefix else ''} {msg}[/]")
 
     def wip(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[wip]{self.style.prefix_wip if prefix else ''} {msg}[/]")
 
     def warning_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[warning.light]{self.style.prefix_warning if prefix else ''} {msg}[/]")
 
     def error_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[error.light]{self.style.prefix_error if prefix else ''} {msg}[/]")
 
     def info_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[info.light]{self.style.prefix_info if prefix else ''} {msg}[/]")
 
     def success_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[success.light]{self.style.prefix_success if prefix else ''} {msg}[/]")
 
     def debug_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[debug.light]{self.style.prefix_debug if prefix else ''} {msg}[/]")
 
     def progress_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[progress.light]{self.style.prefix_progress if prefix else ''} {msg}[/]")
 
     def hint(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[hint]{msg}[/]")
 
     def example(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[example]{msg}[/]")
 
     def default(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[default]{msg}[/]")
 
     def choice(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[choice]{msg}[/]")
 
     def hotkey(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[hotkey]{msg}[/]")
 
     def required(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[required]{msg}[/]")
 
     def danger(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[danger]{msg}[/]")
 
     def note(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[note]{msg}[/]")
 
     # --- Panels (for grouped info / summaries)
@@ -335,6 +389,8 @@ class ConsoleUI:
         width: int | None = None,
     ) -> None:
         """Render a panel with a title and body."""
+        if self._quiet:
+            return
         panel = Panel(
             Align(body, "left"),
             title=f"[title]{title}[/]" if title else None,
@@ -354,6 +410,8 @@ class ConsoleUI:
         style: str = "accent",
     ) -> None:
         """Render a panel that always spans the console width."""
+        if self._quiet:
+            return
         panel = Panel(
             Align(body, "center"),
             title=f"[title]{title}[/]" if title else None,
@@ -369,6 +427,8 @@ class ConsoleUI:
         Example:
         ─────────────────────  ◆  PROJECT SETUP  ◆  ─────────────────────
         """
+        if self._quiet:
+            return
         chip = f" {icon} {self.fmt.t_h1(self.fmt.esc(text.upper()))} {icon} "
         # console.rule centers and stretches to width
         self.c.rule(chip, style="rule.h1")
@@ -380,6 +440,8 @@ class ConsoleUI:
         • Configuration
         ─────────────────────────────────────────
         """
+        if self._quiet:
+            return
         self.c.print(f"{icon} {self.fmt.t_h2(self.fmt.esc(text))}")
         self.c.rule(style="rule.h2")
 
@@ -390,6 +452,8 @@ class ConsoleUI:
         → Credentials
         ─────────────
         """
+        if self._quiet:
+            return
         self.c.print(f"{icon} {self.fmt.t_h3(self.fmt.esc(text))}")
         self.c.rule(style="rule.h3")
 
@@ -401,6 +465,8 @@ class ConsoleUI:
             sub: Subtext to display below the banner.
             icon: Icon to display in the banner.
         """
+        if self._quiet:
+            return
         body = f"{icon} {self.fmt.t_h2(self.fmt.esc(text))}"
         if sub:
             body += f"\n{self.fmt.t_note(self.fmt.esc(sub))}"

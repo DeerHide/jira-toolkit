@@ -145,6 +145,10 @@ def main() -> int:
     # Add file logging if enabled in config
     add_file_logging(config)
 
+    # Set quiet mode for console output
+    quiet_mode = getattr(args, "quiet", False)
+    ui.set_quiet(quiet_mode)
+
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")
 
@@ -254,7 +258,8 @@ def main() -> int:
         enable_excel_rules=args.enable_excel_rules,
         excel_rules_source=str(in_path) if args.enable_excel_rules else None,
         enable_auto_fix=args.auto_fix,
-        no_report=args.no_report,
+        no_report=args.no_report or quiet_mode,  # Quiet mode implies -nr
+        quiet=quiet_mode,
         dry_run=args.dry_run,
         fix_cloud_estimates=args.fix_cloud_estimates,
         debug=args.debug,

@@ -27,6 +27,7 @@ class PipelineOptions:
     excel_rules_source: str | None = None
     enable_auto_fix: bool = False
     no_report: bool = False
+    quiet: bool = False
     dry_run: bool = False
     fix_cloud_estimates: bool = False
     debug: bool = False
@@ -241,9 +242,12 @@ class ImportRunner:
                 self.context.ui.hint("Dry-run completed with warnings. Review before running the import.")
             self.context.ui.hint("Remove --dry-run flag to run with actual output")
 
-        # Outcome summary line
+        # Outcome summary line (always shown, even in quiet mode)
         summary = self._build_outcome_summary(result, prefix="Done (dry-run)")
-        self.context.ui.say(summary)
+        if self.options.quiet:
+            self.context.ui.say_quiet(summary)
+        else:
+            self.context.ui.say(summary)
         if self.context.logger:
             self.context.logger.info("Dry-run outcome: %s", summary)
 
@@ -333,7 +337,11 @@ class ImportRunner:
             output="Jira Cloud API",
             extra=extras,
         )
-        self.context.ui.say(summary)
+        # Outcome summary (always shown, even in quiet mode)
+        if self.options.quiet:
+            self.context.ui.say_quiet(summary)
+        else:
+            self.context.ui.say(summary)
         if self.context.logger:
             self.context.logger.info("Cloud run outcome: %s", summary)
 
@@ -381,13 +389,16 @@ class ImportRunner:
         if self.context.logger:
             self.context.logger.info("Wrote output CSV → %s", self.context.output_filepath)
 
-        # Human-friendly one-line outcome summary
+        # User-friendly one-line outcome summary (always shown, even in quiet mode)
         summary = self._build_outcome_summary(
             result,
             prefix="Done",
             output=str(self.context.output_filepath),
         )
-        self.context.ui.say(summary)
+        if self.options.quiet:
+            self.context.ui.say_quiet(summary)
+        else:
+            self.context.ui.say(summary)
         if self.context.logger:
             self.context.logger.info("Run outcome: %s", summary)
 

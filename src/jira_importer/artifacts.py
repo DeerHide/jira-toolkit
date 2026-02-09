@@ -88,12 +88,12 @@ class ArtifactManager:
             with self._lock:
                 artifact_count = len(self._artifacts)
             if not dry_run:
-                logger.info(
+                logger.debug(
                     "Artifact deletion is disabled in configuration. Skipping deletion of %d artifact(s).",
                     artifact_count,
                 )
             else:
-                logger.info(
+                logger.debug(
                     "Artifact deletion is disabled in configuration. Would skip deletion of %d artifact(s) in dry-run mode.",
                     artifact_count,
                 )

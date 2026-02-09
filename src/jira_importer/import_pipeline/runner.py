@@ -216,6 +216,7 @@ class ImportRunner:
         critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]
         has_errors = result.report.errors > 0
         has_critical = len(critical_problems) > 0
+        has_fixes = result.report.fixes > 0
 
         if has_errors or has_critical:
             # Adjust success message when issues exist
@@ -230,6 +231,9 @@ class ImportRunner:
             else:
                 self.context.ui.error("Validation errors found. Please fix these before running the import.")
                 self.context.ui.error("Importing this dataset, as-is, will likely fail.")
+
+            if not self.options.enable_auto_fix and has_fixes:
+                self.context.ui.hint("Some issues can be fixed automatically using the -af/--auto-fix flag.")
 
             if self.context.output_target == "cloud":
                 self.context.ui.hint(

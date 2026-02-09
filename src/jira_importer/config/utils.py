@@ -10,7 +10,7 @@ from typing import Any
 
 from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 from ..console import ConsoleIO
-from ..log import add_file_logging, setup_logger
+from ..log import add_file_logging, set_console_handler_level, setup_logger
 from ..utils import find_config_path
 from .config_display import display_config_content, display_table_config
 from .config_factory import ConfigurationFactory, ConfigurationType
@@ -71,7 +71,8 @@ def display_config(config_file: str, *, args: Any = None) -> None:
         args: Optional parsed CLI arguments; when provided and a fatal error occurs,
             they are passed to event_fatal for diagnosis output.
     """
-    setup_logger(logging.DEBUG, None)  # Use debug level for config check
+    setup_logger(logging.DEBUG, None)  # Root at DEBUG so file gets full detail
+    set_console_handler_level(logging.WARNING)  # Console: no log lines, only UI output
     logger = logging.getLogger(__name__)
 
     # Get UI components

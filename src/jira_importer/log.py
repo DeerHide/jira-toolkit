@@ -310,6 +310,23 @@ def setup_logger(level_override: int | None = None, config: Any | None = None) -
     _CONFIGURED = True
 
 
+def set_console_handler_level(level: int) -> None:
+    """Set the level of the root logger's console (stream) handler only.
+
+    Used when the root logger is at N for file logging but console output
+    should show only N+1 and above (e.g. during --show-config so that
+    only UI output appears on the console and log lines go to the file only).
+
+    Args:
+        level: Logging level (e.g. logging.WARNING).
+    """
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        if getattr(handler, "stream", None) in (sys.stderr, sys.stdout):
+            handler.setLevel(level)
+            break
+
+
 def _create_file_handler(logging_config: LoggingConfig, level: int) -> logging.Handler:
     """Create and configure file handler for logging."""
     # Get log directory and create log file

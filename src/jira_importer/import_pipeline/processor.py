@@ -74,6 +74,7 @@ class ImportProcessor:
         enable_excel_rules: bool = False,
         excel_rules_source: str | None = None,
         enable_auto_fix: bool = False,
+        debug: bool = False,
     ) -> None:
         """Initialize the ImportProcessor class."""
         self.path = Path(path)
@@ -82,10 +83,13 @@ class ImportProcessor:
         self.enable_excel_rules = enable_excel_rules
         self.excel_rules_source = excel_rules_source
         self.enable_auto_fix = enable_auto_fix
+        # Debug flag propagated from pipeline options; when True, allows extra-verbose
+        # debug logging such as full normalized row dumps for troubleshooting.
+        self.debug = debug
         logger.debug(
             f"ImportProcessor initialized: path={self.path}, config={self.config}, "
             f"enable_excel_rules={self.enable_excel_rules}, excel_rules_source={self.excel_rules_source}, "
-            f"enable_auto_fix={self.enable_auto_fix}"
+            f"enable_auto_fix={self.enable_auto_fix}, debug={self.debug}"
         )
 
     def _extract_processing_config(self, cfg_view: ConfigView) -> ProcessingConfig:
@@ -247,9 +251,14 @@ class ImportProcessor:
             logger.debug("Build processor result")
             report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
             logger.info(
-                f"Report: {report.errors} errors, {report.warnings} warnings, {report.fixes} fixes, problems: {len(problems)}"
+                "Report: %s errors, %s warnings, %s fixes, total findings: %s",
+                report.errors,
+                report.warnings,
+                report.fixes,
+                len(problems),
             )
-            logger.debug(f"Normalized rows: {normalized_rows}")
+            if self.debug:
+                logger.debug("Normalized rows: %s", normalized_rows)
             logger.debug(f"Complex children: {complex_children}")
             logger.debug(f"Indices: {indices}")
             logger.debug(f"Original row count: {original_row_count}")

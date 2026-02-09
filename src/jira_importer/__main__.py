@@ -217,9 +217,13 @@ def main() -> int:
         app.event_close(exit_code=2, cleanup=False)
         return 2
 
-    output_filename: str = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
+    output_filename: str = file_manager.generate_output_filename(
+        xlsx_file,
+        file_extension="csv",
+        suffix="_jira_ready",
+    )
     output_filepath: Path = output_dir_path / output_filename
-    logger.debug(f"Output path: {output_filepath}")
+    logger.info("Output path: %s", output_filepath)
 
     _, mgr = load_config_for_input(in_path, args.data_sheet)
 

@@ -147,6 +147,7 @@ class ImportRunner:
             enable_excel_rules=self.options.enable_excel_rules,
             excel_rules_source=str(self.context.input_path) if self.options.enable_excel_rules else None,
             enable_auto_fix=self.options.enable_auto_fix,
+            debug=self.options.debug,
         )
         if self.context.logger:
             self.context.logger.debug(

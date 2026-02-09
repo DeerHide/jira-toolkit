@@ -62,7 +62,12 @@ class ProcessingReport:
     def from_problems(cls, problems: Sequence[Problem], auto_fix_enabled: bool) -> ProcessingReport:
         """Create a ProcessingReport from a list of problems."""
         if auto_fix_enabled:
-            e = sum(1 for p in problems if p.severity == ProblemSeverity.ERROR)
+            # With auto-fix enabled, keep FIXes separate but always treat CRITICAL as errors.
+            e = sum(
+                1
+                for p in problems
+                if p.severity == ProblemSeverity.ERROR or p.severity == ProblemSeverity.CRITICAL
+            )
             w = sum(1 for p in problems if p.severity == ProblemSeverity.WARNING)
             f = sum(1 for p in problems if p.severity == ProblemSeverity.FIX)
         else:

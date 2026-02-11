@@ -124,6 +124,7 @@ class ColumnIndices:
     parent: int | None = None
     epic_link: int | None = None
     epic_name: int | None = None
+    # Primary component column (for backward compatibility / single-column layouts)
     component: int | None = None
     fixversion: int | None = None
     origest: int | None = None
@@ -133,6 +134,9 @@ class ColumnIndices:
 
     # Special (can be multiple)
     child_issue_indices: list[int] = field(default_factory=list)
+
+    # Multiple component columns (e.g. Components, Components1, Components2, ...)
+    components: list[int] = field(default_factory=list)
 
     # Custom fields mapping (field_id -> column_index)
     custom_fields: dict[str, int] = field(default_factory=dict)

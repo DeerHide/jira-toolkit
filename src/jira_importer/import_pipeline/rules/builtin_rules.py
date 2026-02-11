@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ...config.constants import LEVEL_4_SUBTASK
+from ...config.excel_config import ExcelConfiguration
 from ...config.issuetypes import get_allowed_issue_types, get_issue_type_level
 from ..models import ColumnIndices, IRowRule, Problem, ProblemSeverity, ValidationContext, ValidationResult
 
@@ -162,6 +163,109 @@ class PriorityAllowedRule(IRowRule):
                     ),
                 )
             )
+        return ValidationResult.empty()
+
+
+@dataclass(slots=True)
+class ComponentsAllowedRule(IRowRule):
+    """Components must be in the configured allowed list (case-insensitive).
+
+    Sources (checked in order, first non-empty wins):
+      - jira.validation.components
+      - jira.components
+
+    Severity: error (strict validation).
+    """
+
+    def _allowed(self, ctx: ValidationContext) -> dict[str, str]:
+        """Return mapping of normalized component name -> canonical name."""
+        # TODO: Extract shared helper for resolving allowed component names (rule + mapper) in config layer.
+        # ctx.config is expected to be a ConfigView; relying on _cfg couples us to its internals.
+        cfg_view = ctx.config
+
+        # Try to access underlying config object (ExcelConfiguration or JSON/dict)
+        base_cfg = getattr(cfg_view, "_cfg", cfg_view)
+
+        # 1) ExcelConfiguration: use CfgComponents table if available
+        if isinstance(base_cfg, ExcelConfiguration):
+            try:
+                if base_cfg.table_config is None:
+                    base_cfg.load_table_config()
+                table_config = base_cfg.get_table_config()
+            except Exception:
+                table_config = None
+
+            if table_config and table_config.components:
+                mapping: dict[str, str] = {}
+                for comp in table_config.components:
+                    name = str(comp.name).strip()
+                    if not name:
+                        continue
+                    mapping[name.lower()] = name
+                return mapping
+
+        # 2) JSON / generic config: fall back to jira.validation.components, then jira.components
+        cfg_get = getattr(cfg_view, "get", None)
+        if not callable(cfg_get):
+            return {}
+
+        values = cfg_view.get("jira.validation.components", None)
+        if not values:
+            values = cfg_view.get("jira.components", None)
+        if not values:
+            return {}
+
+        json_mapping: dict[str, str] = {}
+        try:
+            for v in values:
+                if v is None:
+                    continue
+                name = str(v).strip()
+                if not name:
+                    continue
+                json_mapping[name.lower()] = name
+        except Exception:
+            return {}
+        return json_mapping
+
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
+        allowed_map = self._allowed(ctx)
+        if not allowed_map:
+            # No configured component list → no validation.
+            return ValidationResult.empty()
+
+        # Collect all component column indices (primary + multi-column).
+        component_indices: list[int] = []
+        if hasattr(indices, "components") and indices.components:
+            component_indices.extend(indices.components)
+        if indices.component is not None and indices.component not in component_indices:
+            component_indices.append(indices.component)
+
+        if not component_indices:
+            return ValidationResult.empty()
+
+        problems: list[Problem] = []
+        for idx in component_indices:
+            value = _cell_str(row, idx)
+            if _is_empty(value):
+                continue
+            if value.lower() not in allowed_map:
+                problems.append(
+                    Problem(
+                        code="components.invalid",
+                        message=(
+                            f"Component '{value}' is not in the allowed list. "
+                            f"Allowed components: {sorted(allowed_map.values())}"
+                        ),
+                        severity=ProblemSeverity.ERROR,
+                        row_index=ctx.row_index,
+                        col_key="components",
+                    )
+                )
+
+        if problems:
+            return ValidationResult(problems=tuple(problems))
         return ValidationResult.empty()
 
 

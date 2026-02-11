@@ -328,7 +328,7 @@ class App:
             "--fix-cloud-estimates",
             default=False,
             action="store_true",
-            help="Apply Jira Cloud x60 estimate quirk IN THE SINK (kept out of rules/fixes).",
+            help="Apply Jira Cloud x60 estimate quirk IN THE SINK (not auto-fixed by --auto-fix).",
         )
 
     @staticmethod

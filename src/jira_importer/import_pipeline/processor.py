@@ -361,11 +361,18 @@ class ImportProcessor:
         def pos(key: str) -> int | None:
             return name_to_pos.get(key.lower())
 
-        # Build normalized header map for custom fields matching (lowercase for case-insensitive matching)
+        # Build normalized header map for custom fields & multi-column fields (lowercase for case-insensitive matching)
         normalized_header_map: dict[str, int] = {}
+        components_indices: list[int] = []
         for idx, header_name in enumerate(header.normalized):
-            # Use lowercase key for case-insensitive matching
-            normalized_header_map[header_name.strip().lower()] = idx
+            key = header_name.strip().lower()
+            normalized_header_map[key] = idx
+
+            # Components, Components1, Components2, ... (case-insensitive)
+            # Strip trailing digits and match base name against expected keys.
+            base_key = key.rstrip("0123456789")
+            if base_key in {"components", "component"}:
+                components_indices.append(idx)
 
         # Get custom field configs from active config source
         cfg_view = ConfigView(self.config)
@@ -386,6 +393,14 @@ class ImportProcessor:
             else:
                 logger.warning(f"Custom field '{cfg.name}' (id: {cfg.id}) not found in Excel headers. Skipping.")
 
+        # Backward-compatible single component index: first components column, or a direct "component"/"components" match.
+        single_component_index: int | None = None
+        if components_indices:
+            single_component_index = components_indices[0]
+        else:
+            # Fallback for legacy layouts with a single "Component" header.
+            single_component_index = pos("component") or pos("components")
+
         return ColumnIndices(
             summary=pos("summary"),
             priority=pos("priority"),
@@ -402,13 +417,14 @@ class ImportProcessor:
             parent=pos("parent"),
             epic_link=pos("epic link"),
             epic_name=pos("epic name"),
-            component=pos("component"),
+            component=single_component_index,
             fixversion=pos("fixversion"),
             origest=pos("origest"),
             estimate=pos("estimate"),
             sprint=pos("sprint"),
             rowtype=pos("rowtype"),
             child_issue_indices=[i for i, n in enumerate(header.normalized) if n.startswith("child issue")],
+            components=components_indices,
             custom_fields=custom_fields,
         )
 

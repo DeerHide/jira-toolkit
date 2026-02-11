@@ -77,6 +77,7 @@ class IssueMapper:
         self._map_assignee(fields, row, indices)
         self._map_reporter(fields, row, indices)
         self._map_team(fields, row, indices)
+        self._map_labels(fields, row, indices)
 
         # Handle level 4 issue type conversion (must be after parent mapping)
         self._handle_level4_issuetype_conversion(fields, row, indices)
@@ -258,6 +259,41 @@ class IssueMapper:
 
         if names:
             fields["components"] = [{"name": n} for n in names]
+
+    def _label_indices(self, indices: ColumnIndices) -> list[int]:
+        """Return all label column indices to use.
+
+        Supports multiple label columns (e.g. Labels, Labels1, Labels2, ...).
+        """
+        if hasattr(indices, "label_columns") and indices.label_columns:
+            return list(indices.label_columns)
+        if indices.labels is not None:
+            return [indices.labels]
+        return []
+
+    def _map_labels(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map labels from row.
+
+        Supports multiple label columns: Labels, Labels1, Labels2, ...
+        Each cell value is treated as a single label string.
+        """
+        label_idxs = self._label_indices(indices)
+        if not label_idxs:
+            return
+
+        labels: list[str] = []
+        seen: set[str] = set()
+
+        for idx in label_idxs:
+            value = self._cell_str(row, idx)
+            if not value:
+                continue
+            if value not in seen:
+                seen.add(value)
+                labels.append(value)
+
+        if labels:
+            fields["labels"] = labels
 
     def _get_allowed_components_map(self) -> dict[str, str]:
         """Build a mapping of normalized component name -> canonical name from config.

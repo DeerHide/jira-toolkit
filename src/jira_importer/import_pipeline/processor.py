@@ -364,6 +364,7 @@ class ImportProcessor:
         # Build normalized header map for custom fields & multi-column fields (lowercase for case-insensitive matching)
         normalized_header_map: dict[str, int] = {}
         components_indices: list[int] = []
+        label_indices: list[int] = []
         for idx, header_name in enumerate(header.normalized):
             key = header_name.strip().lower()
             normalized_header_map[key] = idx
@@ -373,6 +374,10 @@ class ImportProcessor:
             base_key = key.rstrip("0123456789")
             if base_key in {"components", "component"}:
                 components_indices.append(idx)
+
+            # Labels, Labels1, Labels2, ... (case-insensitive)
+            if base_key == "labels":
+                label_indices.append(idx)
 
         # Get custom field configs from active config source
         cfg_view = ConfigView(self.config)
@@ -401,6 +406,13 @@ class ImportProcessor:
             # Fallback for legacy layouts with a single "Component" header.
             single_component_index = pos("component") or pos("components")
 
+        # Backward-compatible single labels index: first labels column, or a direct "labels" match.
+        single_labels_index: int | None = None
+        if label_indices:
+            single_labels_index = label_indices[0]
+        else:
+            single_labels_index = pos("labels")
+
         return ColumnIndices(
             summary=pos("summary"),
             priority=pos("priority"),
@@ -425,6 +437,8 @@ class ImportProcessor:
             rowtype=pos("rowtype"),
             child_issue_indices=[i for i, n in enumerate(header.normalized) if n.startswith("child issue")],
             components=components_indices,
+            labels=single_labels_index,
+            label_columns=label_indices,
             custom_fields=custom_fields,
         )
 

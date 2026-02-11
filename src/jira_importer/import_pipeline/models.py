@@ -64,9 +64,7 @@ class ProcessingReport:
         if auto_fix_enabled:
             # With auto-fix enabled, keep FIXes separate but always treat CRITICAL as errors.
             e = sum(
-                1
-                for p in problems
-                if p.severity == ProblemSeverity.ERROR or p.severity == ProblemSeverity.CRITICAL
+                1 for p in problems if p.severity == ProblemSeverity.ERROR or p.severity == ProblemSeverity.CRITICAL
             )
             w = sum(1 for p in problems if p.severity == ProblemSeverity.WARNING)
             f = sum(1 for p in problems if p.severity == ProblemSeverity.FIX)
@@ -137,6 +135,10 @@ class ColumnIndices:
 
     # Multiple component columns (e.g. Components, Components1, Components2, ...)
     components: list[int] = field(default_factory=list)
+
+    # Labels columns (e.g. Labels, Labels1, Labels2, ...)
+    labels: int | None = None
+    label_columns: list[int] = field(default_factory=list)
 
     # Custom fields mapping (field_id -> column_index)
     custom_fields: dict[str, int] = field(default_factory=dict)

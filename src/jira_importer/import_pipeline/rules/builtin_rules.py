@@ -15,6 +15,7 @@ from ...config.constants import LEVEL_4_SUBTASK
 from ...config.excel_config import ExcelConfiguration
 from ...config.issuetypes import get_allowed_issue_types, get_issue_type_level
 from ..models import ColumnIndices, IRowRule, Problem, ProblemSeverity, ValidationContext, ValidationResult
+from ..utils import split_multi_value_cell
 
 # helpers functions
 
@@ -247,22 +248,29 @@ class ComponentsAllowedRule(IRowRule):
 
         problems: list[Problem] = []
         for idx in component_indices:
-            value = _cell_str(row, idx)
-            if _is_empty(value):
+            raw = _cell_str(row, idx)
+            if _is_empty(raw):
                 continue
-            if value.lower() not in allowed_map:
-                problems.append(
-                    Problem(
-                        code="components.invalid",
-                        message=(
-                            f"Component '{value}' is not in the allowed list. "
-                            f"Allowed components: {sorted(allowed_map.values())}"
-                        ),
-                        severity=ProblemSeverity.ERROR,
-                        row_index=ctx.row_index,
-                        col_key="components",
+
+            parts = split_multi_value_cell(raw)
+            if not parts:
+                continue
+
+            for part in parts:
+                key = part.lower()
+                if key not in allowed_map:
+                    problems.append(
+                        Problem(
+                            code="components.invalid",
+                            message=(
+                                f"Component '{part}' is not in the allowed list. "
+                                f"Allowed components: {sorted(allowed_map.values())}"
+                            ),
+                            severity=ProblemSeverity.ERROR,
+                            row_index=ctx.row_index,
+                            col_key="components",
+                        )
                     )
-                )
 
         if problems:
             return ValidationResult(problems=tuple(problems))

@@ -18,6 +18,7 @@ from ...config.excel_config import ExcelConfiguration
 from ...config.issuetypes import get_default_level3_type, get_issue_type_level
 from ...errors import ConfigurationError, ProcessingError, RowProcessingError
 from ..models import ColumnIndices, ProcessorResult
+from ..utils import split_multi_value_cell
 from .constants import JIRA_KEY_PARTS_COUNT
 from .metadata import MetadataCache
 from .secrets import redact_secret
@@ -72,6 +73,7 @@ class IssueMapper:
         self._map_description(fields, row, indices)
         self._map_priority(fields, row, indices)
         self._map_components(fields, row, indices)
+        self._map_fix_versions(fields, row, indices)
         self._map_parent(fields, row, indices)
         self._map_estimate(fields, row, indices)
         self._map_assignee(fields, row, indices)
@@ -250,15 +252,53 @@ class IssueMapper:
             component_indices.append(indices.component)
 
         names: list[str] = []
+        seen: set[str] = set()
         for idx in component_indices:
-            name = self._cell_str(row, idx)
-            if name:
-                key = name.lower()
-                canonical = allowed_map.get(key, name) if allowed_map else name
-                names.append(canonical)
+            raw = self._cell_str(row, idx)
+            if not raw:
+                continue
+
+            parts = split_multi_value_cell(raw)
+            if not parts:
+                continue
+
+            for part in parts:
+                key = part.lower()
+                canonical = allowed_map.get(key, part) if allowed_map else part
+                if canonical not in seen:
+                    seen.add(canonical)
+                    names.append(canonical)
 
         if names:
             fields["components"] = [{"name": n} for n in names]
+
+    def _map_fix_versions(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map FixVersion(s) from row.
+
+        Supports multiple values in a single cell using ';' as delimiter, e.g.:
+        "1.0; 1.1" -> [{"name": "1.0"}, {"name": "1.1"}]
+        """
+        if indices.fixversion is None:
+            return
+
+        raw = self._cell_str(row, indices.fixversion)
+        if not raw:
+            return
+
+        parts = split_multi_value_cell(raw)
+        if not parts:
+            return
+
+        seen: set[str] = set()
+        versions: list[dict[str, str]] = []
+        for part in parts:
+            if part in seen:
+                continue
+            seen.add(part)
+            versions.append({"name": part})
+
+        if versions:
+            fields["fixVersions"] = versions
 
     def _label_indices(self, indices: ColumnIndices) -> list[int]:
         """Return all label column indices to use.
@@ -275,7 +315,7 @@ class IssueMapper:
         """Map labels from row.
 
         Supports multiple label columns: Labels, Labels1, Labels2, ...
-        Each cell value is treated as a single label string.
+        Cells may contain multiple labels separated by ';'.
         """
         label_idxs = self._label_indices(indices)
         if not label_idxs:
@@ -285,12 +325,18 @@ class IssueMapper:
         seen: set[str] = set()
 
         for idx in label_idxs:
-            value = self._cell_str(row, idx)
-            if not value:
+            raw = self._cell_str(row, idx)
+            if not raw:
                 continue
-            if value not in seen:
-                seen.add(value)
-                labels.append(value)
+
+            parts = split_multi_value_cell(raw)
+            if not parts:
+                continue
+
+            for part in parts:
+                if part not in seen:
+                    seen.add(part)
+                    labels.append(part)
 
         if labels:
             fields["labels"] = labels

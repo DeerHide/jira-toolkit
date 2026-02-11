@@ -73,6 +73,7 @@ class IssueMapper:
         self._map_parent(fields, row, indices)
         self._map_estimate(fields, row, indices)
         self._map_assignee(fields, row, indices)
+        self._map_reporter(fields, row, indices)
         self._map_team(fields, row, indices)
 
         # Handle level 4 issue type conversion (must be after parent mapping)
@@ -214,6 +215,18 @@ class IssueMapper:
         assignee_id = self._cell_str(row, indices.assignee)
         if assignee_id:
             fields["assignee"] = {"accountId": assignee_id}
+
+    def _map_reporter(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map reporter from row (already resolved by ReporterResolverFixer).
+
+        Args:
+            fields: Fields dictionary to update.
+            row: Row data.
+            indices: Column indices.
+        """
+        reporter_id = self._cell_str(row, indices.reporter)
+        if reporter_id:
+            fields["reporter"] = {"accountId": reporter_id}
 
     def _map_team(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
         """Map Advanced Roadmaps Team field from row.

@@ -265,23 +265,34 @@ class ImportRunner:
         """Handle cloud output and return exit code."""
         self.context.ui.info("Output target: Jira Cloud API")
 
-        # Check for critical assignee or team errors before proceeding
+        # Check for critical assignee, reporter, or team errors before proceeding
         critical_assignee_errors = [
             p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("assignee.")
+        ]
+        critical_reporter_errors = [
+            p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("reporter.")
         ]
         critical_team_errors = [
             p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("team.")
         ]
-        if critical_assignee_errors or critical_team_errors:
+        if critical_assignee_errors or critical_reporter_errors or critical_team_errors:
             if critical_assignee_errors:
                 self.context.ui.error("Critical assignee errors found - cannot proceed with cloud import:")
                 for error in critical_assignee_errors:
+                    self.context.ui.error(f"  Row {error.row_index}: {error.message}")
+            if critical_reporter_errors:
+                self.context.ui.error("Critical reporter errors found - cannot proceed with cloud import:")
+                for error in critical_reporter_errors:
                     self.context.ui.error(f"  Row {error.row_index}: {error.message}")
             if critical_team_errors:
                 self.context.ui.error("Critical team errors found - cannot proceed with cloud import:")
                 for error in critical_team_errors:
                     self.context.ui.error(f"  Row {error.row_index}: {error.message}")
-            App.event_fatal(exit_code=4, message="Critical assignee/team errors prevent cloud import", args=None)
+            App.event_fatal(
+                exit_code=4,
+                message="Critical assignee/reporter/team errors prevent cloud import",
+                args=None,
+            )
 
         try:
             # Write payloads if debug mode is enabled or cloud debug flag is set

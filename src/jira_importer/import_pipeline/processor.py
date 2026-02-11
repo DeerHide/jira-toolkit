@@ -394,6 +394,8 @@ class ImportProcessor:
             project_key=pos("project key"),
             assignee=pos("assignee"),
             assignee_name=pos("assignee.name"),
+            reporter=pos("reporter"),
+            reporter_name=pos("reporter.name"),
             team=pos("team"),
             team_name=pos("team.name"),
             description=pos("description"),

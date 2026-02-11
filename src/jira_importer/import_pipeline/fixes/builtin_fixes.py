@@ -13,6 +13,7 @@ from typing import Any
 
 from ..models import ColumnIndices, FixOutcome, IFixer, Problem, ValidationContext
 from .assignee_resolver import AssigneeResolverFixer
+from .reporter_resolver import ReporterResolverFixer
 from .team_resolver import TeamResolverFixer
 
 # helpers functions
@@ -291,6 +292,8 @@ def get_builtin_fixers() -> dict[str, IFixer]:
         "issueid.invalid": AssignIssueIdFixer(),
         "assignee.display_name": AssigneeResolverFixer(),
         "assignee.empty_with_name": AssigneeResolverFixer(),
+        "reporter.display_name": ReporterResolverFixer(),
+        "reporter.empty_with_name": ReporterResolverFixer(),
         "team.display_name": TeamResolverFixer(),
         "team.empty_with_name": TeamResolverFixer(),
     }

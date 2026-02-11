@@ -116,6 +116,8 @@ class ColumnIndices:
     project_key: int | None = None
     assignee: int | None = None
     assignee_name: int | None = None
+    reporter: int | None = None
+    reporter_name: int | None = None
     team: int | None = None
     team_name: int | None = None
     description: int | None = None

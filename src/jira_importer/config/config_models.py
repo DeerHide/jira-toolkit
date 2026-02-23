@@ -276,8 +276,7 @@ def parse_teams(cfg_view: Any) -> list[TeamConfig]:
             existing = seen_names[normalized_name]
             if existing.id != team_id:
                 raise ConfigurationError(
-                    f"Team name '{name}' is defined for multiple ids in JSON: "
-                    f"'{existing.id}' and '{team_id}'",
+                    f"Team name '{name}' is defined for multiple ids in JSON: '{existing.id}' and '{team_id}'",
                     details={
                         "team_name": name,
                         "first_id": existing.id,

@@ -145,6 +145,29 @@ For components, priorities, and other lists, make sure they match Jira exactly:
 }
 ```
 
+### Components source (Compass)
+
+When your Jira Software space uses **Compass components** instead of classic Jira project components, you can set `jira.components_source` to `"compass"` for clarity. The pipeline is identical—same columns (Components, Components1, ...), same payload, same validation—so this is optional and purely informational.
+
+**JSON:**
+
+```json
+{
+  "jira": {
+    "components": ["Backend Service", "Frontend App"],
+    "components_source": "compass"
+  }
+}
+```
+
+**Excel (Key/Value on Config sheet):**
+
+| Key | Value |
+| --- | --- |
+| jira.components_source | compass |
+
+Values: `"jira"` (default) or `"compass"`. Validation still uses CfgComponents / jira.components—ensure the list contains the correct names for the catalog you are targeting.
+
 ### Custom Fields Configuration
 
 The importer supports custom Jira fields with automatic validation based on field type. You can configure custom fields in JSON or Excel.

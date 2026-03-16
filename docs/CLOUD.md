@@ -19,6 +19,7 @@ src/jira_importer/import_pipeline/
     ├── auth.py                    # Authentication providers
     ├── mappers.py                 # Data mapping to Jira format
     ├── metadata.py                # Jira metadata caching
+    ├── preflight.py               # Preflight validation (API refs before POST)
     ├── bulk.py                    # Batch processing utilities
     └── constants.py               # Cloud-specific constants
 ```
@@ -34,6 +35,48 @@ graph TD
     E --> F[Jira Cloud API]
     F --> G[Response Processing]
     G --> H[CloudSubmitReport]
+```
+
+## Preflight Validation
+
+Before sending any `POST issue/bulk` requests, the cloud sink performs **preflight validation** against the Jira API. This prevents partial imports (some issues created, others rejected) that can cause duplicates on retries.
+
+### CLI Behavior
+
+| CLI       | Behavior                                             |
+| --------- | ---------------------------------------------------- |
+| `--dry-run` (no `--cloud`) | Local validation only, no Jira connection |
+| `--cloud --dry-run`       | Preflight against Jira API; no payload sent          |
+| `--cloud`                 | Preflight first; if no criticals, send payload       |
+
+### What Is Validated (Phase 1)
+
+Preflight checks the following references against the Jira API:
+
+- **Project**: Project key from rows or `jira.project.key` config
+- **Priorities**: Priority names in rows
+- **Issue types**: Issue type names in rows
+- **Assignees**: Assignee account IDs
+- **Reporters**: Reporter account IDs
+
+**Optional columns:** If a column index is `None` (column not present), that check is skipped ("no column, no check").
+
+### Limitations
+
+- **Custom field values**: Not pre-validated in Phase 1. Invalid custom field values may still cause API errors at import time.
+- **`-cl -dr` with local criticals**: If local validation has critical problems, `--cloud --dry-run` still connects and runs preflight. Both local and preflight problems are surfaced.
+
+### Preflight Flow
+
+```mermaid
+flowchart TD
+    Prepare[Prepare] --> TestCreds[test_credentials]
+    TestCreds --> Preflight[PreflightValidator]
+    Preflight --> CheckOK{Preflight OK?}
+    CheckOK -->|No| Abort[Abort, report problems]
+    CheckOK -->|Yes| CheckDry{dry_run?}
+    CheckDry -->|Yes| ReturnDry[Return no POST]
+    CheckDry -->|No| WritePart[_process_batches]
 ```
 
 ## Authentication
@@ -470,6 +513,7 @@ class CloudSubmitReport:
     batches: int
     errors: list[dict[str, Any]]
     created_issue_keys: list[str] = field(default_factory=list)
+    preflight_problems: tuple[Problem, ...] = field(default_factory=tuple)
 ```
 
 ---

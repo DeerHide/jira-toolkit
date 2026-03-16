@@ -167,7 +167,6 @@ class ExcelConfiguration:
         value: Any = self._get_nested_value(key)
 
         if value is None:
-            # Check Auto Field Values table as fallback
             # Try to load table_config if not already loaded
             if self.table_config is None:
                 try:
@@ -176,7 +175,20 @@ class ExcelConfiguration:
                     # If loading fails, continue without table_config
                     pass
 
-            if self.table_config and self.table_config.auto_field_values:
+            # Table fallback for jira.issuetypes and jira.priorities when content has no value
+            if self.table_config:
+                if key == "jira.issuetypes" and self.table_config.issue_types:
+                    from .utils import get_default_level_for_name  # noqa: PLC0415
+
+                    value = [
+                        {"name": str(it.name), "level": get_default_level_for_name(str(it.name))}
+                        for it in self.table_config.issue_types
+                        if it.name
+                    ]
+                elif key == "jira.priorities" and self.table_config.priorities:
+                    value = [str(p.name) for p in self.table_config.priorities if p.name]
+
+            if value is None and self.table_config and self.table_config.auto_field_values:
                 auto_field_match = next((a for a in self.table_config.auto_field_values if a.name == key), None)
                 if auto_field_match:
                     value = auto_field_match.value

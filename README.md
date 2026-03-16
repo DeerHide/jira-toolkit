@@ -99,7 +99,8 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 | `--auto-fix` | Enable automatic fixing of validation issues |
 | `--credentials [ACTION]` | Manage Jira API credentials (run/show/clear) |
 | `--data-sheet NAME` | Specify custom data sheet name |
-| `--dry-run` | Process data without writing output |
+| `--dry-run` | Process data without writing output (with `--cloud`, runs preflight against Jira API without sending payload) |
+| `-spf, --skip-preflight` | Skip preflight API validation when using `--cloud` (exceptional use only; risks partial imports) |
 | `--show-config` | Show configuration without requiring input file |
 | `-d, --debug` | Show detailed information for troubleshooting |
 | `-v, --version` | Show version information |
@@ -432,6 +433,9 @@ jira-importer.exe your-data.xlsx -ce --show-config
 
 # Test data processing without writing output files
 jira-importer.exe your-data.xlsx --dry-run
+
+# Test cloud import: preflight validation against Jira API (no payload sent)
+jira-importer.exe your-data.xlsx --cloud --dry-run
 
 # Test with debug information
 jira-importer.exe your-data.xlsx --debug

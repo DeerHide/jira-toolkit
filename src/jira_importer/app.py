@@ -282,6 +282,13 @@ class App:
             help=argparse.SUPPRESS,
             # help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
         )
+        output_group.add_argument(
+            "-spf",
+            "--skip-preflight",
+            dest="skip_preflight",
+            action="store_true",
+            help="Skip preflight API validation when using --cloud (exceptional use only; risks partial imports)",
+        )
 
     @staticmethod
     def _add_confirmation_args(parser: argparse.ArgumentParser) -> None:

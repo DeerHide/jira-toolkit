@@ -36,7 +36,7 @@ from ..cloud.constants import (
 from ..cloud.credential_manager import test_credentials
 from ..cloud.mappers import IssueMapper
 from ..cloud.metadata import MetadataCache
-from ..models import ColumnIndices, ProcessorResult
+from ..models import ColumnIndices, Problem, ProcessorResult
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +61,11 @@ class CloudSubmitReport:
     batches: int
     errors: list[dict[str, Any]]
     created_issue_keys: list[str] = field(default_factory=list)
+    preflight_problems: tuple[Problem, ...] = field(default_factory=tuple)
 
 
-def _validate_config(config: object) -> tuple[str, str, str]:
-    """Validate and extract Jira Cloud configuration."""
-    from ..cloud.secrets import SecretSpec, resolve_secret  # pylint: disable=import-outside-toplevel
-
+def _validate_config_structure(config: object) -> str:
+    """Validate config structure and extract base URL. Raises ConfigurationError if invalid."""
     cfg = ConfigView(config)
     base_url = cfg.get("jira.connection.site_address", None)
     if not base_url:
@@ -91,7 +90,14 @@ def _validate_config(config: object) -> tuple[str, str, str]:
             details={"config_key": "jira.connection.site_address", "value": str(base_url)},
         )
 
-    # Use proper credential resolution (keyring -> env -> config)
+    return str(base_url)
+
+
+def _resolve_credentials(config: object) -> tuple[str, str]:
+    """Resolve credentials from config. Returns (email, api_token). Raises ConfigurationError if missing."""
+    from ..cloud.secrets import SecretSpec, resolve_secret  # pylint: disable=import-outside-toplevel
+
+    cfg = ConfigView(config)
     email_spec = SecretSpec(config_key=AUTH_EMAIL_KEY, env_fallback="JIRA_EMAIL")
     token_spec = SecretSpec(config_key=AUTH_TOKEN_KEY, env_fallback="JIRA_API_TOKEN")
 
@@ -134,7 +140,7 @@ def _validate_config(config: object) -> tuple[str, str, str]:
             details={"config_key": "jira.connection.auth.api_token", "reason": "Token is empty or whitespace"},
         )
 
-    return base_url, email, api_token
+    return email, api_token
 
 
 def _setup_auth(email: str, api_token: str):
@@ -258,6 +264,7 @@ def write_cloud(
     output_dir: Path | None = None,
     ui: Any | None = None,
     auto_reply: bool | None = None,
+    skip_preflight: bool = False,
 ) -> CloudSubmitReport:
     """Submit processed issues to Jira Cloud in batches.
 
@@ -268,6 +275,7 @@ def write_cloud(
         output_dir: Optional directory for debug output.
         ui: Optional UI object for progress tracking and user interaction.
         auto_reply: Optional auto-reply flag for non-interactive mode.
+        skip_preflight: If True, skip preflight API validation (exceptional use only).
 
     Returns:
         CloudSubmitReport with creation results.
@@ -298,9 +306,10 @@ def write_cloud(
     except Exception:
         # Only suppress unexpected errors from ensure_cloud_credentials
         # Validation step below will provide exact messages
-        logger.debug("Credential check failed, will validate via _validate_config", exc_info=True)
+        logger.debug("Credential check failed, will validate via _validate_config_structure", exc_info=True)
 
-    base_url, email, api_token = _validate_config(config)
+    base_url = _validate_config_structure(config)
+    email, api_token = _resolve_credentials(config)
 
     # Build auth context for downstream error messages
     auth_context = {
@@ -316,6 +325,38 @@ def write_cloud(
 
     # Test credentials before proceeding
     test_credentials(client, base_url, auth_context)
+
+    # Preflight: validate references against Jira API before any POST (unless --skip-preflight)
+    preflight_problems: tuple[Problem, ...] = ()
+    if not skip_preflight:
+        from ..cloud.preflight import PreflightValidator  # pylint: disable=import-outside-toplevel
+
+        cfg = ConfigView(config)
+        metadata = MetadataCache(client)
+        validator = PreflightValidator(result, cfg, metadata)
+        preflight_problems = tuple(validator.validate())
+    elif ui is not None:
+        ui.warning("Preflight validation skipped (--skip-preflight). Partial imports possible if references are invalid.")
+
+    if preflight_problems:
+        return CloudSubmitReport(
+            created=0,
+            failed=0,
+            batches=0,
+            errors=[],
+            created_issue_keys=[],
+            preflight_problems=tuple(preflight_problems),
+        )
+
+    if dry_run:
+        return CloudSubmitReport(
+            created=0,
+            failed=0,
+            batches=0,
+            errors=[],
+            created_issue_keys=[],
+            preflight_problems=(),
+        )
 
     return _process_batches(result, client, dry_run, output_dir, ui, config, auth_context)
 

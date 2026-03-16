@@ -32,6 +32,7 @@ class PipelineOptions:
     fix_cloud_estimates: bool = False
     debug: bool = False
     cloud_debug_payloads: bool = False
+    skip_preflight: bool = False
     auto_reply: bool | None = None
 
 
@@ -300,8 +301,59 @@ class ImportRunner:
                 self.context.output_dir if (self.options.debug or self.options.cloud_debug_payloads) else None
             )
             report = write_cloud(
-                result, self.context.config, dry_run=False, output_dir=debug_output_dir, ui=self.context.ui
+                result,
+                self.context.config,
+                dry_run=self.options.dry_run,
+                output_dir=debug_output_dir,
+                ui=self.context.ui,
+                auto_reply=self.options.auto_reply,
+                skip_preflight=self.options.skip_preflight,
             )
+            # Preflight problems: abort before success messaging
+            if report.preflight_problems:
+                CloudReportReporter().render_preflight_problems(
+                    report.preflight_problems, self.context.ui
+                )
+                result_code = 1
+                summary = self._build_outcome_summary(
+                    result,
+                    prefix="Preflight failed",
+                    output="Jira Cloud API",
+                    extra=[],
+                )
+                if self.options.quiet:
+                    self.context.ui.say_quiet(summary)
+                else:
+                    self.context.ui.say(summary)
+                self.context.ui.lf()
+                self.context.ui.full_panel(
+                    self.context.ui.fmt.error("Preflight validation failed. Fix the issues above and retry.")
+                )
+                self.context.app.event_close(exit_code=result_code, cleanup=True)
+                return result_code
+            # Dry-run with cloud: preflight passed, no payload sent
+            if self.options.dry_run:
+                row_count = len(result.rows)
+                self.context.ui.success(
+                    f"Preflight passed. {row_count} row{'s' if row_count != 1 else ''} would be imported. "
+                    "Remove --dry-run to import."
+                )
+                summary = self._build_outcome_summary(
+                    result,
+                    prefix="Done (dry-run)",
+                    output="Jira Cloud API",
+                    extra=[f"{row_count} would be imported"],
+                )
+                if self.options.quiet:
+                    self.context.ui.say_quiet(summary)
+                else:
+                    self.context.ui.say(summary)
+                self.context.ui.lf()
+                self.context.ui.full_panel(
+                    self.context.ui.fmt.success("Preflight complete. You can close this window now.")
+                )
+                self.context.app.event_close(exit_code=0, cleanup=True)
+                return 0
             self.context.ui.success(
                 f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}"
             )
@@ -553,8 +605,8 @@ class ImportRunner:
                 "Dry-run mode: Validation issues found but skipping prompts since no actual output will be generated."
             )
 
-        # 5. Handle dry-run
-        if self.options.dry_run:
+        # 5. Handle dry-run (except cloud: -cl -dr runs preflight via _cloud_sink)
+        if self.options.dry_run and self.context.output_target != "cloud":
             return self._dry_run_sink(result)
 
         # 6. Route to appropriate sink

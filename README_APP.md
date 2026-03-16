@@ -87,6 +87,9 @@ jira-importer.exe --show-config
 
 # Test your data without importing
 jira-importer.exe your-data.xlsx --dry-run
+
+# Test cloud import: preflight validation against Jira API (no payload sent)
+jira-importer.exe your-data.xlsx --cloud --dry-run
 ```
 
 ### Common Commands

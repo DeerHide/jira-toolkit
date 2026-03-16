@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from .models import Problem, ProblemSeverity, ProcessorResult
 from .sinks.cloud_sink import CloudSubmitReport
@@ -275,3 +276,22 @@ class CloudReportReporter:
 
         if len(report.errors) > self.max_errors:
             ui.say(f"  ... and {len(report.errors) - self.max_errors} more errors.")
+
+    def render_preflight_problems(
+        self, preflight_problems: Sequence[Problem], ui: Any
+    ) -> None:
+        """Display preflight validation problems in a user-friendly format.
+
+        Args:
+            preflight_problems: Problems found during preflight validation.
+            ui: Console UI instance for output.
+        """
+        if not preflight_problems:
+            return
+
+        ui.error(f"Preflight validation found {len(preflight_problems)} critical issue(s):")
+        for p in preflight_problems[: self.max_errors * 2]:  # Show more for preflight
+            row_str = f"Row {p.row_index}: " if p.row_index is not None else ""
+            ui.error(f"  {row_str}{p.message}")
+        if len(preflight_problems) > self.max_errors * 2:
+            ui.say(f"  ... and {len(preflight_problems) - self.max_errors * 2} more.")

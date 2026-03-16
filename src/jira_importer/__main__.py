@@ -265,6 +265,7 @@ def main() -> int:
         fix_cloud_estimates=args.fix_cloud_estimates,
         debug=args.debug,
         cloud_debug_payloads=getattr(args, "cloud_debug_payloads", False),
+        skip_preflight=getattr(args, "skip_preflight", False),
         auto_reply=autoreply,
     )
 

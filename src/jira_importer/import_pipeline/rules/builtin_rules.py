@@ -69,7 +69,7 @@ class SummaryRequiredRule(IRowRule):
 class IssueTypeAllowedRule(IRowRule):
     """IssueType must be one of allowed issuetypes (config override supported).
 
-    Default: {'Story','Task','Bug','Epic','Sub-Task'}
+    Default: {'Story','Task','Bug','Epic','Sub-task'}
     Severity: error
     Note: Mandatory for the Jira Cloud & Jira Server
     """
@@ -82,7 +82,7 @@ class IssueTypeAllowedRule(IRowRule):
             return get_allowed_issue_types(ctx.config.get)
         except Exception:
             # Final fallback to hardcoded defaults if config is completely broken
-            return {"Story", "Task", "Bug", "Epic", "Sub-Task"}
+            return {"Story", "Task", "Bug", "Epic", "Sub-task"}
 
     def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
         """Apply the rule to the row."""

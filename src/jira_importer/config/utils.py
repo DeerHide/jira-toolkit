@@ -14,6 +14,38 @@ from ..log import add_file_logging, set_console_handler_level, setup_logger
 from ..utils import find_config_path
 from .config_display import display_config_content, display_table_config
 from .config_factory import ConfigurationFactory, ConfigurationType
+from .constants import (
+    EPIC_NAMES,
+    INITIATIVE_NAMES,
+    LEVEL_1_INITIATIVE,
+    LEVEL_2_EPIC,
+    LEVEL_3_STORY,
+    LEVEL_4_SUBTASK,
+    SUBTASK_NAMES,
+)
+
+
+def get_default_level_for_name(name: str) -> int:
+    """Get default level for common issue type names.
+
+    Shared helper used by IssueTypesConfig and ExcelConfiguration to derive
+    issue type hierarchy level from name when level is not explicitly configured.
+    Avoids circular imports between config.models.issuetypes and config.excel_config.
+
+    Args:
+        name: Issue type name (case-insensitive for built-in names).
+
+    Returns:
+        Level (1-4): 1=Initiative, 2=Epic, 3=Story/Task/Bug, 4=Sub-task.
+    """
+    name_lower = name.lower()
+    if name_lower in INITIATIVE_NAMES:
+        return LEVEL_1_INITIATIVE
+    if name_lower in EPIC_NAMES:
+        return LEVEL_2_EPIC
+    if name_lower in SUBTASK_NAMES:
+        return LEVEL_4_SUBTASK
+    return LEVEL_3_STORY
 
 
 def determine_config_path(args: Any) -> str:

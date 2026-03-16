@@ -69,6 +69,7 @@ class SummaryRequiredRule(IRowRule):
 class IssueTypeAllowedRule(IRowRule):
     """IssueType must be one of allowed issuetypes (config override supported).
 
+    Validation is case-insensitive (matches Jira API behavior).
     Default: {'Story','Task','Bug','Epic','Sub-Task'}
     Severity: error
     Note: Mandatory for the Jira Cloud & Jira Server
@@ -100,7 +101,8 @@ class IssueTypeAllowedRule(IRowRule):
                 )
             )
         allowed = self.allowed or self._allowed(ctx)
-        if issuetype not in allowed:
+        allowed_lower = {a.lower() for a in allowed}
+        if issuetype.lower() not in allowed_lower:
             return ValidationResult(
                 problems=(
                     Problem(
@@ -119,6 +121,7 @@ class IssueTypeAllowedRule(IRowRule):
 class PriorityAllowedRule(IRowRule):
     """Priority must be one of allowed priorities (config override supported).
 
+    Validation is case-insensitive (matches Jira API behavior).
     Default: {'Highest','High','Medium','Low','Lowest'}
     Severity: warning (fixable via fixer to normalize/pad if needed)
     Note: Mandatory for the Jira Cloud & Jira Server
@@ -152,7 +155,8 @@ class PriorityAllowedRule(IRowRule):
                 )
             )
         allowed = self._allowed(ctx)
-        if pri not in allowed:
+        allowed_lower = {a.lower() for a in allowed}
+        if pri.lower() not in allowed_lower:
             return ValidationResult(
                 problems=(
                     Problem(

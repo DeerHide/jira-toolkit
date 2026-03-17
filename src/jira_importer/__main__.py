@@ -9,6 +9,7 @@ from __future__ import annotations
 
 # Import libraries
 import logging
+import re
 import warnings
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from jira_importer.console import ConsoleIO
 from jira_importer.constants import CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
 from jira_importer.errors import (
     ErrorResponse,
+    FileWriteError,
     InputFileError,
     JiraAuthError,
     ProcessingError,
@@ -279,6 +281,26 @@ def main() -> int:
         logger.critical(f"Import pipeline failed: {error_message}")
         app.event_close(exit_code=3, cleanup=True)
         return 3
+    except (PermissionError, OSError) as file_exc:
+        # File I/O errors (e.g. output CSV open in Excel) - wrap in domain exception for consistent handling
+        if isinstance(file_exc, PermissionError) or getattr(file_exc, "errno", None) == 13:
+            path = getattr(file_exc, "filename", None)
+            if path is None:
+                match = re.search(r"'([^']+)'", str(file_exc))
+                path = match.group(1) if match else "output file"
+            proc_exc = FileWriteError(
+                f"Cannot write output file '{path}'. The file may be open in Excel or another program. "
+                "Please close it and try again.",
+                details={"path": str(path)},
+            )
+            log_exception(logger, proc_exc, context="Import pipeline")
+            error_message = format_error_for_display(proc_exc)
+            ui.error(error_message)
+            logger.critical("Import pipeline failed: %s", error_message)
+            app.event_close(exit_code=3, cleanup=True)
+            return 3
+        # Other OSErrors: re-raise so generic handler can process
+        raise
     except Exception as exc:  # pylint: disable=broad-except
         # Last-resort guard for unexpected internal errors. This broad catch is
         # intentional so we can present a clear failure to the user while

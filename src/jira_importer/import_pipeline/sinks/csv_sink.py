@@ -15,6 +15,7 @@ from pathlib import Path
 
 from ...config.config_view import ConfigView
 from ...console import ConsoleIO
+from ...errors import FileWriteError
 from ..models import ProcessorResult
 from ..utils import split_multi_value_cell
 from .sink_utils import times60_estimates_inplace
@@ -127,20 +128,26 @@ def write_csv(
             header = header_out
             rows = rows_out
 
-    with out_path.open("w", encoding=encoding, newline=newline) as fh:
-        w = csv.writer(fh)
-        w.writerow(header)
+    try:
+        with out_path.open("w", encoding=encoding, newline=newline) as fh:
+            w = csv.writer(fh)
+            w.writerow(header)
 
-        # Add progress tracking if UI is available
-        if ui and hasattr(ui, "progress"):
-            with ui.progress() as progress:
-                task = progress.add_task("Writing CSV", total=len(result.rows))
+            # Add progress tracking if UI is available
+            if ui and hasattr(ui, "progress"):
+                with ui.progress() as progress:
+                    task = progress.add_task("Writing CSV", total=len(result.rows))
+                    for row in rows:
+                        w.writerow(row)
+                        progress.advance(task)
+            else:
+                # Fallback without progress tracking
                 for row in rows:
                     w.writerow(row)
-                    progress.advance(task)
-        else:
-            # Fallback without progress tracking
-            for row in rows:
-                w.writerow(row)
+    except PermissionError as exc:
+        raise FileWriteError(
+            f"Cannot write output file '{out_path}'. The file may be open in Excel or another program. Please close it and try again.",
+            details={"path": str(out_path)},
+        ) from exc
 
     return out_path

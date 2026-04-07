@@ -60,7 +60,7 @@ The most important settings are:
 }
 ```
 
-- Row skipping (optional):
+- Row skipping (optional) — use a **top-level** `validation` object in JSON (sibling of `app` and `jira`), as in [`resources/Templates/config_importer.json`](../resources/Templates/config_importer.json). Do not nest these under `app.validation`; that block is used for other options (for example `skip_checks` on individual validations).
 
 ```json
 {

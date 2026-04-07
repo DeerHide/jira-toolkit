@@ -11,6 +11,7 @@ This document covers the current features and capabilities of the Jira Importer 
 - **Interactive credential setup**: Use `--credentials run` to set up authentication
 - **Credential viewing**: Use `--credentials show` to view current credentials
 - **Credential clearing**: Use `--credentials clear` to remove stored credentials
+- **Credential test**: Use `--credentials test` to verify connection to Jira without running an import
 - **Keyring integration**: Secure credential storage using OS keychain
 - **Environment variable support**: Use `JIRA_EMAIL` and `JIRA_API_TOKEN` environment variables
 
@@ -40,7 +41,7 @@ This document covers the current features and capabilities of the Jira Importer 
 
 #### Available Flags
 
-- **`--credentials [ACTION]`**: Manage Jira API credentials
+- **`--credentials [ACTION]`**: Manage Jira API credentials (`run`, `show`, `clear`, `test`)
 - **`--auto-fix`**: Enable automatic fixing of validation issues
 - **`--fix-cloud-estimates`**: Apply Jira Cloud ×60 estimate quirk
 - **`--enable-excel-rules`**: Load validation rules from Excel tables
@@ -232,6 +233,9 @@ python -m jira_importer --credentials show
 
 # Test credential clearing
 python -m jira_importer --credentials clear
+
+# Verify credentials / Jira connectivity
+python -m jira_importer --credentials test
 ```
 
 #### Excel Table Configuration Testing

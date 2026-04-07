@@ -124,6 +124,9 @@ jira-importer.exe --credentials show
 
 # Clear credentials
 jira-importer.exe --credentials clear
+
+# Verify credentials / connection to Jira
+jira-importer.exe --credentials test
 ```
 
 ## Configuration Options
@@ -248,7 +251,7 @@ Use structured tables in your Excel `Config` sheet:
 
 ### Row Skipping
 
-Skip rows by setting `RowType = "SKIP"` or using issue types like "comment", "note", "skip".
+Skip rows by setting `RowType = "SKIP"` or using issue types like "comment", "note", "skip". In JSON config, enable **`validation.skip_rowtype`** / **`validation.skip_issuetypes`** at the **root** of the file (see **`resources/Templates/config_importer.json`** in the repo), not under `app.validation`.
 
 ## Support
 

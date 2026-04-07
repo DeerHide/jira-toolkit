@@ -102,7 +102,7 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 | `-ci, --config-input` | Use config file next to your Excel file (recommended) |
 | `--cloud` | Import directly to Jira Cloud (requires configuration) |
 | `--auto-fix` | Enable automatic fixing of validation issues |
-| `--credentials [ACTION]` | Manage Jira API credentials (run/show/clear) |
+| `--credentials [ACTION]` | Manage Jira API credentials (`run` / `show` / `clear` / `test`) |
 | `--data-sheet NAME` | Data sheet tab name (default: **Dataset**; must match the workbook exactly) |
 | `--dry-run` | Process data without writing output |
 | `--show-config` | Show configuration without requiring input file |
@@ -259,7 +259,7 @@ The tool supports skipping rows during processing using multiple criteria:
 - **RowType column**: Set `RowType = "SKIP"` for rows you want to exclude
 - **Issue Type filtering**: Automatically skip rows with Issue Types like "comment", "note", "skip"
 - Skipped rows bypass validation and won't appear in the final output
-- Configure this feature in your config file with `"skip_rowtype": true` and `"skip_issuetypes": ["comment", "note", "skip"]`
+- Configure this under the **root** `validation` object in JSON (same pattern as [`resources/Templates/config_importer.json`](resources/Templates/config_importer.json)): `"skip_rowtype": true` and `"skip_issuetypes": ["comment", "note", "skip"]` — not under `app.validation` (that block is for other toggles like per-check `skip_checks`)
 
 Example:
 
@@ -275,11 +275,9 @@ Update docs,Medium,Task,PROCESS
 
 ```json
 {
-  "app": {
-    "validation": {
-      "skip_rowtype": true,
-      "skip_issuetypes": ["comment", "note", "skip"]
-    }
+  "validation": {
+    "skip_rowtype": true,
+    "skip_issuetypes": ["comment", "note", "skip"]
   }
 }
 ```
@@ -415,6 +413,7 @@ The importer provides clear, actionable error messages:
 - **Interactive setup**: `--credentials run` - Set up authentication interactively
 - **View credentials**: `--credentials show` - Display current credentials
 - **Clear credentials**: `--credentials clear` - Remove stored credentials
+- **Test / verify**: `--credentials test` - Check stored (or configured) credentials against Jira without starting an import
 - **Environment variables**: Use `JIRA_EMAIL` and `JIRA_API_TOKEN` for automation
 
 ### Hierarchical Issue Types

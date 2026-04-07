@@ -57,7 +57,7 @@ post-build = "scripts.pyinstaller_hooks:post_build"
 
 [tool.poetry]
 name = "jira_importer"
-version = "1.0.0"
+version = "1.2.0"
 description = "Jira Importer Application"
 packages = [{ include = "jira_importer", from = "src" }]
 

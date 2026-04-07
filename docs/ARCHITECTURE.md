@@ -547,7 +547,7 @@ The cloud sink now provides comprehensive error handling for authentication and 
 - **`--auto-fix`**: Enable automatic fixing of common validation issues
 - **`--fix-cloud-estimates`**: Apply Jira Cloud ×60 estimate quirk
 - **`--enable-excel-rules`**: Load validation rules from Excel tables
-- **`--data-sheet`**: Specify custom data sheet name
+- **`--data-sheet`**: Excel data sheet tab name (default: **Dataset**; must match the workbook exactly)
 
 For detailed technical information about the cloud integration, see **[CLOUD.md](CLOUD.md)**.
 

@@ -98,7 +98,7 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 | `--cloud` | Import directly to Jira Cloud (requires configuration) |
 | `--auto-fix` | Enable automatic fixing of validation issues |
 | `--credentials [ACTION]` | Manage Jira API credentials (run/show/clear) |
-| `--data-sheet NAME` | Specify custom data sheet name |
+| `--data-sheet NAME` | Data sheet tab name (default: **Dataset**; must match the workbook exactly) |
 | `--dry-run` | Process data without writing output |
 | `--show-config` | Show configuration without requiring input file |
 | `-d, --debug` | Show detailed information for troubleshooting |
@@ -110,7 +110,7 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 
 **Important**: Use the provided `ImportTemplate.xlsx` as your starting point. Do not change the column headers — the tool expects specific column names to work correctly.
 
-- **Data Sheet**: Place your tasks in the "dataset" sheet (or specify a custom sheet name with `--data-sheet`)
+- **Data Sheet**: Place your tasks on the sheet named **Dataset** (CLI default; the name must match the Excel tab exactly). Use `--data-sheet NAME` if your data is on another sheet
 - **Template**: Start with `ImportTemplate.xlsx` to ensure proper column structure
 - **Empty Rows**: Empty rows are automatically ignored during processing
 - **Notes/Comments**: Rows with Issue Types like "comment", "note", or "skip" are automatically filtered out (configurable)

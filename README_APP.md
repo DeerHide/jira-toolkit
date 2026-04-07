@@ -37,7 +37,7 @@ Perfect for **project managers**, **team leads**, **producers**, and anyone who 
 
 - Use the included `ImportTemplate.xlsx` as your starting point
 - **Important**: Do not change the column headers — the tool expects specific column names
-- Place your tasks in the "dataset" sheet (or specify custom sheet with `--data-sheet`)
+- Place your tasks on the sheet named **Dataset** (default; must match the Excel tab exactly). Use `--data-sheet NAME` if your data is on another sheet
 - Fill in your tasks, stories, epics, etc.
 - Save your Excel file
 

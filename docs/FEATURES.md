@@ -44,7 +44,7 @@ This document covers the current features and capabilities of the Jira Importer 
 - **`--auto-fix`**: Enable automatic fixing of validation issues
 - **`--fix-cloud-estimates`**: Apply Jira Cloud ×60 estimate quirk
 - **`--enable-excel-rules`**: Load validation rules from Excel tables
-- **`--data-sheet NAME`**: Specify custom data sheet name
+- **`--data-sheet NAME`**: Excel data sheet tab name (default: **Dataset**; must match the workbook exactly)
 - **`--no-report`**: Suppress validation reports (useful for CI/CD)
 - **`--dry-run`**: Process data without writing output (new)
 - **`--show-config`**: Show configuration without requiring input file (new)

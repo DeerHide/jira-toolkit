@@ -33,6 +33,11 @@ No install required — on Windows, you can drag & drop your Excel file onto the
 - **macOS**: Native build available (no installation required)
 - **Source**: Python 3.12+ required for running from source
 
+### Templates and sample files
+
+- **Excel starters** (`ImportTemplate.xlsx`, and when included **`ImportTemplate_with_config.xlsx`** with a sample `Config` sheet) ship with **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** assets (same bundle as the executables). They are **not** committed to the source tree.
+- **JSON config samples** live in the repository under **`resources/Templates/`** — e.g. [`config_importer.json`](resources/Templates/config_importer.json) and `config_importer_full.json`. Copy or reference these when working from a git checkout.
+
 ## ⚠️ Important Notice
 
 **This tool currently supports Jira Cloud only for direct API integration.**
@@ -60,7 +65,7 @@ Perfect for **project managers**, **team leads**, **producers**, and anyone who 
 ## Quick Start
 
 1. **Download** the `jira-importer.exe` file from the [releases page](https://github.com/DeerHide/jira-toolkit/releases)
-2. **Prepare** your Excel file using the provided `ImportTemplate.xlsx` template
+2. **Prepare** your Excel file using `ImportTemplate.xlsx` from the same release bundle (or any workbook that keeps the expected columns — see **Input Format** below)
 3. **Run** the import:
 
    ```bash
@@ -108,10 +113,10 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 
 ## Input Format
 
-**Important**: Use the provided `ImportTemplate.xlsx` as your starting point. Do not change the column headers — the tool expects specific column names to work correctly.
+**Important**: Start from `ImportTemplate.xlsx` **[from Releases](https://github.com/DeerHide/jira-toolkit/releases)** if you can — it encodes the expected columns. Do not change the column headers unless you know the schema. Working from git only? Grab that Excel file from the latest release assets; JSON samples are under `resources/Templates/`.
 
 - **Data Sheet**: Place your tasks on the sheet named **Dataset** (CLI default; the name must match the Excel tab exactly). Use `--data-sheet NAME` if your data is on another sheet
-- **Template**: Start with `ImportTemplate.xlsx` to ensure proper column structure
+- **Template**: **`ImportTemplate.xlsx`** (release bundle) keeps the correct column layout; **`ImportTemplate_with_config.xlsx`** may be included for an Excel-native config example
 - **Empty Rows**: Empty rows are automatically ignored during processing
 - **Notes/Comments**: Rows with Issue Types like "comment", "note", or "skip" are automatically filtered out (configurable)
 
@@ -300,7 +305,7 @@ Choose the configuration method that works best for your workflow:
 ### Option A: Excel Configuration (Recommended)
 
 - Put your settings in the `Config` sheet of your Excel file
-- Use our template as a starting point: `resources/templates/ImportTemplate_with_config.xlsx`
+- Prefer **`ImportTemplate_with_config.xlsx`** from **[Releases](https://github.com/DeerHide/jira-toolkit/releases)** when available (sample `Config` + tables). Not in the git tree.
 - Run: `jira-importer.exe your-data.xlsx -ce`
 
 **Benefits:**
@@ -311,7 +316,7 @@ Choose the configuration method that works best for your workflow:
 
 ### Option B: JSON Configuration
 
-- Copy `resources/templates/config_importer.json` next to your Excel file
+- Copy [`resources/Templates/config_importer.json`](resources/Templates/config_importer.json) from this repository next to your Excel file (or use the copy bundled with a release)
 - Fill in your Jira details (site address, API token, project key/id)
 - Run: `jira-importer.exe your-data.xlsx -ci`
 

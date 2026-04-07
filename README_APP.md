@@ -31,11 +31,16 @@ Perfect for **project managers**, **team leads**, **producers**, and anyone who 
 - **macOS**: Native build available (no installation required)
 - **Source**: Python 3.12+ required for running from source
 
+### Templates
+
+- **Excel starters** (`ImportTemplate.xlsx`, and sometimes **`ImportTemplate_with_config.xlsx`**) come from **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** with the app — not from the git source tree alone.
+- **JSON samples** for config are in the repo at **`resources/Templates/`** (`config_importer.json`, `config_importer_full.json`).
+
 ## Quick Start (3 steps)
 
 ### 1. Prepare Your Data
 
-- Use the included `ImportTemplate.xlsx` as your starting point
+- Use `ImportTemplate.xlsx` from your **[release download](https://github.com/DeerHide/jira-toolkit/releases)** as the starting point (or match its column layout in your own file)
 - **Important**: Do not change the column headers — the tool expects specific column names
 - Place your tasks on the sheet named **Dataset** (default; must match the Excel tab exactly). Use `--data-sheet NAME` if your data is on another sheet
 - Fill in your tasks, stories, epics, etc.
@@ -126,7 +131,7 @@ jira-importer.exe --credentials clear
 ### Option A: Excel Configuration (Recommended)
 
 - Put your settings in the `Config` sheet of your Excel file
-- Use the included template: `ImportTemplate.xlsx`
+- Use **`ImportTemplate_with_config.xlsx`** from **Releases** when available, or add a `Config` sheet to a workbook based on `ImportTemplate.xlsx`
 - Run: `jira-importer.exe your-data.xlsx -ce`
 
 **Benefits:**
@@ -137,7 +142,7 @@ jira-importer.exe --credentials clear
 
 ### Option B: JSON Configuration
 
-- Copy `config_importer.json` next to your Excel file
+- Copy `config_importer.json` next to your Excel file (from **`resources/Templates/`** in the repo or from the release bundle)
 - Fill in your Jira details (site address, API token, project key/id)
 - Run: `jira-importer.exe your-data.xlsx -ci`
 
@@ -177,10 +182,10 @@ Implement API endpoint,Low,Sub-Task,Add new feature,3,28800,backend
 
 ## What's Included
 
-- `jira-importer.exe` (Windows) or `jira-importer` (macOS) - The main executable
-- `ImportTemplate.xlsx` - Excel template with examples
-- `config_importer.json` - Configuration template
-- `README_APP.md` - This guide
+- `jira-importer.exe` (Windows) or `jira-importer` (macOS) — the main executable
+- **`ImportTemplate.xlsx`** (and optional Excel/config variants) — shipped **with [Releases](https://github.com/DeerHide/jira-toolkit/releases)**, not necessarily in the bare git clone
+- **`config_importer.json`** — in the repo under **`resources/Templates/`**, and usually bundled next to the downloadable app
+- `README_APP.md` — this guide
 
 ## Output Options
 

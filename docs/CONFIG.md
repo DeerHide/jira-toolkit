@@ -2,12 +2,14 @@
 
 This guide shows simple ways to configure the importer. You can keep settings in your Excel file, or in a JSON file. Pick what’s easiest for you.
 
+**Where templates live:** Excel starter workbooks (`ImportTemplate.xlsx`, **`ImportTemplate_with_config.xlsx`** when offered) are attached to **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)**, not stored in git. JSON examples are in the repository under **`resources/Templates/`**.
+
 ## Two ways to configure
 
 ### Option A: Configure inside your Excel file (easiest)
 
 - Use the `Config` sheet in your Excel file
-- Start from our template: `resources/templates/ImportTemplate_with_config.xlsx`
+- Start from **`ImportTemplate_with_config.xlsx`** on **[Releases](https://github.com/DeerHide/jira-toolkit/releases)** when available (sample `Config` layout)
 - Put your settings as two columns: Key | Value (first row can be headers)
 
 Tip: You can also add helpful lookup tables (assignees, sprints, components, etc.) on the same `Config` sheet. The tool reads these automatically if present.
@@ -22,7 +24,7 @@ jira-importer.exe your-data.xlsx -ce
 
 ### Option B: Configure with a JSON file
 
-- Copy `resources/templates/config_importer.json` next to your Excel file
+- Copy `resources/Templates/config_importer.json` from the repository next to your Excel file (or use the file from your release bundle)
 - Fill in your Jira details (site address, API token, project key and id)
 
 How to run:
@@ -390,7 +392,7 @@ If you're getting "Missing jira.connection.site_address" errors:
 
 ## Full examples
 
-- Excel template with a `Config` sheet: `resources/templates/ImportTemplate.xlsx`
-- JSON template: `resources/templates/config_importer.json`
+- Excel template with expected columns: **`ImportTemplate.xlsx`** from **[Releases](https://github.com/DeerHide/jira-toolkit/releases)**; optional config-heavy variant when published there
+- JSON template in git: **`resources/Templates/config_importer.json`** (also `config_importer_full.json` for a fuller skeleton)
 
 :_GeneratedFile_

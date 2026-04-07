@@ -91,9 +91,9 @@ jira-toolkit/                    # Repository root
 │   ├── logs/                    # Build logs
 │   └── version/                 # Version generation scripts
 ├── dist/                        # Build output directory
-├── resources/                   # Runtime resources and templates
-│   ├── Samples/                 # Sample data files
-│   └── Templates/               # Excel and JSON templates
+├── resources/                   # Runtime resources (JSON templates in git; Excel starters ship with Releases)
+│   ├── Samples/                 # Sample JSON snippets
+│   └── Templates/               # JSON config templates (e.g. config_importer.json)
 ├── docs/                        # Documentation
 ├── scripts/                     # Helper scripts and utilities
 ├── tests/                       # Test files and data
@@ -249,8 +249,8 @@ For detailed technical information, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 ### Testing Your Changes
 
 1. **Use sample data**
-   - Copy `resources/templates/ImportTemplate.xlsx` to your working directory
-   - Modify it with test data
+   - Obtain **`ImportTemplate.xlsx`** from **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** (not in git), or use **`tests/data/csvs/`** / synthetic Excel that matches the pipeline tests
+   - Copy JSON samples from **`resources/Templates/`** when testing `-ci` / `-c` flows
    - Run the importer on your test file
 
 2. **Enable debug mode**

@@ -19,6 +19,8 @@ jira-toolkit/                    # Repository root
 └── .venv/                       # Virtual environment
 ```
 
+**`resources/`:** The git repo includes JSON under **`resources/Templates/`** and samples under **`resources/Samples/`**. Excel starter workbooks (**`ImportTemplate.xlsx`**, optional **`ImportTemplate_with_config.xlsx`**) are distributed via **GitHub Releases** with the packaged app, not as tracked files here.
+
 ## 🏗️ Application Architecture
 
 ### Core Application Structure
@@ -151,10 +153,11 @@ graph TD
     C3 --> C3A[generate_version.py]
     C3 --> C3B[build-counter.json]
 
-    E --> E1[templates/]
-    E1 --> E1A[ImportTemplate.xlsx]
-    E1 --> E1B[config_importer.json]
-    E1 --> E1C[jira-config.json]
+    E --> E1[Templates/]
+    E1 --> E1A[config_importer.json]
+    E1 --> E1B[config_importer_full.json]
+    E --> E2[Samples/]
+    E2 --> E2A[config_sample.json]
 
     F --> F1[DEV.md]
     F --> F2[CONFIG.md]

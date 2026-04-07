@@ -1,6 +1,6 @@
 [project]
 name = "jira-toolkit"
-version = "1.0.0"
+version = "1.2.0"
 description = "A utility for batch-importing tasks from Excel into Jira"
 readme = "README.md"
 license = {text = "MIT"}

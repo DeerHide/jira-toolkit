@@ -17,7 +17,7 @@ dependencies = [
     "structlog>=23.0.0",
     "colorlog>=6.7.0",
     "PyYAML>=6.0",
-    "requests>=2.25.0",
+    "requests>=2.33.0",
     "urllib3>=2.6.3",
     "keyring>=25.7.0",
     "colorama>=0.4.0; platform_system == 'Windows'",

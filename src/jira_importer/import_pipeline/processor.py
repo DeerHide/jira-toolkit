@@ -404,7 +404,8 @@ class ImportProcessor:
             single_component_index = components_indices[0]
         else:
             # Fallback for legacy layouts with a single "Component" header.
-            single_component_index = pos("component") or pos("components")
+            c_idx = pos("component")
+            single_component_index = c_idx if c_idx is not None else pos("components")
 
         # Backward-compatible single labels index: first labels column, or a direct "labels" match.
         single_labels_index: int | None = None

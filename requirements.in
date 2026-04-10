@@ -13,7 +13,7 @@ pandas
 openpyxl
 
 # HTTP and API
-requests
+requests>=2.33.0
 urllib3>=2.6.3
 
 # Security and credentials

@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import time
+from logging.handlers import RotatingFileHandler
 from typing import Any
 
 import colorlog
@@ -20,16 +21,39 @@ try:
 except Exception:
     pass
 
-from .utils import get_logs_directory
+from .paths import get_logs_directory
 
 # Import sensitive terms from centralized constants
 try:
     from .import_pipeline.cloud.constants import SENSITIVE_TERMS
 
-    _SENSITIVE_TERMS = SENSITIVE_TERMS
+    _SENSITIVE_TERMS: tuple[str, ...] = SENSITIVE_TERMS
 except ImportError:
     # Fallback if import fails (shouldn't happen in normal operation)
     _SENSITIVE_TERMS = ("password", "api_token", "token", "secret", "client_secret", "access_token", "key", "auth")
+
+
+# Precompiled patterns
+EMAIL_PATTERN = re.compile(
+    r"\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b",
+    re.IGNORECASE,
+)
+
+_KEY_VALUE_PATTERNS = {
+    term: re.compile(rf"\b{re.escape(term)}\s*=\s*([^\s,;)\]]+)", re.IGNORECASE) for term in _SENSITIVE_TERMS
+}
+
+_JSON_PATTERNS = {
+    term: re.compile(
+        rf'["\']?{re.escape(term)}["\']?\s*:\s*["\']([^"\']*)["\']',
+        re.IGNORECASE,
+    )
+    for term in _SENSITIVE_TERMS
+}
+
+_COLON_PATTERNS = {
+    term: re.compile(rf"\b{re.escape(term)}\s*:\s*([^\s,;)\]]+)", re.IGNORECASE) for term in _SENSITIVE_TERMS
+}
 
 
 class RedactingFilter(logging.Filter):
@@ -51,31 +75,19 @@ class RedactingFilter(logging.Filter):
 
             # Email address redaction: redact local part (before @), keep domain
             # Matches email addresses in various formats: user@domain.com, "user@domain.com", etc.
-            email_pattern = re.compile(r"\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b", re.IGNORECASE)
-            msg = email_pattern.sub(r"***@\2", msg)
+            msg = EMAIL_PATTERN.sub(r"***@\2", msg)
 
             # Check if any sensitive terms are present
             if any(term in lower for term in _SENSITIVE_TERMS):
-                # Pattern 1: key=value (e.g., "token=abc123", "api_token=xyz")
+                # Apply all redaction patterns for each sensitive term using precompiled regexes
                 for term in _SENSITIVE_TERMS:
-                    # Match: term=value (value can contain alphanumeric, dash, underscore, dot)
-                    pattern = re.compile(rf"\b{re.escape(term)}\s*=\s*([^\s,;)\]]+)", re.IGNORECASE)
-                    msg = pattern.sub(rf"{term}=[REDACTED]", msg)
-
-                # Pattern 2: JSON-like "key": "value" or 'key': 'value'
-                for term in _SENSITIVE_TERMS:
-                    # Match: "term": "value" or 'term': 'value'
-                    pattern = re.compile(rf'["\']?{re.escape(term)}["\']?\s*:\s*["\']([^"\']+)["\']', re.IGNORECASE)
-                    msg = pattern.sub(rf'"{term}": "[REDACTED]"', msg)
-
-                # Pattern 3: key: value (colon format, no quotes)
-                for term in _SENSITIVE_TERMS:
-                    # Match: term: value (value until whitespace, comma, semicolon, or end)
-                    pattern = re.compile(rf"\b{re.escape(term)}\s*:\s*([^\s,;)\]]+)", re.IGNORECASE)
-                    msg = pattern.sub(rf"{term}: [REDACTED]", msg)
+                    msg = _KEY_VALUE_PATTERNS[term].sub(rf"{term}=[REDACTED]", msg)
+                    msg = _JSON_PATTERNS[term].sub(rf'"{term}": "[REDACTED]"', msg)
+                    msg = _COLON_PATTERNS[term].sub(rf"{term}: [REDACTED]", msg)
 
             # If message was modified, update the record
             if msg != original_msg:
+                # Replace original message with redacted version and clear args to avoid re-formatting
                 record.msg = "[REDACTED] " + msg
                 record.args = ()
         except Exception:
@@ -136,10 +148,10 @@ class LoggingConfig:
             )
 
         # Check if console output is enabled
+        # When config is None (early bootstrap, credentials, show-config), enable console
+        # so that parser errors and early failures are visible; config load will reapply later.
         self.console_output_enabled = (
-            self.config.get_value("app.logging.console_output", default=DEFAULT_CONSOLE_OUTPUT)
-            if self.config
-            else DEFAULT_CONSOLE_OUTPUT
+            self.config.get_value("app.logging.console_output", default=DEFAULT_CONSOLE_OUTPUT) if self.config else True
         )
 
     def _resolve_level(self) -> int:
@@ -157,7 +169,7 @@ class LoggingConfig:
 
         return DEFAULT_LOG_LEVEL
 
-    def get_file_settings(self) -> dict:
+    def get_file_settings(self) -> dict[str, int]:
         """Get file logging settings from config."""
         if not self.file_logging_enabled:
             return {}
@@ -174,7 +186,7 @@ class LoggingConfig:
             "max_log_files": self.config.get_value("app.logging.max_log_files", default=DEFAULT_MAX_LOG_FILES),
         }
 
-    def validate_file_settings(self) -> list:
+    def validate_file_settings(self) -> list[str]:
         """Validate file logging settings."""
         if not self.file_logging_enabled:
             return []
@@ -234,11 +246,41 @@ def _setup_console_logging(level: int, is_tty: bool) -> None:
     root_logger.addHandler(console_handler)
 
 
+def _reapply_console_handlers(logging_config: LoggingConfig) -> None:
+    """Reapply only console/null handlers from config, leaving file handlers intact.
+
+    Used when setup_logger is called again with config after an initial setup with
+    config=None, so that app.logging.console_output from config is applied
+    """
+    root_logger = logging.getLogger()
+
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, RotatingFileHandler):
+            continue
+        if isinstance(handler, logging.NullHandler):
+            root_logger.removeHandler(handler)
+        elif getattr(handler, "stream", None) in (sys.stderr, sys.stdout):
+            root_logger.removeHandler(handler)
+
+    if logging_config.console_output_enabled:
+        console_handler = _create_console_handler(logging_config.level, logging_config.is_tty)
+        console_handler.addFilter(RedactingFilter())
+        root_logger.addHandler(console_handler)
+        root_logger.propagate = True
+    else:
+        root_logger.addHandler(logging.NullHandler())
+        root_logger.propagate = False
+
+
 def setup_logger(level_override: int | None = None, config: Any | None = None) -> None:
     """Setup the root logger with console output."""
     global _CONFIGURED  # pylint: disable=global-statement
     if _CONFIGURED:
-        if level_override is not None:
+        if config is not None:
+            logging_config = LoggingConfig(level_override, config)
+            _set_levels(logging_config.level)
+            _reapply_console_handlers(logging_config)
+        elif level_override is not None:
             _set_levels(level_override)
         return
 
@@ -268,6 +310,23 @@ def setup_logger(level_override: int | None = None, config: Any | None = None) -
     _CONFIGURED = True
 
 
+def set_console_handler_level(level: int) -> None:
+    """Set the level of the root logger's console (stream) handler only.
+
+    Used when the root logger is at N for file logging but console output
+    should show only N+1 and above (e.g. during --show-config so that
+    only UI output appears on the console and log lines go to the file only).
+
+    Args:
+        level: Logging level (e.g. logging.WARNING).
+    """
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        if getattr(handler, "stream", None) in (sys.stderr, sys.stdout):
+            handler.setLevel(level)
+            break
+
+
 def _create_file_handler(logging_config: LoggingConfig, level: int) -> logging.Handler:
     """Create and configure file handler for logging."""
     # Get log directory and create log file
@@ -289,7 +348,6 @@ def _create_file_handler(logging_config: LoggingConfig, level: int) -> logging.H
     max_bytes = max_size_mb * 1024 * 1024
 
     # Create rotating file handler
-    from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
 
     file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=max_log_files, encoding="utf-8")
     file_formatter = logging.Formatter(FILE_FORMAT, datefmt=FILE_DATE)
@@ -299,7 +357,7 @@ def _create_file_handler(logging_config: LoggingConfig, level: int) -> logging.H
     return file_handler
 
 
-def add_file_logging(config: Any):
+def add_file_logging(config: Any, *, announce: bool = True) -> None:
     """Add file handler to existing root logger if enabled in config."""
     logging_config = LoggingConfig(config=config)
 
@@ -310,7 +368,6 @@ def add_file_logging(config: Any):
         root_logger = logging.getLogger()
 
         # Remove existing file handlers to avoid duplicates
-        from logging.handlers import RotatingFileHandler  # pylint: disable=import-outside-toplevel
 
         for handler in root_logger.handlers[:]:
             if isinstance(handler, RotatingFileHandler):
@@ -321,8 +378,9 @@ def add_file_logging(config: Any):
         file_handler.addFilter(RedactingFilter())
         root_logger.addHandler(file_handler)
 
-        log_file = getattr(file_handler, "baseFilename", "unknown")
-        root_logger.info(f"File logging enabled: {log_file}")
+        if announce:
+            log_file = getattr(file_handler, "baseFilename", "unknown")
+            root_logger.info("File logging enabled: %s", log_file)
 
     except Exception as e:
         logging.getLogger().error(f"File logging setup failed: {e}")

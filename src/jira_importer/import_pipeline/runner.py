@@ -27,6 +27,7 @@ class PipelineOptions:
     excel_rules_source: str | None = None
     enable_auto_fix: bool = False
     no_report: bool = False
+    quiet: bool = False
     dry_run: bool = False
     fix_cloud_estimates: bool = False
     debug: bool = False
@@ -71,6 +72,53 @@ class ImportRunner:
             0 if no errors, 1 otherwise.
         """
         return 0 if result.report.errors == 0 else 1
+
+    def _build_outcome_summary(
+        self,
+        result: ProcessorResult,
+        *,
+        prefix: str,
+        output: str | None = None,
+        extra: list[str] | None = None,
+    ) -> str:
+        """Build a single human-readable sentence summarizing the run outcome.
+
+        Args:
+            result: The processor result containing row counts and report.
+            prefix: Prefix for the summary (e.g., "Done", "Done (dry-run)").
+            output: Optional output target description (e.g., file path or "Jira Cloud API").
+            extra: Optional list of additional status strings to include (e.g., ["10 created", "2 failed"]).
+
+        Returns:
+            A formatted summary string like "Done: 6 input rows → 5 output rows (1 skipped, 2 auto-fixes). Output: path"
+        """
+        rows_in = getattr(result, "original_row_count", None)
+        rows_out = getattr(result, "processed_row_count", None)
+        skipped = getattr(result, "skipped_row_count", None)
+
+        if rows_out is None:
+            rows_out = len(result.rows)
+        if skipped is None:
+            skipped = 0
+        if rows_in is None:
+            rows_in = rows_out + skipped
+
+        extras: list[str] = []
+        if skipped:
+            extras.append(f"{skipped} skipped")
+        if result.report.fixes:
+            extras.append(f"{result.report.fixes} auto-fixes")
+        if extra:
+            extras.extend(extra)
+
+        summary = f"{prefix}: {rows_in} input rows → {rows_out} output rows"
+        if extras:
+            summary += f" ({', '.join(extras)})"
+        if output:
+            summary += f". Output: {output}"
+        else:
+            summary += "."
+        return summary
 
     def _display_issue_summary(self, result: ProcessorResult, critical_problems: list[Problem]) -> None:
         """Display a concise summary of issues before prompting.
@@ -147,6 +195,7 @@ class ImportRunner:
             enable_excel_rules=self.options.enable_excel_rules,
             excel_rules_source=str(self.context.input_path) if self.options.enable_excel_rules else None,
             enable_auto_fix=self.options.enable_auto_fix,
+            debug=self.options.debug,
         )
         if self.context.logger:
             self.context.logger.debug(
@@ -167,6 +216,7 @@ class ImportRunner:
         critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]
         has_errors = result.report.errors > 0
         has_critical = len(critical_problems) > 0
+        has_fixes = result.report.fixes > 0
 
         if has_errors or has_critical:
             # Adjust success message when issues exist
@@ -182,6 +232,9 @@ class ImportRunner:
                 self.context.ui.error("Validation errors found. Please fix these before running the import.")
                 self.context.ui.error("Importing this dataset, as-is, will likely fail.")
 
+            if not self.options.enable_auto_fix and has_fixes:
+                self.context.ui.hint("Some issues can be fixed automatically using the -af/--auto-fix flag.")
+
             if self.context.output_target == "cloud":
                 self.context.ui.hint(
                     "Consider using CSV output (no --cloud) mode to see the full dataset and fix the issues. "
@@ -193,6 +246,15 @@ class ImportRunner:
                 self.context.ui.hint("Dry-run completed with warnings. Review before running the import.")
             self.context.ui.hint("Remove --dry-run flag to run with actual output")
 
+        # Outcome summary line (always shown, even in quiet mode)
+        summary = self._build_outcome_summary(result, prefix="Done (dry-run)")
+        if self.options.quiet:
+            self.context.ui.say_quiet(summary)
+        else:
+            self.context.ui.say(summary)
+        if self.context.logger:
+            self.context.logger.info("Dry-run outcome: %s", summary)
+
         result_code = self._calculate_exit_code(result)
         self.context.ui.lf()
         self.context.ui.full_panel(self.context.ui.fmt.success("Dry-run complete. You can close this window now."))
@@ -203,23 +265,34 @@ class ImportRunner:
         """Handle cloud output and return exit code."""
         self.context.ui.info("Output target: Jira Cloud API")
 
-        # Check for critical assignee or team errors before proceeding
+        # Check for critical assignee, reporter, or team errors before proceeding
         critical_assignee_errors = [
             p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("assignee.")
+        ]
+        critical_reporter_errors = [
+            p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("reporter.")
         ]
         critical_team_errors = [
             p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("team.")
         ]
-        if critical_assignee_errors or critical_team_errors:
+        if critical_assignee_errors or critical_reporter_errors or critical_team_errors:
             if critical_assignee_errors:
                 self.context.ui.error("Critical assignee errors found - cannot proceed with cloud import:")
                 for error in critical_assignee_errors:
+                    self.context.ui.error(f"  Row {error.row_index}: {error.message}")
+            if critical_reporter_errors:
+                self.context.ui.error("Critical reporter errors found - cannot proceed with cloud import:")
+                for error in critical_reporter_errors:
                     self.context.ui.error(f"  Row {error.row_index}: {error.message}")
             if critical_team_errors:
                 self.context.ui.error("Critical team errors found - cannot proceed with cloud import:")
                 for error in critical_team_errors:
                     self.context.ui.error(f"  Row {error.row_index}: {error.message}")
-            App.event_fatal(exit_code=4, message="Critical assignee/team errors prevent cloud import")
+            App.event_fatal(
+                exit_code=4,
+                message="Critical assignee/reporter/team errors prevent cloud import",
+                args=None,
+            )
 
         try:
             # Write payloads if debug mode is enabled or cloud debug flag is set
@@ -259,10 +332,34 @@ class ImportRunner:
             # Unexpected internal error during cloud import
             if self.context.logger:
                 self.context.logger.exception("Cloud import failed: %s", exc)
-            App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}")
+            App.event_fatal(exit_code=3, message=f"Cloud import failed: {exc}", args=None)
 
         # non-zero exit if there were errors (so CI can gate)
         result_code = self._calculate_exit_code(result)
+
+        # Human-friendly one-line outcome summary for cloud runs
+        extras: list[str] = []
+        if report.created:
+            extras.append(f"{report.created} created")
+        if report.failed:
+            extras.append(f"{report.failed} failed")
+        if report.batches:
+            extras.append(f"{report.batches} batches")
+
+        summary = self._build_outcome_summary(
+            result,
+            prefix="Done",
+            output="Jira Cloud API",
+            extra=extras,
+        )
+        # Outcome summary (always shown, even in quiet mode)
+        if self.options.quiet:
+            self.context.ui.say_quiet(summary)
+        else:
+            self.context.ui.say(summary)
+        if self.context.logger:
+            self.context.logger.info("Cloud run outcome: %s", summary)
+
         # End after cloud path
         self.context.ui.lf()
         self.context.ui.full_panel(self.context.ui.fmt.success("Processing complete. You can close this window now."))
@@ -299,26 +396,93 @@ class ImportRunner:
             raise ValueError("output_filepath is required for CSV output")
 
         write_csv(
-            result, self.context.output_filepath, config=temp_config if temp_config is not None else self.context.config
+            result,
+            self.context.output_filepath,
+            config=temp_config if temp_config is not None else self.context.config,
         )
         self.context.ui.say(f"Output Import CSV Ready → {self.context.ui.fmt.path(str(self.context.output_filepath))}")
         if self.context.logger:
             self.context.logger.info("Wrote output CSV → %s", self.context.output_filepath)
 
+        # User-friendly one-line outcome summary (always shown, even in quiet mode)
+        summary = self._build_outcome_summary(
+            result,
+            prefix="Done",
+            output=str(self.context.output_filepath),
+        )
+        if self.options.quiet:
+            self.context.ui.say_quiet(summary)
+        else:
+            self.context.ui.say(summary)
+        if self.context.logger:
+            self.context.logger.info("Run outcome: %s", summary)
+
         # non-zero exit if there were errors (so CI can gate)
         return self._calculate_exit_code(result)
+
+    def _log_run_summary(self, result: ProcessorResult) -> None:
+        """Log a concise, structured summary of the run to the logger."""
+        if not self.context.logger:
+            return
+
+        # Row counts from processor metadata, with safe fallbacks
+        rows_in = getattr(result, "original_row_count", None)
+        rows_out = getattr(result, "processed_row_count", None)
+        skipped = getattr(result, "skipped_row_count", None)
+
+        if rows_out is None:
+            rows_out = len(result.rows)
+        if skipped is None:
+            skipped = 0
+        if rows_in is None:
+            rows_in = rows_out + skipped
+
+        if self.context.output_target == "csv" and self.context.output_filepath is not None:
+            output_info = str(self.context.output_filepath)
+        elif self.context.output_target == "cloud":
+            output_info = "Jira Cloud API"
+        else:
+            output_info = ""
+
+        self.context.logger.info(
+            "Run summary: rows_in=%s rows_out=%s skipped=%s errors=%s warnings=%s fixes=%s "
+            "target=%s dry_run=%s output=%s",
+            rows_in,
+            rows_out,
+            skipped,
+            result.report.errors,
+            result.report.warnings,
+            result.report.fixes,
+            self.context.output_target,
+            self.options.dry_run,
+            output_info,
+        )
 
     def run(self) -> int:
         """Execute the complete pipeline and return exit code."""
         # 1. Create and run processor
         processor = self._create_processor()
         result = processor.process()
-
-        # 2. Report problems
+        # 2. Report problems (console + logs)
         if not self.options.no_report:
-            ProblemReporter(options=ReportOptions(show_details=True, show_aggregate_by_code=False)).render(result)
+            report_options = ReportOptions(show_details=True, show_aggregate_by_code=False)
         else:
-            ProblemReporter(options=ReportOptions(show_details=False, show_aggregate_by_code=True)).render(result)
+            report_options = ReportOptions(show_details=False, show_aggregate_by_code=True)
+
+        reporter = ProblemReporter(options=report_options)
+        reporter.render(result)
+        if self.context.logger:
+            # Always log full report: both aggregate and details, without truncation
+            for line in reporter.build_plain_report_lines(
+                result,
+                no_truncate=True,
+                force_show_aggregate=True,
+                force_show_details=True,
+            ):
+                self.context.logger.info(line)
+
+            # Log concise summary line for downstream consumers
+            self._log_run_summary(result)
 
         # 3. Handle auto-fix warnings
         if not processor.enable_auto_fix and not self.options.dry_run:

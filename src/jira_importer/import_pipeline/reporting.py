@@ -14,6 +14,7 @@ from .models import Problem, ProblemSeverity, ProcessorResult
 from .sinks.cloud_sink import CloudSubmitReport
 
 # Emojis consistent with the rest of the tool
+EMO_SUCCESS = "✅ "
 EMO_ERROR = "❌ "
 EMO_WARN = "⚠️ "
 EMO_FIX = "🔧 "
@@ -71,7 +72,67 @@ class ProblemReporter:
         w = result.report.warnings
         f = result.report.fixes
         total = len(result.problems)
+        if e == 0 and w == 0:
+            if total == 0:
+                return f"{EMO_SUCCESS} No issues found."
+            return f"{EMO_SUCCESS} No blocking issues.  {EMO_FIX} {f}  • total findings: {total}"
+        if e == 0:
+            return f"{EMO_SUCCESS} No errors.  {EMO_WARN} {w}  {EMO_FIX} {f}  • total findings: {total}"
         return f"{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}  • total findings: {total}"
+
+    def build_plain_report_lines(
+        self,
+        result: ProcessorResult,
+        *,
+        no_truncate: bool = False,
+        force_show_aggregate: bool | None = None,
+        force_show_details: bool | None = None,
+    ) -> list[str]:
+        """Build a plain-text representation of the validation report.
+
+        This is suitable for stdout, log files, or any other text sink.
+        It mirrors the structure of the plain renderer and respects the
+        current ReportOptions (details vs aggregate). When no_truncate is
+        True, truncation limits are ignored and all rows are included.
+        """
+        lines: list[str] = []
+        lines.append("=== Validation Report ===")
+        lines.append(self.build_summary_line(result))
+
+        max_code_rows = None if no_truncate else self.opt.max_code_rows
+        max_problem_rows = None if no_truncate else self.opt.max_problem_rows
+
+        show_aggregate = self.opt.show_aggregate_by_code if force_show_aggregate is None else force_show_aggregate
+        show_details = self.opt.show_details if force_show_details is None else force_show_details
+
+        if show_aggregate:
+            lines.append("")
+            lines.append("Findings by Code")
+            lines.append("----------------")
+            for i, (code, sev, count) in enumerate(_aggregate_by_code(result.problems)):
+                if max_code_rows is not None and i >= max_code_rows:
+                    lines.append(f"... (truncated at {max_code_rows} rows)")
+                    break
+                lines.append(f"{code:40}  {_sev_label(sev):7}  {count:5}")
+
+        if show_details and result.problems:
+            lines.append("")
+            lines.append("Problem Details")
+            lines.append("---------------")
+            lines.append(f"{'Row':>5}  {'Severity':7}  {'Code':30}  {'Column':12}  Message")
+            for i, p in enumerate(result.problems):
+                if max_problem_rows is not None and i >= max_problem_rows:
+                    lines.append(f"... (truncated at {max_problem_rows} rows)")
+                    break
+                row = f"{p.row_index or '':>5}"
+                sev_label = f"{_sev_label(p.severity):7}"
+                code = f"{p.code:30.30}"
+                col = f"{(p.col_key or ''):12.12}"
+                msg = p.message
+                lines.append(f"{row}  {sev_label}  {code}  {col}  {msg}")
+
+        lines.append("====================================")
+        return lines
 
     # internals, Rich rendering
 
@@ -106,7 +167,13 @@ class ProblemReporter:
             table.add_column("Message", no_wrap=False)
             for i, p in enumerate(result.problems):
                 if i >= self.opt.max_problem_rows:
-                    table.add_row("…", "", "", "", f"(truncated at {self.opt.max_problem_rows} rows)")
+                    table.add_row(
+                        "…",
+                        "",
+                        "",
+                        "",
+                        f"(truncated at {self.opt.max_problem_rows} rows, full report available in logs)",
+                    )
                     break
                 row = str(p.row_index or "")
                 sev_label = _sev_label(p.severity)
@@ -114,6 +181,7 @@ class ProblemReporter:
                 col = p.col_key or ""
                 msg = p.message
                 table.add_row(row, sev_label, code, col, msg)
+            console.print("[hint]Row numbers are relative to the original spreadsheet.[/hint]", soft_wrap=True)
             console.print(table)
 
         console.rule()
@@ -123,41 +191,20 @@ class ProblemReporter:
         w = result.report.warnings
         f = result.report.fixes
         total = len(result.problems)
-        if total > 0:
+        if e == 0 and w == 0:
+            if total == 0:
+                return f"[bold]{EMO_SUCCESS} No issues found.[/bold]"
             return (
-                f"[bold]{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}[/bold]  • total findings: [bold]{total}[/bold]"
+                f"[bold]{EMO_SUCCESS} No blocking issues.[/bold]  {EMO_FIX} {f}  • total findings: [bold]{total}[/bold]"
             )
-        return "[bold]No issues found[/bold]"
+        if e == 0:
+            return f"[bold]{EMO_SUCCESS} No errors.[/bold]  {EMO_WARN} {w}  {EMO_FIX} {f}  • total findings: [bold]{total}[/bold]"
+        return f"[bold]{EMO_ERROR} {e}  {EMO_WARN} {w}  {EMO_FIX} {f}[/bold]  • total findings: [bold]{total}[/bold]"
 
     # internals, plain rendering
     def _render_plain(self, result: ProcessorResult) -> None:
-        print("=== Validation Report ===")
-        print(self.build_summary_line(result))
-
-        if self.opt.show_aggregate_by_code:
-            print("\nFindings by Code")
-            print("----------------")
-            for i, (code, sev, count) in enumerate(_aggregate_by_code(result.problems)):
-                if i >= self.opt.max_code_rows:
-                    print(f"... (truncated at {self.opt.max_code_rows} rows)")
-                    break
-                print(f"{code:40}  {_sev_label(sev):7}  {count:5}")
-
-        if self.opt.show_details and result.problems:
-            print("\nProblem Details")
-            print("---------------")
-            print(f"{'Row':>5}  {'Severity':7}  {'Code':30}  {'Column':12}  Message")
-            for i, p in enumerate(result.problems):
-                if i >= self.opt.max_problem_rows:
-                    print(f"... (truncated at {self.opt.max_problem_rows} rows)")
-                    break
-                row = f"{p.row_index or '':>5}"
-                sev_label = f"{_sev_label(p.severity):7}"
-                code = f"{p.code:30.30}"
-                col = f"{(p.col_key or ''):12.12}"
-                msg = p.message
-                print(f"{row}  {sev_label}  {code}  {col}  {msg}")
-        print("====================================")
+        for line in self.build_plain_report_lines(result):
+            print(line)
 
 
 # helpers

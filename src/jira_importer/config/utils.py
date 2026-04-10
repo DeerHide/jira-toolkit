@@ -10,7 +10,7 @@ from typing import Any
 
 from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 from ..console import ConsoleIO
-from ..log import add_file_logging, setup_logger
+from ..log import add_file_logging, set_console_handler_level, setup_logger
 from ..utils import find_config_path
 from .config_display import display_config_content, display_table_config
 from .config_factory import ConfigurationFactory, ConfigurationType
@@ -63,17 +63,20 @@ def determine_config_path(args: Any) -> str:
     return config_path
 
 
-def display_config(config_file: str) -> None:
+def display_config(config_file: str, *, args: Any = None) -> None:
     """Display configuration from the specified file in a user-friendly format.
 
     Args:
-        config_file: Path to the configuration file to display
+        config_file: Path to the configuration file to display.
+        args: Optional parsed CLI arguments; when provided and a fatal error occurs,
+            they are passed to event_fatal for diagnosis output.
     """
-    setup_logger(logging.DEBUG, None)  # Use debug level for config check
+    setup_logger(logging.DEBUG, None)  # Root at DEBUG so file gets full detail
+    set_console_handler_level(logging.WARNING)  # Console: no log lines, only UI output
     logger = logging.getLogger(__name__)
 
     # Get UI components
-    ui = ConsoleIO.getUI()
+    ui = ConsoleIO.get_ui()
     fmt = ui.fmt
 
     try:
@@ -109,11 +112,16 @@ def display_config(config_file: str) -> None:
             ui.say(fmt.warning("No configuration content found"))
             logger.warning("No configuration content found")
 
-        # Display table configuration if available (Excel only)
+        # Display table configuration if available (Excel or JSON with jira.teams etc.)
         if hasattr(config, "load_table_config"):
             try:
-                # Load table configuration for Excel files
-                table_config = config.load_table_config()
+                config.load_table_config()
+            except Exception as exc:
+                ui.say(fmt.warning(f"Could not load table configuration: {exc}"))
+                logger.warning(f"Could not load table configuration: {exc}")
+        if hasattr(config, "get_table_config"):
+            try:
+                table_config = config.get_table_config()
                 if table_config:
                     logger.info("Displaying table configuration")
                     ui.lf()
@@ -123,8 +131,8 @@ def display_config(config_file: str) -> None:
                 else:
                     logger.info("No table configuration available")
             except Exception as exc:
-                ui.say(fmt.warning(f"Could not load table configuration: {exc}"))
-                logger.warning(f"Could not load table configuration: {exc}")
+                ui.say(fmt.warning(f"Could not display table configuration: {exc}"))
+                logger.warning(f"Could not display table configuration: {exc}")
 
         ui.lf()
         ui.success("Configuration successfully loaded!")
@@ -134,7 +142,7 @@ def display_config(config_file: str) -> None:
         logger.error(f"Configuration loading failed: {exc}")
         from jira_importer.app import App  # pylint: disable=import-outside-toplevel
 
-        App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}")
+        App.event_fatal(exit_code=1, message=f"Failed to load configuration: {exc}", args=args)
 
 
 def load_configuration_with_error_handling(
@@ -153,7 +161,7 @@ def load_configuration_with_error_handling(
     from jira_importer.app import App  # pylint: disable=import-outside-toplevel
     from jira_importer.errors import format_error_for_display, log_exception  # pylint: disable=import-outside-toplevel
 
-    ui_instance = ConsoleIO.getUI()
+    ui_instance = ConsoleIO.get_ui()
 
     config_path = determine_config_path(args)
     try:

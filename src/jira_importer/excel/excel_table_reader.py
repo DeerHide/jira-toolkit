@@ -90,7 +90,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
     def _read_teams(self, sheet: str) -> list[TeamConfig]:
         """Read CfgTeams table."""
         try:
-            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgTeams")
+            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgTeams", optional=True)
         except Exception:
             # Table doesn't exist, return empty list
             return []
@@ -226,7 +226,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
     def _read_custom_fields(self, sheet: str) -> list[CustomFieldConfig]:
         """Read CfgCustomFields table."""
         try:
-            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgCustomFields")
+            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgCustomFields", optional=True)
         except Exception:
             # Table doesn't exist, return empty list
             return []

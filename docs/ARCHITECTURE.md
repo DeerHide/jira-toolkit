@@ -19,6 +19,8 @@ jira-toolkit/                    # Repository root
 └── .venv/                       # Virtual environment
 ```
 
+**`resources/`:** The git repo includes **`resources/templates/`** (JSON config samples and **`ImportTemplate.xlsx`**) and samples under **`resources/Samples/`**. **`ImportTemplate_with_config.xlsx`** (when published) and release executables are on **GitHub Releases** — not always tracked in git.
+
 ## 🏗️ Application Architecture
 
 ### Core Application Structure
@@ -152,9 +154,11 @@ graph TD
     C3 --> C3B[build-counter.json]
 
     E --> E1[templates/]
-    E1 --> E1A[ImportTemplate.xlsx]
-    E1 --> E1B[config_importer.json]
-    E1 --> E1C[jira-config.json]
+    E1 --> E1A[config_importer.json]
+    E1 --> E1B[config_importer_full.json]
+    E1 --> E1C[ImportTemplate.xlsx]
+    E --> E2[Samples/]
+    E2 --> E2A[config_sample.json]
 
     F --> F1[DEV.md]
     F --> F2[CONFIG.md]
@@ -432,9 +436,11 @@ The main processing logic - handles validation, fixes, and data transformation:
 
 ### File Operations (`fileops.py`)
 
-- Excel to CSV conversion (legacy path)
-- File path management
-- Output file generation
+- **FileOperations** - Low-level filesystem deletion: single-file delete and directory-tree delete with read-only retry (`onexc`). Central place for all removal; used by `ArtifactManager` for artifact cleanup.
+- **PathGenerator** - Output filename generation from input path, extension and suffix (e.g. `_jira_ready.csv`).
+- **FileValidator** - Input path validation (exists, is file); raises `InputFileError`; no UI or exit logic.
+- **FileManager** - Orchestrates the three; optional console UI for user-facing messages (e.g. "file does not exist").
+- No Excel/CSV conversion (handled by `excel/` and pipeline sources).
 
 ### Logging (`log.py`)
 
@@ -541,11 +547,11 @@ The cloud sink now provides comprehensive error handling for authentication and 
 
 #### New Command Line Features
 
-- **`--credentials`**: Interactive credential management (run/show/clear)
+- **`--credentials`**: Credential management (`run` / `show` / `clear` / `test`)
 - **`--auto-fix`**: Enable automatic fixing of common validation issues
 - **`--fix-cloud-estimates`**: Apply Jira Cloud ×60 estimate quirk
 - **`--enable-excel-rules`**: Load validation rules from Excel tables
-- **`--data-sheet`**: Specify custom data sheet name
+- **`--data-sheet`**: Excel data sheet tab name (default: **Dataset**; must match the workbook exactly)
 
 For detailed technical information about the cloud integration, see **[CLOUD.md](CLOUD.md)**.
 

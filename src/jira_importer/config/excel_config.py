@@ -61,9 +61,9 @@ class ExcelConfiguration:
             logger.warning(f"Could not load table configuration: {e}")
             self.table_config = None
 
-        if self.version_check():
-            logger.critical("Wrong file config version or missing version key.")
-            # raise ExcelConfigurationError("Wrong file config version or missing version key.")
+        # if self.version_check():
+        #    logger.critical("Wrong file config version or missing version key.")
+        #     raise ExcelConfigurationError("Wrong file config version or missing version key.")
 
         logger.debug(f"Excel configuration content: {self._redacted_content()}")
 

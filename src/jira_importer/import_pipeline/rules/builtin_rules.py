@@ -12,8 +12,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from ...config.constants import LEVEL_4_SUBTASK
+from ...config.excel_config import ExcelConfiguration
 from ...config.issuetypes import get_allowed_issue_types, get_issue_type_level
 from ..models import ColumnIndices, IRowRule, Problem, ProblemSeverity, ValidationContext, ValidationResult
+from ..utils import split_multi_value_cell
 
 # helpers functions
 
@@ -67,6 +69,7 @@ class SummaryRequiredRule(IRowRule):
 class IssueTypeAllowedRule(IRowRule):
     """IssueType must be one of allowed issuetypes (config override supported).
 
+    Validation is case-insensitive (matches Jira API behavior).
     Default: {'Story','Task','Bug','Epic','Sub-Task'}
     Severity: error
     Note: Mandatory for the Jira Cloud & Jira Server
@@ -98,7 +101,8 @@ class IssueTypeAllowedRule(IRowRule):
                 )
             )
         allowed = self.allowed or self._allowed(ctx)
-        if issuetype not in allowed:
+        allowed_lower = {a.lower() for a in allowed}
+        if issuetype.lower() not in allowed_lower:
             return ValidationResult(
                 problems=(
                     Problem(
@@ -117,6 +121,7 @@ class IssueTypeAllowedRule(IRowRule):
 class PriorityAllowedRule(IRowRule):
     """Priority must be one of allowed priorities (config override supported).
 
+    Validation is case-insensitive (matches Jira API behavior).
     Default: {'Highest','High','Medium','Low','Lowest'}
     Severity: warning (fixable via fixer to normalize/pad if needed)
     Note: Mandatory for the Jira Cloud & Jira Server
@@ -150,7 +155,8 @@ class PriorityAllowedRule(IRowRule):
                 )
             )
         allowed = self._allowed(ctx)
-        if pri not in allowed:
+        allowed_lower = {a.lower() for a in allowed}
+        if pri.lower() not in allowed_lower:
             return ValidationResult(
                 problems=(
                     Problem(
@@ -162,6 +168,116 @@ class PriorityAllowedRule(IRowRule):
                     ),
                 )
             )
+        return ValidationResult.empty()
+
+
+@dataclass(slots=True)
+class ComponentsAllowedRule(IRowRule):
+    """Components must be in the configured allowed list (case-insensitive).
+
+    Sources (checked in order, first non-empty wins):
+      - jira.validation.components
+      - jira.components
+
+    Severity: error (strict validation).
+    """
+
+    def _allowed(self, ctx: ValidationContext) -> dict[str, str]:
+        """Return mapping of normalized component name -> canonical name."""
+        # TODO: Extract shared helper for resolving allowed component names (rule + mapper) in config layer.
+        # ctx.config is expected to be a ConfigView; relying on _cfg couples us to its internals.
+        cfg_view = ctx.config
+
+        # Try to access underlying config object (ExcelConfiguration or JSON/dict)
+        base_cfg = getattr(cfg_view, "_cfg", cfg_view)
+
+        # 1) ExcelConfiguration: use CfgComponents table if available
+        if isinstance(base_cfg, ExcelConfiguration):
+            try:
+                if base_cfg.table_config is None:
+                    base_cfg.load_table_config()
+                table_config = base_cfg.get_table_config()
+            except Exception:
+                table_config = None
+
+            if table_config and table_config.components:
+                mapping: dict[str, str] = {}
+                for comp in table_config.components:
+                    name = str(comp.name).strip()
+                    if not name:
+                        continue
+                    mapping[name.lower()] = name
+                return mapping
+
+        # 2) JSON / generic config: fall back to jira.validation.components, then jira.components
+        cfg_get = getattr(cfg_view, "get", None)
+        if not callable(cfg_get):
+            return {}
+
+        values = cfg_view.get("jira.validation.components", None)
+        if not values:
+            values = cfg_view.get("jira.components", None)
+        if not values:
+            return {}
+
+        json_mapping: dict[str, str] = {}
+        try:
+            for v in values:
+                if v is None:
+                    continue
+                name = str(v).strip()
+                if not name:
+                    continue
+                json_mapping[name.lower()] = name
+        except Exception:
+            return {}
+        return json_mapping
+
+    def apply(self, row, indices: ColumnIndices, ctx: ValidationContext) -> ValidationResult:
+        """Apply the rule to the row."""
+        allowed_map = self._allowed(ctx)
+        if not allowed_map:
+            # No configured component list → no validation.
+            return ValidationResult.empty()
+
+        # Collect all component column indices (primary + multi-column).
+        component_indices: list[int] = []
+        if hasattr(indices, "components") and indices.components:
+            component_indices.extend(indices.components)
+        if indices.component is not None and indices.component not in component_indices:
+            component_indices.append(indices.component)
+
+        if not component_indices:
+            return ValidationResult.empty()
+
+        problems: list[Problem] = []
+        for idx in component_indices:
+            raw = _cell_str(row, idx)
+            if _is_empty(raw):
+                continue
+
+            parts = split_multi_value_cell(raw)
+            if not parts:
+                continue
+
+            for part in parts:
+                key = part.lower()
+                if key not in allowed_map:
+                    problems.append(
+                        Problem(
+                            code="components.invalid",
+                            message=(
+                                f"Component '{part}' is not in the allowed list. "
+                                f"Allowed components: {sorted(allowed_map.values())}"
+                            ),
+                            severity=ProblemSeverity.ERROR,
+                            row_index=ctx.row_index,
+                            col_key="components",
+                        )
+                    )
+
+        if problems:
+            return ValidationResult(problems=tuple(problems))
         return ValidationResult.empty()
 
 
@@ -365,6 +481,7 @@ class ParentLinkValidationRule(IRowRule):
     """Validate parent-child links based on issue type hierarchy.
 
     Rules:
+    - Parent ID cannot equal the issue's own Issue ID (no self-reference).
     - Level 1 (Initiative) can parent levels 2, 3, 4
     - Level 2 (Epic) can parent levels 3, 4
     - Level 3 (Story/Task/Bug) can parent level 4 only
@@ -378,6 +495,7 @@ class ParentLinkValidationRule(IRowRule):
 
         # Get current issue info
         issue_type = _cell_str(row, indices.issuetype)
+        issue_id = _cell_str(row, indices.issue_id)
         parent_value = _cell_str(row, indices.parent) if indices.parent else ""
 
         if not issue_type:
@@ -407,9 +525,32 @@ class ParentLinkValidationRule(IRowRule):
             if self._is_jira_key(parent_value):
                 return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
 
-            # Try to resolve parent from issue_data
+            # Issue cannot be its own parent
+            if not _is_empty(issue_id) and parent_value == issue_id:
+                problems.append(
+                    Problem(
+                        code="parent_link.self_reference",
+                        message=f"Parent ID '{parent_value}' cannot be the same as the issue's own Issue ID '{issue_id}'.",
+                        severity=ProblemSeverity.CRITICAL,
+                        row_index=ctx.row_index,
+                        col_key="parent",
+                    )
+                )
+                return ValidationResult(problems=tuple(problems)) if problems else ValidationResult.empty()
+
+            # Try to resolve parent from issue_data (keyed by Issue ID from the sheet)
             issue_data = getattr(ctx, "issue_data", {})
-            if parent_value in issue_data:
+            if parent_value not in issue_data:
+                problems.append(
+                    Problem(
+                        code="parent_link.not_found",
+                        message=f"Parent ID '{parent_value}' does not exist in the dataset (no row with this Issue ID).",
+                        severity=ProblemSeverity.CRITICAL,
+                        row_index=ctx.row_index,
+                        col_key="parent",
+                    )
+                )
+            else:
                 parent_type, _ = issue_data[parent_value]
                 parent_level = get_issue_type_level(cfg_get, parent_type)
 
@@ -418,7 +559,7 @@ class ParentLinkValidationRule(IRowRule):
                     problems.append(
                         Problem(
                             code="parent_link.unsupported",
-                            message=f"Invalid parent-child links: {issue_type} (level {child_level}) cannot have {parent_type} (level {parent_level}) as parent. Parent must be at a higher level in the hierarchy.",
+                            message=f"Invalid parent-child links: {issue_type} (id {issue_id}, level {child_level}) cannot have {parent_type} (id {parent_value}, level {parent_level}) as parent. Parent must be at a higher level in the hierarchy.",
                             severity=ProblemSeverity.CRITICAL,
                             row_index=ctx.row_index,
                             col_key="parent",

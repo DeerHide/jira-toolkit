@@ -23,9 +23,6 @@ from rich.table import Table
 from rich.theme import Theme
 from rich.traceback import install as install_rich_traceback
 
-# TODO: Add a light theme for the console
-# TODO: Add a dark theme for the console
-# TODO: Invert light/bold styles logic
 THEME = Theme(
     {
         # Base tones
@@ -34,7 +31,7 @@ THEME = Theme(
         "title": "bold white",
         "accent": "bold cyan",
         "accent.dim": "cyan",
-        # Message kinds
+        # Message types
         "info": "cyan",
         "success": "bold green",
         "warning": "bold yellow",
@@ -46,7 +43,7 @@ THEME = Theme(
         "warning.light": "yellow",
         "error.light": "red",
         "debug.light": "magenta",
-        "wip.light": " yellow",
+        "wip.light": "yellow",
         "progress.light": "cyan",
         # Code-ish bits
         "key": "bold white",
@@ -77,15 +74,12 @@ THEME = Theme(
     }
 )
 
-install_rich_traceback(show_locals=False, width=120, extra_lines=2, word_wrap=True, theme="monokai")
-console = Console(theme=THEME, highlight=True, soft_wrap=False)
-
 
 @dataclass(frozen=True)
 class ConsoleStyle:  # pylint: disable=too-many-instance-attributes
     """Console style configuration."""
 
-    prefix_info: str = "ℹ️ "
+    prefix_info: str = "ℹ️ "  # noqa: RUF001
     prefix_success: str = "✅ "
     prefix_warning: str = "⚠️ "
     prefix_error: str = "❌ "
@@ -107,10 +101,9 @@ STYLE = ConsoleStyle()
 
 
 class Fmt:  # pylint: disable=too-many-public-methods
-    """Centralized markup helpers that.
+    """Centralized markup helpers that use only theme or Rich built-in styles.
 
     - Use only styles defined in the Theme (or Rich built-ins like 'bold', 'italic')
-    - Fail fast on typos / undefined styles
     """
 
     _BUILTINS: ClassVar[set[str]] = {"bold", "italic", "underline", "reverse", "strike", "dim"}
@@ -259,75 +252,129 @@ class ConsoleUI:
         self, _console: Console | None = None, style: ConsoleStyle = STYLE, formatter: Fmt | None = None
     ) -> None:
         """Initialize the ConsoleUI."""
-        self.c = _console or console
+        self.c = _console or Console(theme=THEME, highlight=True, soft_wrap=False)
         self.style = style
         self.fmt = formatter or Fmt(self.c)
+        self._quiet: bool = False
+
+    def set_quiet(self, quiet: bool) -> None:
+        """Set quiet mode."""
+        self._quiet = quiet
+
+    def say_quiet(self, msg: str) -> None:
+        """Print a message unconditionally, even in quiet mode.
+
+        This is intended for the final outcome summary line that should always be visible.
+        """
+        self.c.print(msg)
 
     def say(self, *parts: str, sep: str = " ") -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(sep.join(parts))
 
     def lf(self) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print("")
 
     # --- Messages
     def success(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[success]{self.style.prefix_success if prefix else ''} {msg}[/]")
 
     def info(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[info]{self.style.prefix_info if prefix else ''} {msg}[/]")
 
     def warning(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        # Warning is NOT suppressed in quiet mode - errors and warnings should always be visible
         self.c.print(f"[warning]{self.style.prefix_warning if prefix else ''} {msg}[/]")
 
     def error(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        # Error is NOT suppressed in quiet mode - errors and warnings should always be visible
         self.c.print(f"[error]{self.style.prefix_error if prefix else ''} {msg}[/]")
 
     def debug(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[debug]{self.style.prefix_debug if prefix else ''} {msg}[/]")
 
     def wip(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[wip]{self.style.prefix_wip if prefix else ''} {msg}[/]")
 
     def warning_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[warning.light]{self.style.prefix_warning if prefix else ''} {msg}[/]")
 
     def error_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[error.light]{self.style.prefix_error if prefix else ''} {msg}[/]")
 
     def info_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[info.light]{self.style.prefix_info if prefix else ''} {msg}[/]")
 
     def success_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[success.light]{self.style.prefix_success if prefix else ''} {msg}[/]")
 
     def debug_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[debug.light]{self.style.prefix_debug if prefix else ''} {msg}[/]")
 
     def progress_light(self, msg: str, prefix: bool = True) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[progress.light]{self.style.prefix_progress if prefix else ''} {msg}[/]")
 
     def hint(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[hint]{msg}[/]")
 
     def example(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[example]{msg}[/]")
 
     def default(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[default]{msg}[/]")
 
     def choice(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[choice]{msg}[/]")
 
     def hotkey(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[hotkey]{msg}[/]")
 
     def required(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[required]{msg}[/]")
 
     def danger(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[danger]{msg}[/]")
 
     def note(self, msg: str) -> None:  # noqa: D102
+        if self._quiet:
+            return
         self.c.print(f"[note]{msg}[/]")
 
     # --- Panels (for grouped info / summaries)
@@ -342,6 +389,8 @@ class ConsoleUI:
         width: int | None = None,
     ) -> None:
         """Render a panel with a title and body."""
+        if self._quiet:
+            return
         panel = Panel(
             Align(body, "left"),
             title=f"[title]{title}[/]" if title else None,
@@ -361,6 +410,8 @@ class ConsoleUI:
         style: str = "accent",
     ) -> None:
         """Render a panel that always spans the console width."""
+        if self._quiet:
+            return
         panel = Panel(
             Align(body, "center"),
             title=f"[title]{title}[/]" if title else None,
@@ -376,7 +427,9 @@ class ConsoleUI:
         Example:
         ─────────────────────  ◆  PROJECT SETUP  ◆  ─────────────────────
         """
-        chip = f" {icon} {self.fmt.t_h1(text.upper())} {icon} "
+        if self._quiet:
+            return
+        chip = f" {icon} {self.fmt.t_h1(self.fmt.esc(text.upper()))} {icon} "
         # console.rule centers and stretches to width
         self.c.rule(chip, style="rule.h1")
 
@@ -387,7 +440,9 @@ class ConsoleUI:
         • Configuration
         ─────────────────────────────────────────
         """
-        self.c.print(f"{icon} {self.fmt.t_h2(text)}")
+        if self._quiet:
+            return
+        self.c.print(f"{icon} {self.fmt.t_h2(self.fmt.esc(text))}")
         self.c.rule(style="rule.h2")
 
     def title_h3(self, text: str, *, icon: str = "→") -> None:
@@ -397,7 +452,9 @@ class ConsoleUI:
         → Credentials
         ─────────────
         """
-        self.c.print(f"{icon} {self.fmt.t_h3(text)}")
+        if self._quiet:
+            return
+        self.c.print(f"{icon} {self.fmt.t_h3(self.fmt.esc(text))}")
         self.c.rule(style="rule.h3")
 
     def title_banner(self, text: str, *, sub: str | None = None, icon: str = "🚀") -> None:
@@ -408,9 +465,11 @@ class ConsoleUI:
             sub: Subtext to display below the banner.
             icon: Icon to display in the banner.
         """
-        body = f"{icon} {self.fmt.t_h2(text)}"
+        if self._quiet:
+            return
+        body = f"{icon} {self.fmt.t_h2(self.fmt.esc(text))}"
         if sub:
-            body += f"\n{self.fmt.t_note(sub)}"
+            body += f"\n{self.fmt.t_note(self.fmt.esc(sub))}"
         panel = Panel(
             Align.center(body),
             border_style="accent",
@@ -568,12 +627,12 @@ class ConsoleUI:
             return default or ""
 
         while True:
-            # Build prompt components
-            hint_part = f" {self.fmt.hint(hint)}" if hint else ""
-            def_part = f" {self.fmt.default(f'(default: {default})')}" if default else ""
+            # Build prompt components (escape raw text, then style; do not escape styled output)
+            hint_part = f" {self.fmt.hint(self.fmt.esc(hint))}" if hint else ""
+            def_part = f" {self.fmt.default(self.fmt.esc(f'(default: {default})'))}" if default else ""
             req_mark = f" {self.fmt.required('*')}" if required else ""
 
-            prompt_text = f"{self.fmt.prompt(question)}{req_mark}{hint_part}{def_part}: "
+            prompt_text = f"{self.fmt.prompt(self.fmt.esc(question))}{req_mark}{hint_part}{def_part}: "
 
             try:
                 response = self.c.input(prompt_text).strip()
@@ -711,6 +770,9 @@ class ConsoleUI:
         self.c.print(markdown)
 
 
+_TRACEBACK_INSTALLED = False
+
+
 class ConsoleIO:
     """Factory class for console instances with singleton-like behavior."""
 
@@ -718,26 +780,42 @@ class ConsoleIO:
     _ui_instance: ConsoleUI | None = None
 
     @classmethod
-    def getConsole(cls) -> Console:  # pylint: disable=invalid-name
-        """Get the console instance, creating it if needed."""
+    def get_console(cls) -> Console:
+        """Get the raw Rich Console instance, creating it if needed.
+
+        Prefer get_ui() for application code; use this only when you need
+        the low-level Console (e.g. for Rich primitives not wrapped by ConsoleUI).
+        """
+        global _TRACEBACK_INSTALLED  # pylint: disable=global-statement
         if cls._console_instance is None:
+            if not _TRACEBACK_INSTALLED:
+                install_rich_traceback(show_locals=False, width=120, extra_lines=2, word_wrap=True, theme="monokai")
+                _TRACEBACK_INSTALLED = True
             cls._console_instance = Console(theme=THEME, highlight=True, soft_wrap=False)
         return cls._console_instance
 
     @classmethod
-    def getUI(cls) -> ConsoleUI:  # pylint: disable=invalid-name
-        """Get the UI instance, creating it if needed."""
+    def get_ui(cls) -> ConsoleUI:
+        """Get the ConsoleUI instance, creating it if needed.
+
+        This is the preferred entry point for application code (output, prompts, panels).
+        """
         if cls._ui_instance is None:
-            cls._ui_instance = ConsoleUI(_console=cls.getConsole(), style=STYLE, formatter=Fmt(cls.getConsole()))
+            console = cls.get_console()
+            cls._ui_instance = ConsoleUI(_console=console, style=STYLE, formatter=Fmt(console))
         return cls._ui_instance
 
     @classmethod
-    def getComponents(cls) -> tuple[ConsoleUI, Fmt]:  # pylint: disable=invalid-name # noqa: D102
-        ui = cls.getUI()
+    def get_components(cls) -> tuple[ConsoleUI, Fmt]:  # noqa: D102
+        ui = cls.get_ui()
         return ui, ui.fmt
 
     @classmethod
     def reset(cls) -> None:
-        """Reset all instances (useful for testing)."""
+        """Reset console and UI instances (useful for testing).
+
+        Only clears the cached Console and ConsoleUI instances. Does not
+        uninstall the Rich traceback hook (that is process-wide and remains).
+        """
         cls._console_instance = None
         cls._ui_instance = None

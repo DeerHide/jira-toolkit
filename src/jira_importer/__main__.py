@@ -9,6 +9,7 @@ from __future__ import annotations
 
 # Import libraries
 import logging
+import re
 import warnings
 from pathlib import Path
 from typing import Any
@@ -19,47 +20,69 @@ from jira_importer.artifacts import ArtifactManager
 from jira_importer.config.minimal_config import MinimalConfigForCredentials
 from jira_importer.config.utils import load_configuration_with_error_handling
 from jira_importer.console import ConsoleIO
-from jira_importer.errors import ErrorResponse, JiraAuthError, ProcessingError, format_error_for_display, log_exception
-from jira_importer.fileops import FileManager
+from jira_importer.constants import CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
+from jira_importer.errors import (
+    ErrorResponse,
+    FileWriteError,
+    InputFileError,
+    JiraAuthError,
+    ProcessingError,
+    format_error_for_display,
+    log_exception,
+)
+from jira_importer.fileops import FileManager, FileValidator
 from jira_importer.import_pipeline.runner import ImportRunner, PipelineContext, PipelineOptions
 from jira_importer.log import add_file_logging, setup_logger
-from jira_importer.utils import get_executable_dir, get_logs_directory, load_config_for_input, open_browser
-
-# Global variables
-debug_mode = False  # pylint: disable=invalid-name
-
+from jira_importer.paths import get_executable_dir, get_logs_directory
+from jira_importer.utils import load_config_for_input, open_browser
 
 # Suppress specific warnings from openpyxl
 warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
-ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
-fmt = ui.fmt  # pylint: disable=invalid-name
+ui, fmt = ConsoleIO.get_components()
 
 
 def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
+    """Emit structured debug information about startup configuration.
+
+    This is intended purely for developers/support, not end users. It avoids
+    Rich styling and keeps messages concise so they are readable in log files.
+    """
     logger.debug("Jira Importer initialized.")
-    logger.debug(f"Configuration loaded: {config.path}")
-    logger.debug(f"Input file: {args.input_file}")
-    logger.debug(fmt.kv("Input file", fmt.path(args.input_file)))
-    logger.debug(fmt.kv("Configuration", fmt.path(args.config)))
-    logger.debug(fmt.kv("Debug mode", args.debug))
-    logger.debug(fmt.kv("Version", args.version))
-    logger.debug(fmt.kv("Config default", args.config_default))
-    logger.debug(fmt.kv("Config input", args.config_input))
-    logger.debug(fmt.kv("Config excel", args.config_excel))
-    logger.debug(fmt.kv("args", str(args)))
+    logger.debug("Configuration loaded from: %s", getattr(config, "path", "<unknown>"))
+    logger.debug("Input file: %s", args.input_file)
+    logger.debug("Logs directory: %s", get_logs_directory())
+    logger.debug("Executable directory: %s", get_executable_dir())
+    logger.debug(
+        "CLI flags: debug=%s version=%s config_default=%s config_input=%s config_excel=%s config=%s",
+        getattr(args, "debug", False),
+        getattr(args, "version", False),
+        getattr(args, "config_default", False),
+        getattr(args, "config_input", False),
+        getattr(args, "config_excel", False),
+        getattr(args, "config", None),
+    )
+    logger.debug("Full args namespace: %s", args)
 
 
 def main() -> int:
     """Main function for the Jira Importer application."""
+    # Set up minimal logging before parse_args so parser errors and early failures are visible
+    setup_logger(logging.INFO, None)
+    args = App.parse_args()
+
+    quiet_mode = getattr(args, "quiet", False)
+    ui.set_quiet(quiet_mode)
+
     ui.title_banner("Jira Toolkit: Importer 🚀", icon="")
     ui.say(fmt.kv("Repository", "https://github.com/deerhide/jira-toolkit"))
 
     # --- Initialization ---
     ui.lf()
     ui.progress_light("Initializing Jira Importer")
-    args = App.parse_args()
+    if quiet_mode:
+        ui.say_quiet("Jira Importer started in quiet mode...")
 
     # Handle version flag early, before any configuration loading
     if args.version:
@@ -70,15 +93,15 @@ def main() -> int:
         return App.show_config(args)
 
     # Handle --credentials mode early (like --version)
-    if hasattr(args, "credentials") and args.credentials:
+    if hasattr(args, "credentials") and args.credentials in CREDENTIALS_ACTIONS:
         from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
             run_credentials_cli,
         )
 
         # For "test" action, we need the actual config to get site_address
         # For other actions (run, show, clear), minimal config is sufficient
-        if args.credentials == "test":
-            # Set up logging first (needed for config loading)
+        if args.credentials == CREDENTIALS_ACTION_TEST:
+            # Apply -d level before config load (logging already configured at start of main)
             setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
             logger = logging.getLogger(__name__)
 
@@ -105,12 +128,12 @@ def main() -> int:
     # Respect -y and -n args: set _autoreply True for -y/--yes, False for -n/--no, None otherwise
     autoreply = App.get_autoreply_from_args(args)
 
-    # Set up basic logging early (before config loading) so we can log errors
+    # Apply log level from -d before config load (logging already set up at start of main)
     setup_logger(logging.DEBUG if args.debug else logging.INFO, None)
     logger = logging.getLogger(__name__)
 
     try:
-        add_file_logging(None)
+        add_file_logging(None, announce=False)
     except Exception:  # pylint: disable=broad-except
         # File logging is best-effort; ignore failures here
         pass
@@ -128,22 +151,26 @@ def main() -> int:
 
     # Add file logging if enabled in config
     add_file_logging(config)
-    logger.debug(f"Logs directory: {get_logs_directory()}")
-    logger.debug(f"Executable directory: {get_executable_dir()}")
 
     if logging.getLogger().level == logging.DEBUG:
         ui.debug("Debug mode is enabled.")
 
     artifact_manager = ArtifactManager(config)
-    file_manager = FileManager(artifact_manager, config)
-    app = App(artifact_manager)
+    file_manager = FileManager(config, ui=ui)
+    app = App(artifact_manager, ui=ui, fmt=fmt)
 
     logger.info(f"Version: {app.version_info}")
 
-    logger.info(f"Input: {args.input_file}")
-    ui.say(f"Excel file: {fmt.path(args.input_file)}")
-    logger.info(f"Config: {config_path}")
-    ui.say(f"Configuration file: {fmt.path(config_path)}")
+    config_is_embedded = Path(config_path).resolve() == Path(args.input_file).resolve()
+
+    if config_is_embedded:
+        logger.info(f"Data source: {args.input_file} (config embedded)")
+        ui.say(f"Data source: {fmt.path(args.input_file)} {fmt.accent('(config embedded)')}")
+    else:
+        logger.info(f"Data source: {args.input_file}")
+        ui.say(f"Data source: {fmt.path(args.input_file)}")
+        logger.info(f"Config file: {config_path}")
+        ui.say(f"Config file: {fmt.path(config_path)}")
 
     _show_debug_info(args, config, logger)
 
@@ -194,11 +221,22 @@ def main() -> int:
     xlsx_file = args.input_file
     in_path = Path(xlsx_file)
 
-    FileManager.validate_input_file(in_path, xlsx_file, logger)
+    try:
+        FileValidator.validate(in_path, xlsx_file, logger)
+    except InputFileError as exc:
+        log_exception(logger, exc, context="Input file validation")
+        ui.error(format_error_for_display(exc))
+        logger.critical("Input file validation failed: %s", format_error_for_display(exc))
+        app.event_close(exit_code=2, cleanup=False)
+        return 2
 
-    output_filename: str = file_manager.generate_output_filename(xlsx_file, file_extension="csv", suffix="_jira_ready")
+    output_filename: str = file_manager.generate_output_filename(
+        xlsx_file,
+        file_extension="csv",
+        suffix="_jira_ready",
+    )
     output_filepath: Path = output_dir_path / output_filename
-    logger.debug(f"Output path: {output_filepath}")
+    logger.info("Output path: %s", output_filepath)
 
     _, mgr = load_config_for_input(in_path, args.data_sheet)
 
@@ -223,7 +261,8 @@ def main() -> int:
         enable_excel_rules=args.enable_excel_rules,
         excel_rules_source=str(in_path) if args.enable_excel_rules else None,
         enable_auto_fix=args.auto_fix,
-        no_report=args.no_report,
+        no_report=args.no_report or quiet_mode,  # Quiet mode implies -nr
+        quiet=quiet_mode,
         dry_run=args.dry_run,
         fix_cloud_estimates=args.fix_cloud_estimates,
         debug=args.debug,
@@ -242,6 +281,26 @@ def main() -> int:
         logger.critical(f"Import pipeline failed: {error_message}")
         app.event_close(exit_code=3, cleanup=True)
         return 3
+    except (PermissionError, OSError) as file_exc:
+        # File I/O errors (e.g. output CSV open in Excel) - wrap in domain exception for consistent handling
+        if isinstance(file_exc, PermissionError) or getattr(file_exc, "errno", None) == 13:
+            path = getattr(file_exc, "filename", None)
+            if path is None:
+                match = re.search(r"'([^']+)'", str(file_exc))
+                path = match.group(1) if match else "output file"
+            proc_exc = FileWriteError(
+                f"Cannot write output file '{path}'. The file may be open in Excel or another program. "
+                "Please close it and try again.",
+                details={"path": str(path)},
+            )
+            log_exception(logger, proc_exc, context="Import pipeline")
+            error_message = format_error_for_display(proc_exc)
+            ui.error(error_message)
+            logger.critical("Import pipeline failed: %s", error_message)
+            app.event_close(exit_code=3, cleanup=True)
+            return 3
+        # Other OSErrors: re-raise so generic handler can process
+        raise
     except Exception as exc:  # pylint: disable=broad-except
         # Last-resort guard for unexpected internal errors. This broad catch is
         # intentional so we can present a clear failure to the user while
@@ -250,6 +309,7 @@ def main() -> int:
         App.event_fatal(
             exit_code=3,
             message="An unexpected internal error occurred in the processor, please check the logs for details.",
+            args=args,
         )
         return 3
     finally:

@@ -14,9 +14,11 @@ from typing import Any
 from ...config.config_models import CustomFieldConfig
 from ...config.config_view import ConfigView
 from ...config.constants import LEVEL_4_SUBTASK
+from ...config.excel_config import ExcelConfiguration
 from ...config.issuetypes import get_default_level3_type, get_issue_type_level
 from ...errors import ConfigurationError, ProcessingError, RowProcessingError
 from ..models import ColumnIndices, ProcessorResult
+from ..utils import split_multi_value_cell
 from .constants import JIRA_KEY_PARTS_COUNT
 from .metadata import MetadataCache
 from .secrets import redact_secret
@@ -70,10 +72,14 @@ class IssueMapper:
         # Map optional fields
         self._map_description(fields, row, indices)
         self._map_priority(fields, row, indices)
+        self._map_components(fields, row, indices)
+        self._map_fix_versions(fields, row, indices)
         self._map_parent(fields, row, indices)
         self._map_estimate(fields, row, indices)
         self._map_assignee(fields, row, indices)
+        self._map_reporter(fields, row, indices)
         self._map_team(fields, row, indices)
+        self._map_labels(fields, row, indices)
 
         # Handle level 4 issue type conversion (must be after parent mapping)
         self._handle_level4_issuetype_conversion(fields, row, indices)
@@ -214,6 +220,181 @@ class IssueMapper:
         assignee_id = self._cell_str(row, indices.assignee)
         if assignee_id:
             fields["assignee"] = {"accountId": assignee_id}
+
+    def _map_reporter(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map reporter from row (already resolved by ReporterResolverFixer).
+
+        Args:
+            fields: Fields dictionary to update.
+            row: Row data.
+            indices: Column indices.
+        """
+        reporter_id = self._cell_str(row, indices.reporter)
+        if reporter_id:
+            fields["reporter"] = {"accountId": reporter_id}
+
+    def _map_components(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map components from row.
+
+        Supports multiple columns: Components, Components1, Components2, ...
+        """
+        # Build or reuse allowed component name map (lowercased -> canonical name)
+        allowed_map = self._get_allowed_components_map()
+
+        component_indices: list[int] = []
+
+        # Preferred multi-column indices
+        if hasattr(indices, "components") and indices.components:
+            component_indices.extend(indices.components)
+
+        # Backward-compatible single column, if not already included
+        if indices.component is not None and indices.component not in component_indices:
+            component_indices.append(indices.component)
+
+        names: list[str] = []
+        seen: set[str] = set()
+        for idx in component_indices:
+            raw = self._cell_str(row, idx)
+            if not raw:
+                continue
+
+            parts = split_multi_value_cell(raw)
+            if not parts:
+                continue
+
+            for part in parts:
+                key = part.lower()
+                canonical = allowed_map.get(key, part) if allowed_map else part
+                if canonical not in seen:
+                    seen.add(canonical)
+                    names.append(canonical)
+
+        if names:
+            fields["components"] = [{"name": n} for n in names]
+
+    def _map_fix_versions(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map FixVersion(s) from row.
+
+        Supports multiple values in a single cell using ';' as delimiter, e.g.:
+        "1.0; 1.1" -> [{"name": "1.0"}, {"name": "1.1"}]
+        """
+        if indices.fixversion is None:
+            return
+
+        raw = self._cell_str(row, indices.fixversion)
+        if not raw:
+            return
+
+        parts = split_multi_value_cell(raw)
+        if not parts:
+            return
+
+        seen: set[str] = set()
+        versions: list[dict[str, str]] = []
+        for part in parts:
+            if part in seen:
+                continue
+            seen.add(part)
+            versions.append({"name": part})
+
+        if versions:
+            fields["fixVersions"] = versions
+
+    def _label_indices(self, indices: ColumnIndices) -> list[int]:
+        """Return all label column indices to use.
+
+        Supports multiple label columns (e.g. Labels, Labels1, Labels2, ...).
+        """
+        if hasattr(indices, "label_columns") and indices.label_columns:
+            return list(indices.label_columns)
+        if indices.labels is not None:
+            return [indices.labels]
+        return []
+
+    def _map_labels(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
+        """Map labels from row.
+
+        Supports multiple label columns: Labels, Labels1, Labels2, ...
+        Cells may contain multiple labels separated by ';'.
+        """
+        label_idxs = self._label_indices(indices)
+        if not label_idxs:
+            return
+
+        labels: list[str] = []
+        seen: set[str] = set()
+
+        for idx in label_idxs:
+            raw = self._cell_str(row, idx)
+            if not raw:
+                continue
+
+            parts = split_multi_value_cell(raw)
+            if not parts:
+                continue
+
+            for part in parts:
+                if part not in seen:
+                    seen.add(part)
+                    labels.append(part)
+
+        if labels:
+            fields["labels"] = labels
+
+    def _get_allowed_components_map(self) -> dict[str, str]:
+        """Build a mapping of normalized component name -> canonical name from config.
+
+        Mirrors ComponentsAllowedRule._allowed:
+          - ExcelConfiguration: prefer CfgComponents table
+          - JSON/dict: jira.validation.components, then jira.components
+        """
+        # TODO: DRY this with ComponentsAllowedRule._allowed via a shared helper in config layer.
+        # TODO: Cache the computed mapping on the mapper instance instead of recomputing per row.
+        # cfg is a ConfigView
+        cfg_view = self.cfg
+        base_cfg = getattr(cfg_view, "_cfg", cfg_view)
+
+        # ExcelConfiguration: use table_config.components when available
+        if isinstance(base_cfg, ExcelConfiguration):
+            try:
+                if base_cfg.table_config is None:
+                    base_cfg.load_table_config()
+                table_config = base_cfg.get_table_config()
+            except Exception:
+                table_config = None
+
+            if table_config and table_config.components:
+                mapping: dict[str, str] = {}
+                for comp in table_config.components:
+                    name = str(comp.name).strip()
+                    if not name:
+                        continue
+                    mapping[name.lower()] = name
+                return mapping
+
+        # JSON / dict mode: use jira.validation.components, then jira.components
+        cfg_get = getattr(cfg_view, "get", None)
+        if not callable(cfg_get):
+            return {}
+
+        values = cfg_view.get("jira.validation.components", None)
+        if not values:
+            values = cfg_view.get("jira.components", None)
+        if not values:
+            return {}
+
+        mapping: dict[str, str] = {}
+        try:
+            for v in values:
+                if v is None:
+                    continue
+                name = str(v).strip()
+                if not name:
+                    continue
+                mapping[name.lower()] = name
+        except Exception:
+            return {}
+        return mapping
 
     def _map_team(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
         """Map Advanced Roadmaps Team field from row.

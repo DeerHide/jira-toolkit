@@ -74,6 +74,7 @@ class ImportProcessor:
         enable_excel_rules: bool = False,
         excel_rules_source: str | None = None,
         enable_auto_fix: bool = False,
+        debug: bool = False,
     ) -> None:
         """Initialize the ImportProcessor class."""
         self.path = Path(path)
@@ -82,10 +83,13 @@ class ImportProcessor:
         self.enable_excel_rules = enable_excel_rules
         self.excel_rules_source = excel_rules_source
         self.enable_auto_fix = enable_auto_fix
+        # Debug flag propagated from pipeline options; when True, allows extra-verbose
+        # debug logging such as full normalized row dumps for troubleshooting.
+        self.debug = debug
         logger.debug(
             f"ImportProcessor initialized: path={self.path}, config={self.config}, "
             f"enable_excel_rules={self.enable_excel_rules}, excel_rules_source={self.excel_rules_source}, "
-            f"enable_auto_fix={self.enable_auto_fix}"
+            f"enable_auto_fix={self.enable_auto_fix}, debug={self.debug}"
         )
 
     def _extract_processing_config(self, cfg_view: ConfigView) -> ProcessingConfig:
@@ -242,14 +246,25 @@ class ImportProcessor:
                     problems.extend(result.problems)
 
             if skipped_rows > 0:
-                logger.info(f"Skipped {skipped_rows} rows (RowType = {ROW_TYPE_SKIP} or Issue Type in skip list)")
+                row_word = "row" if skipped_rows == 1 else "rows"
+                logger.info(
+                    "Skipped %s %s (RowType=%s or issue type in skip list)",
+                    skipped_rows,
+                    row_word,
+                    ROW_TYPE_SKIP,
+                )
 
             logger.debug("Build processor result")
             report = ProcessingReport.from_problems(problems, auto_fix_enabled=self.enable_auto_fix)
             logger.info(
-                f"Report: {report.errors} errors, {report.warnings} warnings, {report.fixes} fixes, problems: {len(problems)}"
+                "Report: %s errors, %s warnings, %s fixes, total findings: %s",
+                report.errors,
+                report.warnings,
+                report.fixes,
+                len(problems),
             )
-            logger.debug(f"Normalized rows: {normalized_rows}")
+            if self.debug:
+                logger.debug("Normalized rows: %s", normalized_rows)
             logger.debug(f"Complex children: {complex_children}")
             logger.debug(f"Indices: {indices}")
             logger.debug(f"Original row count: {original_row_count}")
@@ -346,11 +361,23 @@ class ImportProcessor:
         def pos(key: str) -> int | None:
             return name_to_pos.get(key.lower())
 
-        # Build normalized header map for custom fields matching (lowercase for case-insensitive matching)
+        # Build normalized header map for custom fields & multi-column fields (lowercase for case-insensitive matching)
         normalized_header_map: dict[str, int] = {}
+        components_indices: list[int] = []
+        label_indices: list[int] = []
         for idx, header_name in enumerate(header.normalized):
-            # Use lowercase key for case-insensitive matching
-            normalized_header_map[header_name.strip().lower()] = idx
+            key = header_name.strip().lower()
+            normalized_header_map[key] = idx
+
+            # Components, Components1, Components2, ... (case-insensitive)
+            # Strip trailing digits and match base name against expected keys.
+            base_key = key.rstrip("0123456789")
+            if base_key in {"components", "component"}:
+                components_indices.append(idx)
+
+            # Labels, Labels1, Labels2, ... (case-insensitive)
+            if base_key == "labels":
+                label_indices.append(idx)
 
         # Get custom field configs from active config source
         cfg_view = ConfigView(self.config)
@@ -371,6 +398,22 @@ class ImportProcessor:
             else:
                 logger.warning(f"Custom field '{cfg.name}' (id: {cfg.id}) not found in Excel headers. Skipping.")
 
+        # Backward-compatible single component index: first components column, or a direct "component"/"components" match.
+        single_component_index: int | None = None
+        if components_indices:
+            single_component_index = components_indices[0]
+        else:
+            # Fallback for legacy layouts with a single "Component" header.
+            c_idx = pos("component")
+            single_component_index = c_idx if c_idx is not None else pos("components")
+
+        # Backward-compatible single labels index: first labels column, or a direct "labels" match.
+        single_labels_index: int | None = None
+        if label_indices:
+            single_labels_index = label_indices[0]
+        else:
+            single_labels_index = pos("labels")
+
         return ColumnIndices(
             summary=pos("summary"),
             priority=pos("priority"),
@@ -379,19 +422,24 @@ class ImportProcessor:
             project_key=pos("project key"),
             assignee=pos("assignee"),
             assignee_name=pos("assignee.name"),
+            reporter=pos("reporter"),
+            reporter_name=pos("reporter.name"),
             team=pos("team"),
             team_name=pos("team.name"),
             description=pos("description"),
             parent=pos("parent"),
             epic_link=pos("epic link"),
             epic_name=pos("epic name"),
-            component=pos("component"),
+            component=single_component_index,
             fixversion=pos("fixversion"),
             origest=pos("origest"),
             estimate=pos("estimate"),
             sprint=pos("sprint"),
             rowtype=pos("rowtype"),
             child_issue_indices=[i for i, n in enumerate(header.normalized) if n.startswith("child issue")],
+            components=components_indices,
+            labels=single_labels_index,
+            label_columns=label_indices,
             custom_fields=custom_fields,
         )
 

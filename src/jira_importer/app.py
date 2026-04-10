@@ -8,8 +8,11 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
-from rich_argparse import RichHelpFormatter
+from rich_argparse import RawDescriptionRichHelpFormatter
+
+from jira_importer.constants import CREDENTIALS_ACTION_RUN, CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
 
 from . import DEFAULT_CONFIG_FILENAME
 from .artifacts import ArtifactManager
@@ -23,23 +26,46 @@ except ImportError:
     __git_branch__ = "local"
     __build_date__ = "2035-01-01"
 
-ui, fmt = ConsoleIO.getComponents()
 logger = logging.getLogger(__name__)
+
+_PARSER: argparse.ArgumentParser | None = None
 
 
 class App:
     """App class."""
 
-    # Class variable to store command line arguments
-    _args = None
+    def __init__(
+        self,
+        artifact_manager: ArtifactManager,
+        *,
+        ui: Any = None,
+        fmt: Any = None,
+    ):
+        """Initialize the App class.
 
-    def __init__(self, artifact_manager: ArtifactManager):
-        """Initialize the App class."""
+        Args:
+            artifact_manager: Manager for temporary/output artifacts.
+            ui: Optional console UI instance (for dependency injection / tests).
+            fmt: Optional formatter instance (for dependency injection / tests).
+                When ui is provided, fmt is typically ui.fmt; if only ui is set,
+                fmt is resolved from ui when needed.
+        """
         self.artifact_manager = artifact_manager
+        self._ui = ui
+        self._fmt = fmt
         self.version_info = __version_info__
         self.git_revision = __git_revision__
         self.git_branch = __git_branch__
         self.build_date = __build_date__
+
+    def _get_ui_fmt(self) -> tuple[Any, Any]:
+        """Return (ui, fmt): injected instances or ConsoleIO singleton."""
+        if self._ui is not None and self._fmt is not None:
+            return self._ui, self._fmt
+        if self._ui is not None:
+            return self._ui, self._ui.fmt
+        ui, fmt = ConsoleIO.get_components()
+        return ui, fmt
 
     @staticmethod
     def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -55,13 +81,11 @@ class App:
             return fast_args
 
         parser = App._build_parser()
-        args = parser.parse_args(provided_argv)
-        # Store args in class variable for access by event_fatal
-        App._args = args
-        return args
+        return parser.parse_args(provided_argv)
 
     def print_version(self) -> None:
         """Print the version of the App, as declared during the build process."""
+        ui, _ = self._get_ui_fmt()
         ui.say(f"Jira Importer {self.version_info}")
         ui.say(f"Git revision: {self.git_revision}")
         ui.say(f"Git branch: {self.git_branch}")
@@ -70,49 +94,66 @@ class App:
     def event_close(self, exit_code: int = 0, cleanup: bool = True) -> None:
         """Event close, when the script is finished."""
         if cleanup:
-            self.artifact_manager.delete_all()
+            try:
+                self.artifact_manager.delete_all()
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Failed to clean up artifacts during shutdown")
         logger.info("Jira Importer finished.")
         sys.exit(exit_code)
 
     def event_abort(self, exit_code: int = -1, message: str = "Execution aborted.") -> None:
         """Event abort, when the script is aborted."""
+        ui, _ = self._get_ui_fmt()
         ui.error(message)
         logger.critical(message)
         self.event_close(exit_code=exit_code)
 
     @staticmethod
-    def event_fatal(exit_code: int = -1, message: str = "Fatal error!") -> None:
-        """Event fatal, when the script is finished with a fatal error."""
+    def event_fatal(
+        exit_code: int = -1,
+        message: str = "Fatal error!",
+        *,
+        args: argparse.Namespace | None = None,
+    ) -> None:
+        """Event fatal, when the script is finished with a fatal error.
+
+        Args:
+            exit_code: Process exit code.
+            message: Fatal error message.
+            args: Optional parsed CLI arguments; when provided, they are logged and
+                shown in a panel to aid diagnosis.
+        """
         logger.debug("event_fatal")
 
-        # Show arguments if available
-        if App._args:
-            logger.critical("Script failed with the following arguments - Error code: %s", exit_code)
-            logger.critical(f"  Input file: {App._args.input_file}")
-            logger.critical(f"  Configuration: {App._args.config}")
-            logger.critical(f"  Debug mode: {App._args.debug}")
-            # logging.critical(f"  Import to cloud: {App._args.import_to_cloud}")
-            if App._args.config_default:
-                logger.critical(f"  Config default: {App._args.config_default}")
-            if App._args.config_input:
-                logger.critical(f"  Config input: {App._args.config_input}")
-            if App._args.version:
-                logger.critical(f"  Version: {App._args.version}")
-            logger.critical(f" args: {App._args}")
-            ui.error(f"Error code: {exit_code}")
-            ui.error("Fatal event raised!")
-            _str = "\n" + ui.fmt.kv("Input file", ui.fmt.path(App._args.input_file)) + "\n"
-            _str += ui.fmt.kv("Configuration", ui.fmt.path(App._args.config)) + "\n"
-            _str += ui.fmt.kv("Debug mode", App._args.debug) + "\n"
-            _str += ui.fmt.kv("Version", App._args.version) + "\n"
-            _str += ui.fmt.kv("Config default", App._args.config_default) + "\n"
-            _str += ui.fmt.kv("Config input", App._args.config_input) + "\n"
-            for arg, value in App._args.__dict__.items():
-                _str += ui.fmt.kv(arg, value) + "\n"
-            ui.panel("Script failed with the following arguments:", _str)
+        if args is not None:
+            ui, fmt = App._get_ui_fmt_static()
+            try:
+                logger.critical("Script failed with the following arguments - Error code: %s", exit_code)
+                for name, value in vars(args).items():
+                    logger.critical("  %s: %r", name, value)
+
+                ui.error(f"Error code: {exit_code}")
+                ui.error("Fatal event raised!")
+
+                lines: list[str] = []
+                for name, value in vars(args).items():
+                    display_value = value
+                    if isinstance(value, str) and (name.endswith("file") or name.endswith("path")):
+                        display_value = fmt.path(value)
+                    lines.append(fmt.kv(name, display_value))
+
+                details = "\n" + "\n".join(lines)
+                ui.panel("Script failed with the following arguments:", details)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("Failed while reporting fatal arguments")
 
         logger.critical(message)
         sys.exit(exit_code)
+
+    @staticmethod
+    def _get_ui_fmt_static() -> tuple[Any, Any]:
+        """Return (ui, fmt) from ConsoleIO singleton. For use in static methods."""
+        return ConsoleIO.get_components()
 
     @staticmethod
     def _preparse_shortcuts(argv: list[str]) -> argparse.Namespace | None:
@@ -127,14 +168,16 @@ class App:
             if parsed.version:
                 return argparse.Namespace(version=True, input_file=None)
 
-        if "--credentials" in argv:
+        if "--credentials" in argv or "-creds" in argv:
             mini = argparse.ArgumentParser(add_help=False)
-            mini.add_argument("--credentials", nargs="?", choices=["run", "show", "clear", "test"], const="run")
+            mini.add_argument(
+                "-creds", "--credentials", nargs="?", choices=CREDENTIALS_ACTIONS, const=CREDENTIALS_ACTION_RUN
+            )
             parsed, _ = mini.parse_known_args(argv)
             if getattr(parsed, "credentials", None):
                 # For "test" action, we need full args parsing to get config options
                 # So skip fast-path and let the full parser handle it
-                if parsed.credentials == "test":
+                if parsed.credentials == CREDENTIALS_ACTION_TEST:
                     return None
                 return argparse.Namespace(
                     credentials=parsed.credentials, input_file=None, version=False, show_config=False
@@ -145,15 +188,23 @@ class App:
     @staticmethod
     def _build_parser() -> argparse.ArgumentParser:
         """Construct and return the main ArgumentParser."""
+        global _PARSER  # pylint: disable=global-statement
+        if _PARSER is not None:
+            return _PARSER
+
+        _, fmt = App._get_ui_fmt_static()
+        epilog_lines = [
+            "Examples:",
+            fmt.italic("\tjira-importer dataset.xlsx --config config_importer.json -auto-yes"),
+            fmt.italic("\tjira-importer dataset.xlsx --config-excel -auto-yes --auto-fix"),
+            fmt.italic("\tjira-importer dataset.xlsx -ce -y -af -dr"),
+        ]
+        epilog_str = "\n".join(epilog_lines)
         parser = argparse.ArgumentParser(
             prog="jira-importer",
             description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",
-            formatter_class=RichHelpFormatter,
-            epilog="""
-            Examples:
-            jira-importer dataset.xlsx -c config_importer.json -d -y
-            jira-importer dataset.xlsx -ce -y --auto-fix
-            """,
+            formatter_class=RawDescriptionRichHelpFormatter,
+            epilog=(epilog_str),
             allow_abbrev=False,
         )
         parser.add_argument("input_file", nargs="?", help="Excel XLSX file", default="import.xlsx")
@@ -166,7 +217,8 @@ class App:
         App._add_misc_args(parser)
         App._add_debug_args(parser)
 
-        return parser
+        _PARSER = parser
+        return _PARSER
 
     @staticmethod
     def _add_config_args(parser: argparse.ArgumentParser) -> None:
@@ -208,24 +260,23 @@ class App:
             "-o",
             "--output",
             default=None,
-            help="Output CSV path (default: <input>.processed.csv)",
+            help="Output CSV path (default: <input>_jira_ready.csv in the same directory as the Excel file)",
             type=str,
         )
+        # Jira Cloud API output target (V3)
         output_group_exclusive.add_argument(
-            "-oi",
-            "--output-is-input",
-            default=None,
-            help=argparse.SUPPRESS,
-            # help="Output CSV path in the input file location (default: <input>.processed.csv)",
-            action="store_true",
-        )
-        output_group_exclusive.add_argument(
+            "-cl",
             "--cloud",
             dest="output_target_cloud",
             action="store_true",
-            help="Shortcut to select Jira Cloud API as the output target",
+            help="Use Jira Cloud API V3 as the output target (imports directly into your Jira Cloud instance instead of creating a CSV file)",
+        )
+        # Hidden option to select Jira API as the output target (used for internal testing with the Jira API V2)
+        output_group_exclusive.add_argument(
+            "-api", "--api", dest="output_target_api", action="store_true", help=argparse.SUPPRESS
         )
         output_group.add_argument(
+            "-cld",
             "--cloud-debug-payloads",
             action="store_true",
             help=argparse.SUPPRESS,
@@ -243,8 +294,9 @@ class App:
 
     @staticmethod
     def _add_feature_flags(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
+        parser.add_argument("-ds", "--data-sheet", default="Dataset", help="XLSX data sheet name (default: Dataset)")
         parser.add_argument(
+            "-eer",
             "--enable-excel-rules",
             default=False,
             action="store_true",
@@ -252,46 +304,58 @@ class App:
             help=argparse.SUPPRESS,
         )
         parser.add_argument(
+            "-af",
             "--auto-fix",
             default=False,
             action="store_true",
             help="Enable safe auto-fixes (priority normalization, estimates, project key, etc.).",
         )
         parser.add_argument(
+            "-nr",
             "--no-report",
             action="store_true",
             # help="Do not print the validation report (useful for CI/CD pipelines)."
             help=argparse.SUPPRESS,
         )
         parser.add_argument(
+            "-q",
+            "--quiet",
+            action="store_true",
+            help="Minimal output: only errors, warnings, and one outcome line.",
+        )
+        parser.add_argument(
+            "-fce",
             "--fix-cloud-estimates",
             default=False,
             action="store_true",
-            help="Apply Jira Cloud x60 estimate quirk IN THE SINK (kept out of rules/fixes).",
+            help="Apply Jira Cloud x60 estimate quirk IN THE SINK (not auto-fixed by --auto-fix).",
         )
 
     @staticmethod
     def _add_credentials_args(parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
+            "-creds",
             "--credentials",
             nargs="?",
-            choices=["run", "show", "clear", "test"],
-            const="run",
+            choices=CREDENTIALS_ACTIONS,
+            const=CREDENTIALS_ACTION_RUN,
             metavar="ACTION",
-            help="Manage Jira API credentials: run (interactive setup), show (display current), clear (remove stored), test (verify connection)",
+            help="Manage Jira API credentials. Default action is 'run' if no action specified. Actions: run (interactive setup), show (display current), clear (remove stored), test (verify connection)",
         )
 
     @staticmethod
     def _add_misc_args(parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("-v", "--version", help="Show version", action="store_true")
+        parser.add_argument("--version", help="Show version", action="store_true")
 
     @staticmethod
     def _add_debug_args(parser: argparse.ArgumentParser) -> None:
         """Add debug-specific arguments that are hidden from main help."""
         debug_group = parser.add_argument_group("Debug Options")
         debug_group.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
-        debug_group.add_argument("--show-config", help="Show configuration and exit", action="store_true")
-        debug_group.add_argument("--dry-run", help="Process data but stop before writing output", action="store_true")
+        debug_group.add_argument("-sc", "--show-config", help="Show configuration and exit", action="store_true")
+        debug_group.add_argument(
+            "-dr", "--dry-run", help="Process data but stop before writing output", action="store_true"
+        )
 
     @staticmethod
     def show_version() -> int:
@@ -328,14 +392,15 @@ class App:
             format_error_for_display,
         )
 
-        ui_instance, _ = ConsoleIO.getComponents()
+        ui_instance, _ = ConsoleIO.get_components()
 
         try:
-            if not hasattr(args, "input_file") or not args.input_file:
+            args_for_config = argparse.Namespace(**vars(args))
+            if not hasattr(args_for_config, "input_file") or not args_for_config.input_file:
                 # Provide dummy input_file for config determination
-                args.input_file = "dummy.xlsx"
-            config_path = determine_config_path(args)
-            display_config(config_path)
+                args_for_config.input_file = "dummy.xlsx"
+            config_path = determine_config_path(args_for_config)
+            display_config(config_path, args=args)
             return 0
         except ConfigurationError as exc:
             # Domain configuration error: show a clear message
@@ -354,13 +419,17 @@ class App:
             exit_code: Exit code to use.
             do_cleanup: Whether to perform cleanup operations.
         """
-        from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
+        try:
+            from jira_importer.config.minimal_config import MinimalConfig  # pylint: disable=import-outside-toplevel
 
-        ui_instance, _ = ConsoleIO.getComponents()
-        ui_instance.lf()
-        minimal_config = MinimalConfig()
-        app = App(ArtifactManager(minimal_config))
-        app.event_close(exit_code=exit_code, cleanup=do_cleanup)
+            ui_instance, _ = ConsoleIO.get_components()
+            ui_instance.lf()
+            minimal_config = MinimalConfig()
+            app = App(ArtifactManager(minimal_config))
+            app.event_close(exit_code=exit_code, cleanup=do_cleanup)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("graceful_exit failed; forcing process exit")
+            sys.exit(exit_code)
 
     @staticmethod
     def get_autoreply_from_args(args: argparse.Namespace) -> bool | None:
@@ -389,7 +458,7 @@ class App:
             Output directory path.
         """
         if args.output:
-            return Path(args.output)
+            return Path(args.output).parent
         return Path(args.input_file).parent
 
     @staticmethod

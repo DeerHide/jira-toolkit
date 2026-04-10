@@ -11,7 +11,7 @@ from ..console import ConsoleIO
 from ..import_pipeline.cloud.constants import SENSITIVE_TERMS
 from .constants import MAX_DISPLAY_ITEMS
 
-ui = ConsoleIO.getUI()  # pylint: disable=invalid-name
+ui = ConsoleIO.get_ui()  # pylint: disable=invalid-name
 fmt = ui.fmt  # pylint: disable=invalid-name
 
 

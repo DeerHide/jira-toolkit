@@ -12,6 +12,8 @@ from typing import Any, TypeVar
 from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 from ..errors import ConfigurationError
 from ..import_pipeline.cloud.constants import SENSITIVE_TERMS
+from .config_models import ExcelTableConfig, parse_teams
+from .config_view import ConfigView
 
 T = TypeVar("T")
 
@@ -33,6 +35,7 @@ class JsonConfiguration:
         self.path = path
         self.content = self._load_config()
         self.cfg_req = cfg_req
+        self._table_config: ExcelTableConfig | None = None
         if self.version_check():
             logger.critical("Wrong file config version or missing version key.")
             # raise ConfigurationError("Wrong file config version or missing version key.")
@@ -141,6 +144,17 @@ class JsonConfiguration:
             return obj
 
         return redact(self.content)
+
+    def get_table_config(self) -> ExcelTableConfig:
+        """Return table config built from JSON (teams from jira.teams, rest empty).
+
+        Lazy: computed on first call and cached. Used so team resolution works
+        when using JSON config, without changing the pipeline.
+        """
+        if self._table_config is None:
+            teams = parse_teams(ConfigView(self.content))
+            self._table_config = ExcelTableConfig(teams=teams)
+        return self._table_config
 
     def __repr__(self) -> str:
         """Return a string representation of the configuration."""

@@ -2,12 +2,14 @@
 
 This guide shows simple ways to configure the importer. You can keep settings in your Excel file, or in a JSON file. Pick what’s easiest for you.
 
+**Where templates live:** **`ImportTemplate.xlsx`** is in the repository under **`resources/templates/`** (same layout as **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** bundles). **`ImportTemplate_with_config.xlsx`** (when published) and standalone executables are on **Releases** — not always in git. JSON examples are under **`resources/templates/`**.
+
 ## Two ways to configure
 
 ### Option A: Configure inside your Excel file (easiest)
 
 - Use the `Config` sheet in your Excel file
-- Start from our template: `resources/templates/ImportTemplate_with_config.xlsx`
+- Start from **`ImportTemplate.xlsx`** (`resources/templates/` or **Releases**), or **`ImportTemplate_with_config.xlsx`** from **[Releases](https://github.com/DeerHide/jira-toolkit/releases)** when available (sample `Config` layout)
 - Put your settings as two columns: Key | Value (first row can be headers)
 
 Tip: You can also add helpful lookup tables (assignees, sprints, components, etc.) on the same `Config` sheet. The tool reads these automatically if present.
@@ -22,7 +24,7 @@ jira-importer.exe your-data.xlsx -ce
 
 ### Option B: Configure with a JSON file
 
-- Copy `resources/templates/config_importer.json` next to your Excel file
+- Copy `resources/templates/config_importer.json` from the repository next to your Excel file (or use the file from your release bundle)
 - Fill in your Jira details (site address, API token, project key and id)
 
 How to run:
@@ -58,7 +60,7 @@ The most important settings are:
 }
 ```
 
-- Row skipping (optional):
+- Row skipping (optional) — use a **top-level** `validation` object in JSON (sibling of `app` and `jira`), as in [`resources/templates/config_importer.json`](../resources/templates/config_importer.json). Do not nest these under `app.validation`; that block is used for other options (for example `skip_checks` on individual validations).
 
 ```json
 {
@@ -145,6 +147,29 @@ For components, priorities, and other lists, make sure they match Jira exactly:
 }
 ```
 
+### Components source (Compass)
+
+When your Jira Software space uses **Compass components** instead of classic Jira project components, you can set `jira.components_source` to `"compass"` for clarity. The pipeline is identical—same columns (Components, Components1, ...), same payload, same validation—so this is optional and purely informational.
+
+**JSON:**
+
+```json
+{
+  "jira": {
+    "components": ["Backend Service", "Frontend App"],
+    "components_source": "compass"
+  }
+}
+```
+
+**Excel (Key/Value on Config sheet):**
+
+| Key | Value |
+| --- | --- |
+| jira.components_source | compass |
+
+Values: `"jira"` (default) or `"compass"`. Validation still uses CfgComponents / jira.components—ensure the list contains the correct names for the catalog you are targeting.
+
 ### Custom Fields Configuration
 
 The importer supports custom Jira fields with automatic validation based on field type. You can configure custom fields in JSON or Excel.
@@ -210,6 +235,26 @@ Create a table named `CfgCustomFields` in your `Config` sheet with three columns
 - Table name must be exactly `CfgCustomFields`
 - Column headers: `Name`, `Id`, `Type` (case-insensitive)
 - The `Name` column must match your Excel data column header exactly
+
+#### Team mapping (JSON)
+
+When using a JSON config file, you can define team name-to-ID mapping with `jira.teams`. This mirrors the Excel `CfgTeams` table and is used for team resolution during validation and auto-fix.
+
+```json
+{
+  "jira": {
+    "teams": [
+      { "name": "Backend", "id": "12345" },
+      { "name": "Frontend", "id": "67890" }
+    ]
+  }
+}
+```
+
+- **`name`** (required): Human-friendly team name (e.g. used in your Excel Team column).
+- **`id`** (required): Jira Cloud Team id (as used by the Advanced Roadmaps Team field).
+
+Each entry must have both `name` and `id`. Duplicate IDs or duplicate names (case-insensitive) are not allowed. When using Excel config, use the `CfgTeams` table on the Config sheet instead.
 
 #### Supported Field Types
 
@@ -347,7 +392,7 @@ If you're getting "Missing jira.connection.site_address" errors:
 
 ## Full examples
 
-- Excel template with a `Config` sheet: `resources/templates/ImportTemplate.xlsx`
-- JSON template: `resources/templates/config_importer.json`
+- Excel template with expected columns: **`ImportTemplate.xlsx`** from **`resources/templates/`** in git or **[Releases](https://github.com/DeerHide/jira-toolkit/releases)**; optional config-heavy variant when published there
+- JSON template in git: **`resources/templates/config_importer.json`** (also **`config_importer_full.json`** for a fuller skeleton)
 
 :_GeneratedFile_

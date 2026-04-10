@@ -31,13 +31,18 @@ Perfect for **project managers**, **team leads**, **producers**, and anyone who 
 - **macOS**: Native build available (no installation required)
 - **Source**: Python 3.12+ required for running from source
 
+### Templates
+
+- **Excel**: **`ImportTemplate.xlsx`** is in **`resources/templates/`**. Bundles on **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** include the app and that workbook; **`ImportTemplate_with_config.xlsx`** is offered there when published (not in git).
+- **JSON** (`config_importer.json`, `config_importer_full.json`, …): **`resources/templates/`** in the repo.
+
 ## Quick Start (3 steps)
 
 ### 1. Prepare Your Data
 
-- Use the included `ImportTemplate.xlsx` as your starting point
+- Use **`ImportTemplate.xlsx`** from **`resources/templates/`** or your **[release download](https://github.com/DeerHide/jira-toolkit/releases)** (or match its column layout in your own file)
 - **Important**: Do not change the column headers — the tool expects specific column names
-- Place your tasks in the "dataset" sheet (or specify custom sheet with `--data-sheet`)
+- Place your tasks on the sheet named **Dataset** (default; must match the Excel tab exactly). Use `--data-sheet NAME` if your data is on another sheet
 - Fill in your tasks, stories, epics, etc.
 - Save your Excel file
 
@@ -119,6 +124,9 @@ jira-importer.exe --credentials show
 
 # Clear credentials
 jira-importer.exe --credentials clear
+
+# Verify credentials / connection to Jira
+jira-importer.exe --credentials test
 ```
 
 ## Configuration Options
@@ -126,7 +134,7 @@ jira-importer.exe --credentials clear
 ### Option A: Excel Configuration (Recommended)
 
 - Put your settings in the `Config` sheet of your Excel file
-- Use the included template: `ImportTemplate.xlsx`
+- Use **`ImportTemplate_with_config.xlsx`** from **Releases** when available, or add a `Config` sheet to a workbook based on `ImportTemplate.xlsx`
 - Run: `jira-importer.exe your-data.xlsx -ce`
 
 **Benefits:**
@@ -137,7 +145,7 @@ jira-importer.exe --credentials clear
 
 ### Option B: JSON Configuration
 
-- Copy `config_importer.json` next to your Excel file
+- Copy `config_importer.json` next to your Excel file (from **`resources/templates/`** in the repo or from the release bundle)
 - Fill in your Jira details (site address, API token, project key/id)
 - Run: `jira-importer.exe your-data.xlsx -ci`
 
@@ -177,10 +185,10 @@ Implement API endpoint,Low,Sub-Task,Add new feature,3,28800,backend
 
 ## What's Included
 
-- `jira-importer.exe` (Windows) or `jira-importer` (macOS) - The main executable
-- `ImportTemplate.xlsx` - Excel template with examples
-- `config_importer.json` - Configuration template
-- `README_APP.md` - This guide
+- `jira-importer.exe` (Windows) or `jira-importer` (macOS) — the main executable
+- **`ImportTemplate.xlsx`** — **`resources/templates/`**; mirrored on **[Releases](https://github.com/DeerHide/jira-toolkit/releases)**; optional **`ImportTemplate_with_config.xlsx`** sometimes on Releases only
+- **`config_importer.json`** — **`resources/templates/`**; often bundled next to the downloadable app
+- `README_APP.md` — this guide
 
 ## Output Options
 
@@ -243,7 +251,7 @@ Use structured tables in your Excel `Config` sheet:
 
 ### Row Skipping
 
-Skip rows by setting `RowType = "SKIP"` or using issue types like "comment", "note", "skip".
+Skip rows by setting `RowType = "SKIP"` or using issue types like "comment", "note", "skip". In JSON config, enable **`validation.skip_rowtype`** / **`validation.skip_issuetypes`** at the **root** of the file (see **`resources/templates/config_importer.json`** in the repo), not under `app.validation`.
 
 ## Support
 

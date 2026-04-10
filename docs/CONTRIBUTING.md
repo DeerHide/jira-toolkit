@@ -144,8 +144,8 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 ### Testing Your Changes
 
 1. **Use sample data**
-   - Copy `resources/templates/ImportTemplate.xlsx` to your working directory
-   - Modify it with test data
+   - Get **`ImportTemplate.xlsx`** from **`resources/templates/`** in git or **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)**, or build minimal test workbooks / use **`tests/data/`**
+   - Use **`resources/templates/*.json`** for config-driven tests
    - Run the importer on your test file
 
 2. **Enable debug mode**
@@ -214,7 +214,7 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 
 ### Sample Data
 
-- Use the template under `resources/templates/ImportTemplate.xlsx` for test data
+- Use **`ImportTemplate.xlsx`** from **`resources/templates/`**, **Releases**, or fixtures under **`tests/data/`** for test data; JSON under **`resources/templates/`**
 - Create test cases with different data scenarios
 - Test edge cases and error conditions
 - Test with real-world data when possible

@@ -102,7 +102,7 @@ def demo_formatting_themes(ui: ConsoleUI):
 
 def main():
     """Run the console UI demo showcasing formatting, panels, and themes."""
-    ui = ConsoleIO.getUI()
+    ui = ConsoleIO.get_ui()
 
     ui.lf()
     demo_formatting_text(ui)

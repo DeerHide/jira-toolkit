@@ -1,6 +1,6 @@
 [project]
 name = "jira-toolkit"
-version = "1.0.0"
+version = "1.2.0"
 description = "A utility for batch-importing tasks from Excel into Jira"
 readme = "README.md"
 license = {text = "MIT"}
@@ -17,7 +17,7 @@ dependencies = [
     "structlog>=23.0.0",
     "colorlog>=6.7.0",
     "PyYAML>=6.0",
-    "requests>=2.25.0",
+    "requests>=2.33.0",
     "urllib3>=2.6.3",
     "keyring>=25.7.0",
     "colorama>=0.4.0; platform_system == 'Windows'",
@@ -57,7 +57,7 @@ post-build = "scripts.pyinstaller_hooks:post_build"
 
 [tool.poetry]
 name = "jira_importer"
-version = "1.0.0"
+version = "1.2.0"
 description = "Jira Importer Application"
 packages = [{ include = "jira_importer", from = "src" }]
 

@@ -9,9 +9,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..fixes.assignee_resolver import AssigneeResolverRule
+from ..fixes.reporter_resolver import ReporterResolverRule
 from ..fixes.team_resolver import TeamResolverRule
 from ..models import IRowRule
 from .builtin_rules import (
+    ComponentsAllowedRule,
     EstimateFormatRule,
     IssueIdPresenceRule,
     IssueTypeAllowedRule,
@@ -46,10 +48,12 @@ def build_registry(config_view, excel_ctx: object | None) -> RuleRegistry:  # py
     rules.append(SummaryRequiredRule())
     rules.append(IssueTypeAllowedRule())
     rules.append(PriorityAllowedRule())
+    rules.append(ComponentsAllowedRule())
     rules.append(IssueIdPresenceRule())
     rules.append(EstimateFormatRule())
     rules.append(ParentLinkValidationRule())  # Add parent link validation rule
     rules.append(AssigneeResolverRule())  # Add assignee resolution rule
+    rules.append(ReporterResolverRule())  # Add reporter resolution rule
     rules.append(TeamResolverRule())  # Add team resolution rule
     rules.append(CustomFieldValidationRule())
 

@@ -33,14 +33,14 @@ Perfect for **project managers**, **team leads**, **producers**, and anyone who 
 
 ### Templates
 
-- **Excel starters** (`ImportTemplate.xlsx`, and sometimes **`ImportTemplate_with_config.xlsx`**) come from **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** with the app — not from the git source tree alone.
-- **JSON samples** for config are in the repo at **`resources/Templates/`** (`config_importer.json`, `config_importer_full.json`).
+- **Excel**: **`ImportTemplate.xlsx`** is in **`resources/templates/`**. Bundles on **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** include the app and that workbook; **`ImportTemplate_with_config.xlsx`** is offered there when published (not in git).
+- **JSON** (`config_importer.json`, `config_importer_full.json`, …): **`resources/templates/`** in the repo.
 
 ## Quick Start (3 steps)
 
 ### 1. Prepare Your Data
 
-- Use `ImportTemplate.xlsx` from your **[release download](https://github.com/DeerHide/jira-toolkit/releases)** as the starting point (or match its column layout in your own file)
+- Use **`ImportTemplate.xlsx`** from **`resources/templates/`** or your **[release download](https://github.com/DeerHide/jira-toolkit/releases)** (or match its column layout in your own file)
 - **Important**: Do not change the column headers — the tool expects specific column names
 - Place your tasks on the sheet named **Dataset** (default; must match the Excel tab exactly). Use `--data-sheet NAME` if your data is on another sheet
 - Fill in your tasks, stories, epics, etc.
@@ -145,7 +145,7 @@ jira-importer.exe --credentials test
 
 ### Option B: JSON Configuration
 
-- Copy `config_importer.json` next to your Excel file (from **`resources/Templates/`** in the repo or from the release bundle)
+- Copy `config_importer.json` next to your Excel file (from **`resources/templates/`** in the repo or from the release bundle)
 - Fill in your Jira details (site address, API token, project key/id)
 - Run: `jira-importer.exe your-data.xlsx -ci`
 
@@ -186,8 +186,8 @@ Implement API endpoint,Low,Sub-Task,Add new feature,3,28800,backend
 ## What's Included
 
 - `jira-importer.exe` (Windows) or `jira-importer` (macOS) — the main executable
-- **`ImportTemplate.xlsx`** (and optional Excel/config variants) — shipped **with [Releases](https://github.com/DeerHide/jira-toolkit/releases)**, not necessarily in the bare git clone
-- **`config_importer.json`** — in the repo under **`resources/Templates/`**, and usually bundled next to the downloadable app
+- **`ImportTemplate.xlsx`** — **`resources/templates/`**; mirrored on **[Releases](https://github.com/DeerHide/jira-toolkit/releases)**; optional **`ImportTemplate_with_config.xlsx`** sometimes on Releases only
+- **`config_importer.json`** — **`resources/templates/`**; often bundled next to the downloadable app
 - `README_APP.md` — this guide
 
 ## Output Options
@@ -251,7 +251,7 @@ Use structured tables in your Excel `Config` sheet:
 
 ### Row Skipping
 
-Skip rows by setting `RowType = "SKIP"` or using issue types like "comment", "note", "skip". In JSON config, enable **`validation.skip_rowtype`** / **`validation.skip_issuetypes`** at the **root** of the file (see **`resources/Templates/config_importer.json`** in the repo), not under `app.validation`.
+Skip rows by setting `RowType = "SKIP"` or using issue types like "comment", "note", "skip". In JSON config, enable **`validation.skip_rowtype`** / **`validation.skip_issuetypes`** at the **root** of the file (see **`resources/templates/config_importer.json`** in the repo), not under `app.validation`.
 
 ## Support
 

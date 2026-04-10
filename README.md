@@ -35,8 +35,8 @@ No install required — on Windows, you can drag & drop your Excel file onto the
 
 ### Templates and sample files
 
-- **Excel starters** (`ImportTemplate.xlsx`, and when included **`ImportTemplate_with_config.xlsx`** with a sample `Config` sheet) ship with **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** assets (same bundle as the executables). They are **not** committed to the source tree.
-- **JSON config samples** live in the repository under **`resources/Templates/`** — e.g. [`config_importer.json`](resources/Templates/config_importer.json) and `config_importer_full.json`. Copy or reference these when working from a git checkout.
+- **Excel**: `ImportTemplate.xlsx` is in the repository under **[`resources/templates/`](resources/templates/)** (same layout as release bundles). **`ImportTemplate_with_config.xlsx`** (sample `Config` sheet) and standalone executables are on **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)** when published — not always in git.
+- **JSON samples**: [`config_importer.json`](resources/templates/config_importer.json), `config_importer_full.json`, etc., live under **`resources/templates/`** in the repo.
 
 ## ⚠️ Important Notice
 
@@ -113,10 +113,10 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 
 ## Input Format
 
-**Important**: Start from `ImportTemplate.xlsx` **[from Releases](https://github.com/DeerHide/jira-toolkit/releases)** if you can — it encodes the expected columns. Do not change the column headers unless you know the schema. Working from git only? Grab that Excel file from the latest release assets; JSON samples are under `resources/Templates/`.
+**Important**: Start from `ImportTemplate.xlsx` — from **[Releases](https://github.com/DeerHide/jira-toolkit/releases)** or from **`resources/templates/`** in a git checkout — it encodes the expected columns. Do not change the column headers unless you know the schema. JSON samples live in the same **`resources/templates/`** folder.
 
 - **Data Sheet**: Place your tasks on the sheet named **Dataset** (CLI default; the name must match the Excel tab exactly). Use `--data-sheet NAME` if your data is on another sheet
-- **Template**: **`ImportTemplate.xlsx`** (release bundle) keeps the correct column layout; **`ImportTemplate_with_config.xlsx`** may be included for an Excel-native config example
+- **Template**: **`ImportTemplate.xlsx`** (`resources/templates/` or release bundle) keeps the correct column layout; **`ImportTemplate_with_config.xlsx`** may ship on Releases for an Excel-native config example
 - **Empty Rows**: Empty rows are automatically ignored during processing
 - **Notes/Comments**: Rows with Issue Types like "comment", "note", or "skip" are automatically filtered out (configurable)
 
@@ -259,7 +259,7 @@ The tool supports skipping rows during processing using multiple criteria:
 - **RowType column**: Set `RowType = "SKIP"` for rows you want to exclude
 - **Issue Type filtering**: Automatically skip rows with Issue Types like "comment", "note", "skip"
 - Skipped rows bypass validation and won't appear in the final output
-- Configure this under the **root** `validation` object in JSON (same pattern as [`resources/Templates/config_importer.json`](resources/Templates/config_importer.json)): `"skip_rowtype": true` and `"skip_issuetypes": ["comment", "note", "skip"]` — not under `app.validation` (that block is for other toggles like per-check `skip_checks`)
+- Configure this under the **root** `validation` object in JSON (same pattern as [`resources/templates/config_importer.json`](resources/templates/config_importer.json)): `"skip_rowtype": true` and `"skip_issuetypes": ["comment", "note", "skip"]` — not under `app.validation` (that block is for other toggles like per-check `skip_checks`)
 
 Example:
 
@@ -303,7 +303,7 @@ Choose the configuration method that works best for your workflow:
 ### Option A: Excel Configuration (Recommended)
 
 - Put your settings in the `Config` sheet of your Excel file
-- Prefer **`ImportTemplate_with_config.xlsx`** from **[Releases](https://github.com/DeerHide/jira-toolkit/releases)** when available (sample `Config` + tables). Not in the git tree.
+- Prefer **`ImportTemplate_with_config.xlsx`** from **[Releases](https://github.com/DeerHide/jira-toolkit/releases)** when available (sample `Config` + tables). Baseline **`ImportTemplate.xlsx`** is under **`resources/templates/`** in git.
 - Run: `jira-importer.exe your-data.xlsx -ce`
 
 **Benefits:**
@@ -314,7 +314,7 @@ Choose the configuration method that works best for your workflow:
 
 ### Option B: JSON Configuration
 
-- Copy [`resources/Templates/config_importer.json`](resources/Templates/config_importer.json) from this repository next to your Excel file (or use the copy bundled with a release)
+- Copy [`resources/templates/config_importer.json`](resources/templates/config_importer.json) from this repository next to your Excel file (or use the copy bundled with a release)
 - Fill in your Jira details (site address, API token, project key/id)
 - Run: `jira-importer.exe your-data.xlsx -ci`
 

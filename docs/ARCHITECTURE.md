@@ -19,7 +19,7 @@ jira-toolkit/                    # Repository root
 └── .venv/                       # Virtual environment
 ```
 
-**`resources/`:** The git repo includes JSON under **`resources/Templates/`** and samples under **`resources/Samples/`**. Excel starter workbooks (**`ImportTemplate.xlsx`**, optional **`ImportTemplate_with_config.xlsx`**) are distributed via **GitHub Releases** with the packaged app, not as tracked files here.
+**`resources/`:** The git repo includes **`resources/templates/`** (JSON config samples and **`ImportTemplate.xlsx`**) and samples under **`resources/Samples/`**. **`ImportTemplate_with_config.xlsx`** (when published) and release executables are on **GitHub Releases** — not always tracked in git.
 
 ## 🏗️ Application Architecture
 
@@ -153,9 +153,10 @@ graph TD
     C3 --> C3A[generate_version.py]
     C3 --> C3B[build-counter.json]
 
-    E --> E1[Templates/]
+    E --> E1[templates/]
     E1 --> E1A[config_importer.json]
     E1 --> E1B[config_importer_full.json]
+    E1 --> E1C[ImportTemplate.xlsx]
     E --> E2[Samples/]
     E2 --> E2A[config_sample.json]
 
@@ -546,7 +547,7 @@ The cloud sink now provides comprehensive error handling for authentication and 
 
 #### New Command Line Features
 
-- **`--credentials`**: Interactive credential management (run/show/clear)
+- **`--credentials`**: Credential management (`run` / `show` / `clear` / `test`)
 - **`--auto-fix`**: Enable automatic fixing of common validation issues
 - **`--fix-cloud-estimates`**: Apply Jira Cloud ×60 estimate quirk
 - **`--enable-excel-rules`**: Load validation rules from Excel tables

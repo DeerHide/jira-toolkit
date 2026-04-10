@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import stat
+from collections.abc import Callable
 from pathlib import Path
 
 from .console import ConsoleUI
@@ -57,7 +59,7 @@ class FileOperations:
             return False
 
         try:
-            shutil.rmtree(target, onexc=self._on_rmtree_onexc)  # type: ignore[arg-type]
+            shutil.rmtree(target, onexc=self._on_rmtree_onexc)
         except Exception as exc:
             logger.error("Failed to delete directory tree '%s': %s", target, exc)
             return False
@@ -69,28 +71,19 @@ class FileOperations:
         logger.info("Deleted directory tree: %s", target)
         return True
 
-    def _on_rmtree_onexc(self, exc: OSError) -> None:
-        """Handle errors during rmtree (onexc callback).
-
-        Best-effort: try to make the path writable and remove it.
-
-        Args:
-            exc: The exception raised by ``shutil.rmtree`` (path is ``exc.filename``).
-        """
-        path = getattr(exc, "filename", None) or getattr(exc, "path", None)
-        if path is None:
-            logger.exception("Failed to remove path during rmtree: %s", exc)
-            return
+    def _on_rmtree_onexc(
+        self,
+        func: Callable[..., object],
+        path: str | bytes,
+        _exc: BaseException,
+    ) -> None:
+        """``shutil.rmtree`` ``onexc``: chmod writable, then retry ``func(path)`` (see stdlib)."""
         try:
-            os.chmod(path, 0o700)
-            if os.path.isfile(path) or os.path.islink(path):
-                os.remove(path)
-            elif os.path.isdir(path):
-                shutil.rmtree(path, onexc=self._on_rmtree_onexc)  # type: ignore[arg-type]
-            else:
-                logger.warning("Cannot remove path during rmtree: %s", path)
-        except Exception:
-            logger.exception("Failed to remove path during rmtree: %s", path)
+            os.chmod(path, stat.S_IWRITE)
+        except OSError:
+            logger.exception("Failed to chmod during rmtree recovery: %s", path)
+            return
+        func(path)
 
 
 class PathGenerator:

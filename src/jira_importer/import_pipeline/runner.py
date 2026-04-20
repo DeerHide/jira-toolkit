@@ -487,10 +487,13 @@ class ImportRunner:
         # 3. Handle auto-fix warnings
         if not processor.enable_auto_fix and not self.options.dry_run:
             if result.report.errors > 0:
-                self.context.ui.warning("Auto-fix is disabled. Please fix the issues manually.")
-                self.context.ui.hint(
-                    "You can enable auto-fix by adding the following to your configuration file or by using the --auto-fix flag."
+                self.context.ui.warning(
+                    "Auto-fix is OFF. This import has validation errors and may fail unless you resolve them first."
                 )
+                self.context.ui.hint(
+                    "Recommended: enable auto-fix with --auto-fix (or -af) to apply safe automatic fixes."
+                )
+                self.context.ui.hint("Tip: add --auto-fix to your standard command or script so it is always enabled.")
 
         # 3.5. Calculate critical problems once for reuse
         critical_problems = [p for p in result.problems if p.severity == ProblemSeverity.CRITICAL]

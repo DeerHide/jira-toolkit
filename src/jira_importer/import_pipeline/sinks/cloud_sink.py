@@ -42,9 +42,11 @@ from ..models import CloudBulkIssueError, ColumnIndices, ProcessorResult
 logger = logging.getLogger(__name__)
 
 
-def _write_payload_debug(payload: dict[str, Any], batch_num: int, output_dir: Path) -> None:
+def _write_payload_debug(payload: dict[str, Any], batch_num: int, debug_context: CloudDebugContext) -> None:
     """Write JSON payload to debug file for inspection."""
-    debug_file = output_dir / f"jira_cloud_payload_batch_{batch_num:03d}.json"
+    debug_file = debug_context.payload_file(batch_num)
+    if debug_file is None:
+        return
     try:
         with open(debug_file, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
@@ -62,6 +64,21 @@ class CloudSubmitReport:
     batches: int
     errors: list[CloudBulkIssueError]
     created_issue_keys: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CloudDebugContext:
+    """Debug context for Cloud payload artifact naming and storage."""
+
+    output_dir: Path | None = None
+    input_file_stem: str | None = None
+
+    def payload_file(self, batch_num: int) -> Path | None:
+        """Build payload debug file path for a batch, if debug output is enabled."""
+        if self.output_dir is None:
+            return None
+        file_prefix = f"{self.input_file_stem}_" if self.input_file_stem else ""
+        return self.output_dir / f"{file_prefix}cloud_payload_batch_{batch_num:03d}.json"
 
 
 def _validate_config(config: object) -> tuple[str, str, str]:
@@ -153,6 +170,7 @@ def _process_batches(
     ui,
     config: object,
     auth_context: dict | None,
+    input_file_stem: str | None = None,
 ) -> CloudSubmitReport:
     """Process issues in batches and return submission report."""
     cfg = ConfigView(config)
@@ -180,21 +198,33 @@ def _process_batches(
     if dry_run:
         return CloudSubmitReport(created=0, failed=0, batches=0, errors=[], created_issue_keys=[])
 
+    debug_context = CloudDebugContext(output_dir=output_dir, input_file_stem=input_file_stem)
+
     created = 0
     failed = 0
     errors: list[dict[str, Any]] = []
     batches = 0
+    next_batch_num = 1
     parent_key_map: dict[str, str] = {}  # Maps placeholder -> real Jira key
     created_issue_keys: list[str] = []
 
     # Batch 1: Create Epics first (standalone)
     if epics:
         logger.info(f"Creating {len(epics)} epics...")
-        epic_results = _create_issues_batch(client, epics, output_dir, "epic", ui, auth_context)
+        epic_results = _create_issues_batch(
+            client,
+            epics,
+            debug_context,
+            "epic",
+            ui,
+            auth_context,
+            start_batch_num=next_batch_num,
+        )
         created += epic_results["created"]
         failed += epic_results["failed"]
         errors.extend(epic_results["errors"])
         batches += epic_results["batches"]
+        next_batch_num = epic_results["next_batch_num"]
 
         # Collect new issue keys
         for issue in epic_results["created_issues"]:
@@ -211,12 +241,19 @@ def _process_batches(
         # Update stories and tasks with actual parent keys
         _update_child_parents(stories_and_tasks, parent_key_map, parent_mapping, mapper, config)
         story_task_results = _create_issues_batch(
-            client, stories_and_tasks, output_dir, "Stories & Tasks", ui, auth_context
+            client,
+            stories_and_tasks,
+            debug_context,
+            "Stories & Tasks",
+            ui,
+            auth_context,
+            start_batch_num=next_batch_num,
         )
         created += story_task_results["created"]
         failed += story_task_results["failed"]
         errors.extend(story_task_results["errors"])
         batches += story_task_results["batches"]
+        next_batch_num = story_task_results["next_batch_num"]
 
         # Collect new issue keys
         for issue in story_task_results["created_issues"]:
@@ -235,11 +272,20 @@ def _process_batches(
             _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues, config)
         # Update sub-tasks with real parent keys
         _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper, config)
-        subtask_results = _create_issues_batch(client, sub_tasks, output_dir, "subtask", ui, auth_context)
+        subtask_results = _create_issues_batch(
+            client,
+            sub_tasks,
+            debug_context,
+            "subtask",
+            ui,
+            auth_context,
+            start_batch_num=next_batch_num,
+        )
         created += subtask_results["created"]
         failed += subtask_results["failed"]
         errors.extend(subtask_results["errors"])
         batches += subtask_results["batches"]
+        next_batch_num = subtask_results["next_batch_num"]
 
         # Collect created issue keys
         for issue in subtask_results["created_issues"]:
@@ -259,6 +305,7 @@ def write_cloud(
     output_dir: Path | None = None,
     ui: Any | None = None,
     auto_reply: bool | None = None,
+    input_file_stem: str | None = None,
 ) -> CloudSubmitReport:
     """Submit processed issues to Jira Cloud in batches.
 
@@ -269,6 +316,7 @@ def write_cloud(
         output_dir: Optional directory for debug output.
         ui: Optional UI object for progress tracking and user interaction.
         auto_reply: Optional auto-reply flag for non-interactive mode.
+        input_file_stem: Optional input filename stem to prefix debug payload files.
 
     Returns:
         CloudSubmitReport with creation results.
@@ -318,7 +366,16 @@ def write_cloud(
     # Test credentials before proceeding
     test_credentials(client, base_url, auth_context)
 
-    return _process_batches(result, client, dry_run, output_dir, ui, config, auth_context)
+    return _process_batches(
+        result,
+        client,
+        dry_run,
+        output_dir,
+        ui,
+        config,
+        auth_context,
+        input_file_stem=input_file_stem,
+    )
 
 
 def _separate_parent_child_issues(
@@ -682,7 +739,7 @@ def _process_single_batch(
     batch: list[dict[str, Any]],
     batch_context: list[tuple[int, dict[str, Any]]],
     batch_num: int,
-    output_dir: Path | None,
+    debug_context: CloudDebugContext,
     issue_type: str,
     context_suffix: str,
 ) -> tuple[int, int, list[CloudBulkIssueError], list[dict[str, Any]]]:
@@ -693,7 +750,7 @@ def _process_single_batch(
         batch: List of issue payloads for this batch.
         batch_context: Original (row_index, payload) tuples for this batch.
         batch_num: Current batch number.
-        output_dir: Optional directory for debug output.
+        debug_context: Debug configuration for payload artifact output.
         issue_type: Type of issues being created.
         context_suffix: Additional context for error messages.
 
@@ -707,8 +764,8 @@ def _process_single_batch(
     payload = build_bulk_create_payload(batch)
 
     # Write payload to debug file if output_dir is provided
-    if output_dir:
-        _write_payload_debug(payload, batch_num, output_dir)
+    if debug_context.output_dir:
+        _write_payload_debug(payload, batch_num, debug_context)
 
     resp = client.post("issue/bulk", json=payload)
 
@@ -765,20 +822,22 @@ def _process_single_batch(
 def _create_issues_batch(
     client: JiraCloudClient,
     issues: list[tuple[int, dict[str, Any]]],
-    output_dir: Path | None,
+    debug_context: CloudDebugContext,
     issue_type: str,
     ui: Any = None,
     auth_context: dict[str, Any] | None = None,
+    start_batch_num: int = 1,
 ) -> dict[str, Any]:
     """Create a batch of issues and return results.
 
     Args:
         client: Jira Cloud API client.
         issues: List of (row_index, payload) tuples.
-        output_dir: Optional directory for debug output.
+        debug_context: Debug configuration for payload artifact output.
         issue_type: Type of issues being created (for progress/error messages).
         ui: Optional UI object with progress() method for progress tracking.
         auth_context: Optional authentication context for error messages.
+        start_batch_num: First batch number to use for debug payload files.
 
     Returns:
         Dictionary with keys: created, failed, errors, batches, created_issues.
@@ -788,6 +847,7 @@ def _create_issues_batch(
     errors: list[CloudBulkIssueError] = []
     batches = 0
     created_issues: list[dict[str, Any]] = []
+    current_batch_num = start_batch_num
 
     # Extract just the payloads for processing
     payloads = [payload for _, payload in issues]
@@ -815,9 +875,17 @@ def _create_issues_batch(
             for batch in batch_iter:
                 batch_context = issues[payload_cursor : payload_cursor + len(batch)]
                 payload_cursor += len(batch)
+                batch_num = current_batch_num
+                current_batch_num += 1
                 batches += 1
                 batch_created, batch_failed, batch_errors, batch_created_issues = _process_single_batch(
-                    client, batch, batch_context, batches, output_dir, issue_type, context_suffix
+                    client,
+                    batch,
+                    batch_context,
+                    batch_num,
+                    debug_context,
+                    issue_type,
+                    context_suffix,
                 )
 
                 created += batch_created
@@ -831,9 +899,17 @@ def _create_issues_batch(
         for batch in batch_iter:
             batch_context = issues[payload_cursor : payload_cursor + len(batch)]
             payload_cursor += len(batch)
+            batch_num = current_batch_num
+            current_batch_num += 1
             batches += 1
             batch_created, batch_failed, batch_errors, batch_created_issues = _process_single_batch(
-                client, batch, batch_context, batches, output_dir, issue_type, context_suffix
+                client,
+                batch,
+                batch_context,
+                batch_num,
+                debug_context,
+                issue_type,
+                context_suffix,
             )
 
             created += batch_created
@@ -847,6 +923,7 @@ def _create_issues_batch(
         "errors": errors,
         "batches": batches,
         "created_issues": created_issues,
+        "next_batch_num": current_batch_num,
     }
 
 

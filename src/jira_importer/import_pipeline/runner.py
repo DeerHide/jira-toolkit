@@ -300,7 +300,12 @@ class ImportRunner:
                 self.context.output_dir if (self.options.debug or self.options.cloud_debug_payloads) else None
             )
             report = write_cloud(
-                result, self.context.config, dry_run=False, output_dir=debug_output_dir, ui=self.context.ui
+                result,
+                self.context.config,
+                dry_run=False,
+                output_dir=debug_output_dir,
+                ui=self.context.ui,
+                input_file_stem=self.context.input_path.stem,
             )
             self.context.ui.success(
                 f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}"

@@ -12,6 +12,7 @@ from typing import Any, TypeVar
 
 from .. import CFG_REQ_DEFAULT
 from ..errors import ExcelConfigurationError, ProcessingError
+from ..errors.config import ConfigValidationPolicy
 from ..excel.excel_io import ExcelWorkbookManager
 from ..excel.excel_table_reader import ExcelTableReader
 from .config_models import ExcelTableConfig
@@ -61,9 +62,8 @@ class ExcelConfiguration:
             logger.warning(f"Could not load table configuration: {e}")
             self.table_config = None
 
-        # if self.version_check():
-        #    logger.critical("Wrong file config version or missing version key.")
-        #     raise ExcelConfigurationError("Wrong file config version or missing version key.")
+        if self.version_check():
+            logger.warning(ConfigValidationPolicy.version_warning(self.cfg_req))
 
         logger.debug(f"Excel configuration content: {self._redacted_content()}")
 
@@ -197,47 +197,30 @@ class ExcelConfiguration:
                     value = False
                 else:
                     raise ExcelConfigurationError(
-                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')",
-                        details={
-                            "key": key,
-                            "expected_type": expected_type.__name__,
-                            "actual_type": type(value).__name__,
-                            "value": str(value),
-                        },
+                        ConfigValidationPolicy.type_mismatch_message(key, expected_type, value),
+                        details=ConfigValidationPolicy.type_mismatch_details(key, expected_type, value),
                     )
             elif isinstance(expected_type, type) and expected_type is int and isinstance(value, str):
                 try:
                     value = int(value)
                 except ValueError as exc:
                     raise ExcelConfigurationError(
-                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')",
-                        details={
-                            "key": key,
-                            "expected_type": expected_type.__name__,
-                            "actual_type": type(value).__name__,
-                            "value": str(value),
-                            "original_error": str(exc),
-                        },
+                        ConfigValidationPolicy.type_mismatch_message(key, expected_type, value),
+                        details=ConfigValidationPolicy.type_mismatch_details(key, expected_type, value),
                     ) from exc
             elif isinstance(expected_type, type) and expected_type is float and isinstance(value, str):
                 try:
                     value = float(value)
                 except ValueError as exc:
                     raise ExcelConfigurationError(
-                        f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__} (value: '{value}')",
-                        details={
-                            "key": key,
-                            "expected_type": expected_type.__name__,
-                            "actual_type": type(value).__name__,
-                            "value": str(value),
-                            "original_error": str(exc),
-                        },
+                        ConfigValidationPolicy.type_mismatch_message(key, expected_type, value),
+                        details=ConfigValidationPolicy.type_mismatch_details(key, expected_type, value),
                     ) from exc
             else:
                 # For other type mismatches, raise an error
                 raise ExcelConfigurationError(
-                    f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}",
-                    details={"key": key, "expected_type": expected_type.__name__, "actual_type": type(value).__name__},
+                    ConfigValidationPolicy.type_mismatch_message(key, expected_type, value),
+                    details=ConfigValidationPolicy.type_mismatch_details(key, expected_type, value),
                 )
 
         return value  # type: ignore[return-value]

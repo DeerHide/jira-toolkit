@@ -229,8 +229,7 @@ class App:
         config_group_exclusive.add_argument(
             "-ci",
             "--config-input",
-            # help="Get the configuration path from the input file location",
-            help=argparse.SUPPRESS,
+            help="Get the configuration path from the input file location",
             action="store_true",
         )
         config_group_exclusive.add_argument(

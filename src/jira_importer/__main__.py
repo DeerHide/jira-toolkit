@@ -18,7 +18,7 @@ from typing import Any
 from jira_importer.app import App
 from jira_importer.artifacts import ArtifactManager
 from jira_importer.config.minimal_config import MinimalConfigForCredentials
-from jira_importer.config.utils import load_configuration_with_error_handling
+from jira_importer.config.utils import get_config_source_runtime_info, load_configuration_with_error_handling
 from jira_importer.console import ConsoleIO
 from jira_importer.constants import CREDENTIALS_ACTION_TEST, CREDENTIALS_ACTIONS
 from jira_importer.errors import (
@@ -160,6 +160,12 @@ def main() -> int:
     app = App(artifact_manager, ui=ui, fmt=fmt)
 
     logger.info(f"Version: {app.version_info}")
+    config_source, override_hint = get_config_source_runtime_info(args, config_path)
+    logger.info("Using config source: %s", config_source)
+    logger.debug("How to override: %s", override_hint)
+    ui.say(f"Using config source: {fmt.default(config_source)}")
+    if args.debug:
+        ui.say(f"How to override: {fmt.default(override_hint)}")
 
     config_is_embedded = Path(config_path).resolve() == Path(args.input_file).resolve()
 

@@ -34,9 +34,10 @@ from ..cloud.constants import (
     PARENT_RESOLUTION_KEYWORDS,
 )
 from ..cloud.credential_manager import test_credentials
+from ..cloud.error_mapper import resolve_bulk_error_context
 from ..cloud.mappers import IssueMapper
 from ..cloud.metadata import MetadataCache
-from ..models import ColumnIndices, ProcessorResult
+from ..models import CloudBulkIssueError, ColumnIndices, ProcessorResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class CloudSubmitReport:
     created: int
     failed: int
     batches: int
-    errors: list[dict[str, Any]]
+    errors: list[CloudBulkIssueError]
     created_issue_keys: list[str] = field(default_factory=list)
 
 
@@ -679,16 +680,18 @@ def _handle_batch_error_response(
 def _process_single_batch(
     client: JiraCloudClient,
     batch: list[dict[str, Any]],
+    batch_context: list[tuple[int, dict[str, Any]]],
     batch_num: int,
     output_dir: Path | None,
     issue_type: str,
     context_suffix: str,
-) -> tuple[int, int, list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[int, int, list[CloudBulkIssueError], list[dict[str, Any]]]:
     """Process a single batch of issues.
 
     Args:
         client: Jira Cloud API client.
         batch: List of issue payloads for this batch.
+        batch_context: Original (row_index, payload) tuples for this batch.
         batch_num: Current batch number.
         output_dir: Optional directory for debug output.
         issue_type: Type of issues being created.
@@ -712,18 +715,49 @@ def _process_single_batch(
     if resp.status_code >= HTTP_ERROR_THRESHOLD:
         error_detail = _handle_batch_error_response(resp, batch_num, issue_type, context_suffix)
         # If we get here, it's a non-critical error (not raised)
-        return (0, len(batch), [error_detail], [])
+        mapped_error = resolve_bulk_error_context(error_detail, batch_context=batch_context)
+        return (0, len(batch), [mapped_error], [])
 
     # Process successful response
     data = resp.json()
     issues_created = len(data.get("issues", []))
     created_issues: list[dict[str, Any]] = list(data.get("issues", []))
-    errors: list[dict[str, Any]] = []
+    errors: list[CloudBulkIssueError] = []
 
     # Collect individual errors from response
     for err in data.get("errors", []):
-        errors.append(err)
-        logger.error(f"Jira API error: {err}")
+        mapped_error = resolve_bulk_error_context(err, batch_context=batch_context)
+        errors.append(mapped_error)
+        if mapped_error.error_messages:
+            logger.error(
+                "Jira API error (batch=%s, issue_type=%s, failed_element=%s, failed_summary=%r, status=%s): %s",
+                batch_num,
+                issue_type,
+                mapped_error.failed_element_number,
+                mapped_error.failed_summary,
+                mapped_error.status,
+                "; ".join(mapped_error.error_messages),
+            )
+        elif mapped_error.field_errors:
+            logger.error(
+                "Jira API error (batch=%s, issue_type=%s, failed_element=%s, failed_summary=%r, status=%s, field_errors=%s)",
+                batch_num,
+                issue_type,
+                mapped_error.failed_element_number,
+                mapped_error.failed_summary,
+                mapped_error.status,
+                mapped_error.field_errors,
+            )
+        else:
+            logger.error(
+                "Jira API error (batch=%s, issue_type=%s, failed_element=%s, failed_summary=%r, status=%s): %s",
+                batch_num,
+                issue_type,
+                mapped_error.failed_element_number,
+                mapped_error.failed_summary,
+                mapped_error.status,
+                mapped_error.raw,
+            )
 
     return (issues_created, len(errors), errors, created_issues)
 
@@ -751,7 +785,7 @@ def _create_issues_batch(
     """
     created = 0
     failed = 0
-    errors: list[dict[str, Any]] = []
+    errors: list[CloudBulkIssueError] = []
     batches = 0
     created_issues: list[dict[str, Any]] = []
 
@@ -771,6 +805,7 @@ def _create_issues_batch(
 
     # Process batches with optional progress tracking
     batch_iter = chunk_issues(payloads, batch_size=BATCH_SIZE)
+    payload_cursor = 0
 
     if ui and hasattr(ui, "progress"):
         # Use progress tracking
@@ -778,9 +813,11 @@ def _create_issues_batch(
             task = progress.add_task(f"Creating {issue_type} issues", total=total_batches)
 
             for batch in batch_iter:
+                batch_context = issues[payload_cursor : payload_cursor + len(batch)]
+                payload_cursor += len(batch)
                 batches += 1
                 batch_created, batch_failed, batch_errors, batch_created_issues = _process_single_batch(
-                    client, batch, batches, output_dir, issue_type, context_suffix
+                    client, batch, batch_context, batches, output_dir, issue_type, context_suffix
                 )
 
                 created += batch_created
@@ -792,9 +829,11 @@ def _create_issues_batch(
     else:
         # Fallback without progress tracking
         for batch in batch_iter:
+            batch_context = issues[payload_cursor : payload_cursor + len(batch)]
+            payload_cursor += len(batch)
             batches += 1
             batch_created, batch_failed, batch_errors, batch_created_issues = _process_single_batch(
-                client, batch, batches, output_dir, issue_type, context_suffix
+                client, batch, batch_context, batches, output_dir, issue_type, context_suffix
             )
 
             created += batch_created

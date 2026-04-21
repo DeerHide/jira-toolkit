@@ -181,6 +181,19 @@ class ComplexChildIssue:
     end: str
 
 
+@dataclass(slots=True, frozen=True)
+class CloudBulkIssueError:
+    """Normalized Jira Cloud bulk error enriched with source row context."""
+
+    status: int | str | None = None
+    failed_element_number: int | str | None = None
+    failed_row_index: int | None = None
+    failed_summary: str | None = None
+    error_messages: tuple[str, ...] = field(default_factory=tuple)
+    field_errors: Mapping[str, str] = field(default_factory=dict)
+    raw: Mapping[str, Any] | str | None = None
+
+
 @dataclass(slots=True)
 class ProcessorResult:  # pylint: disable=too-many-instance-attributes
     """End-to-end processing result for a file.

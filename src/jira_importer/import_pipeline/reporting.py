@@ -10,7 +10,7 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from .models import Problem, ProblemSeverity, ProcessorResult
+from .models import CloudBulkIssueError, Problem, ProblemSeverity, ProcessorResult
 from .sinks.cloud_sink import CloudSubmitReport
 
 # Emojis consistent with the rest of the tool
@@ -255,23 +255,56 @@ class CloudReportReporter:
         ui.warning("Some issues failed to import. See details below:")
         # Display first N errors with details
         for _, err in enumerate(report.errors[: self.max_errors]):
-            if isinstance(err, dict):
-                # Handle Jira API error format
-                element_errors = err.get("elementErrors", {})
-                error_messages = element_errors.get("errorMessages", [])
-                field_errors = element_errors.get("errors", {})
-                failed_element = err.get("failedElementNumber", "Unknown")
-                status = err.get("status", "Unknown")
-
-                if error_messages:
-                    ui.error(f"  Row {failed_element}: {', '.join(error_messages)}")
-                elif field_errors:
-                    for field, msg in field_errors.items():
-                        ui.error(f"  Row {failed_element} - {field}: {msg}")
-                else:
-                    ui.error(f"  Row {failed_element}: {status} - {err}")
+            if isinstance(err, (CloudBulkIssueError, dict)):
+                for line in self._format_single_error(err):
+                    ui.error(f"  {line}")
             else:
                 ui.error(f"  {err}")
 
         if len(report.errors) > self.max_errors:
             ui.say(f"  ... and {len(report.errors) - self.max_errors} more errors.")
+
+    def _format_single_error(self, err: object) -> list[str]:
+        """Format one Jira bulk error into user-facing lines.
+
+        Args:
+            err: Error element returned by Jira bulk create API.
+
+        Returns:
+            List of concise lines ready for console rendering.
+        """
+        if isinstance(err, CloudBulkIssueError):
+            failed_element = err.failed_element_number if err.failed_element_number is not None else "Unknown"
+            status = err.status if err.status is not None else "Unknown"
+            failed_summary = err.failed_summary
+            error_messages = err.error_messages
+            field_errors = dict(err.field_errors)
+            raw = err.raw
+        elif isinstance(err, dict):
+            element_errors = err.get("elementErrors", {})
+            error_messages = tuple(element_errors.get("errorMessages", []))
+            field_errors = dict(element_errors.get("errors", {}))
+            failed_element = err.get("failedElementNumber", "Unknown")
+            failed_summary = err.get("failedSummary")
+            status = err.get("status", "Unknown")
+            raw = err
+        else:
+            failed_element = "Unknown"
+            status = "Unknown"
+            failed_summary = None
+            error_messages = tuple()
+            field_errors = {}
+            raw = err
+
+        lines = [f"Row {failed_element} (Jira failed element {failed_element}, HTTP {status})"]
+        if isinstance(failed_summary, str) and failed_summary.strip():
+            lines.append(f"summary: {failed_summary}")
+        if error_messages:
+            lines.append(f"jira: {', '.join(str(msg) for msg in error_messages)}")
+        if field_errors:
+            for field, msg in field_errors.items():
+                lines.append(f"{field}: {msg}")
+        if len(lines) == 1:
+            lines.append(f"jira: {raw}")
+        lines.append("hint: run with --debug or --cloud-debug-payloads to inspect the failed payload in detail.")
+        return lines

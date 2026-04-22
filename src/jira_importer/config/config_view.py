@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+_MISSING = object()
+
 
 class ConfigView:
     """Small duck-typed wrapper that supports .get("a.b.c", default).
@@ -31,21 +33,9 @@ class ConfigView:
 
         # 2) delegated getters
         for meth in ("get", "get_value"):
-            fn = getattr(self._cfg, meth, None)
-            if callable(fn):
-                try:
-                    val = fn(dotted_key, default=default) if meth == "get_value" else fn(dotted_key, default)
-                    if val is not None:
-                        return val
-                except TypeError:
-                    # some get() may not accept default kwarg
-                    try:
-                        val = fn(dotted_key)
-                        return val if val is not None else default
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+            val = self._call_delegated_getter(meth, dotted_key)
+            if val is not _MISSING:
+                return val
 
         # 3) walk attributes / nested dicts
         cur: Any = self._cfg
@@ -61,6 +51,34 @@ class ConfigView:
             else:
                 return default
         return cur
+
+    def _call_delegated_getter(self, method_name: str, dotted_key: str) -> Any:
+        """Attempt a delegated getter call and return _MISSING on lookup miss/failure.
+
+        Uses a sentinel default to distinguish "missing key" from a valid falsy value.
+        """
+        fn = getattr(self._cfg, method_name, None)
+        if not callable(fn):
+            return _MISSING
+
+        try:
+            # Prefer a default-aware call so missing keys can be identified deterministically.
+            if method_name == "get_value":
+                return fn(dotted_key, default=_MISSING)
+            return fn(dotted_key, _MISSING)
+        except TypeError:
+            # Some getters do not accept a default argument.
+            pass
+        except Exception:
+            return _MISSING
+
+        try:
+            val = fn(dotted_key)
+            # Historical compatibility: legacy delegated getters that return None for
+            # "not found" should continue to fall through to nested traversal/default.
+            return _MISSING if val is None else val
+        except Exception:
+            return _MISSING
 
     @property
     def version(self) -> str:

@@ -12,7 +12,7 @@ __description__ = "Toolkit to process datasets into Jira-compatible CSVs with va
 
 # Safe constants used across the app
 DEFAULT_CONFIG_FILENAME = "config_importer.json"
-CFG_REQ_DEFAULT = 1  # Minimal config requirement level for leniency in basic ops
+CFG_REQ_DEFAULT = 7  # Minimal config requirement level for leniency in basic ops
 
 # Version surface: derive a simple PEP 440-ish string from the generated version module
 try:

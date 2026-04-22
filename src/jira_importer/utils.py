@@ -218,10 +218,9 @@ def find_config_path(
             return path
 
     fmt_config_filename = fmt.path(config_filename)
-    ui.error(f"Configuration file '{fmt_config_filename}' not found in expected locations. Using default path.")
-    logger.warning(f"Configuration file '{config_filename}' not found in expected locations. Using default path.")
-    logger.warning(f"Expected locations: {search_paths}")
-    ui.error(f"Expected locations: {search_paths}")
+    logger.error(f"Configuration file '{config_filename}' not found in expected locations. Using default path.")
+    logger.error(f"Expected locations: {search_paths}")
+
     return config_filename
 
 

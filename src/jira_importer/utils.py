@@ -143,7 +143,6 @@ def find_config_path(
         # If not found, return the original path (let the caller handle the error)
         fmt_config_filename = fmt.path(config_filename)
         ui.error(f"Configuration file '{fmt_config_filename}' not found.")
-        logger.warning(f"Configuration file '{config_filename}' not found.")
         return config_filename
 
     # Original logic for other cases (config_default, config_input, etc.) with sanitization

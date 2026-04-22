@@ -224,9 +224,9 @@ def load_configuration_with_error_handling(
         config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")
         return config, config_path, 0
     except Exception as config_exc:  # pylint: disable=broad-except
-        log_exception(logger, config_exc, context="Configuration loading")
+        log_exception(logger, config_exc, context="Configuration loading", level=logging.DEBUG)
         error_message = format_error_for_display(config_exc)
         ui_instance.error(error_message)
         # Use App.graceful_exit for consistent error handling
-        App.graceful_exit(exit_code=1, do_cleanup=False)
+        App.graceful_exit(exit_code=1004, do_cleanup=False)
         return None, None, 1

@@ -3,7 +3,8 @@ name = "jira-toolkit"
 version = "1.2.0"
 description = "A utility for batch-importing tasks from Excel into Jira"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Julien", email = "hello@tom4897.info"}
 ]
@@ -35,6 +36,9 @@ dev = [
     "pylint>=3.2.0",
 ]
 
+[project.scripts]
+jira-importer = "jira_importer.__main__:main"
+
 [build-system]
 requires = ["poetry-core>=1.9.0"]
 build-backend = "poetry.core.masonry.api"
@@ -47,22 +51,13 @@ pyinstaller = { version = "^6.15", python = ">=3.12,<3.15" }
 poetry-pyinstaller-plugin = "^1.0.0"
 pefile = { version = "*", markers = "sys_platform == 'win32'" }
 
-[tool.poetry.scripts]
-jira-importer = "jira_importer.__main__:main"
-
 [tool.poetry-pyinstaller-plugin]
 use-poetry-install = true
 pre-build = "scripts.pyinstaller_hooks:pre_build"
 post-build = "scripts.pyinstaller_hooks:post_build"
 
 [tool.poetry]
-name = "jira_importer"
-version = "1.2.0"
-description = "Jira Importer Application"
 packages = [{ include = "jira_importer", from = "src" }]
-
-[tool.poetry.dependencies]
-python = ">=3.12,<3.14"
 
 [tool.poetry-pyinstaller-plugin.scripts.jira-importer]
 source = "src/jira_importer/__main__.py"

@@ -55,22 +55,26 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         Returns:
             ExcelTableConfig object containing all parsed table data
         """
-        logger.debug(f"Reading all configuration tables from sheet '{config_sheet}'")
-
-        return ExcelTableConfig(
-            assignees=self._read_assignees(config_sheet),
-            teams=self._read_teams(config_sheet),
-            sprints=self._read_sprints(config_sheet),
-            fix_versions=self._read_fix_versions(config_sheet),
-            components=self._read_components(config_sheet),
-            issue_types=self._read_issue_types(config_sheet),
-            ignore_list=self._read_ignore_list(config_sheet),
-            priorities=self._read_priorities(config_sheet),
-            auto_field_values=self._read_auto_field_values(config_sheet),
-            custom_fields=self._read_custom_fields(config_sheet),
+        # Keep config_sheet argument for backward API compatibility.
+        lookup_sheet: str | None = None
+        logger.debug(
+            f"Reading all configuration tables using indexed config-sheet discovery (config_sheet='{config_sheet}')"
         )
 
-    def _read_assignees(self, sheet: str) -> list[AssigneeConfig]:
+        return ExcelTableConfig(
+            assignees=self._read_assignees(lookup_sheet),
+            teams=self._read_teams(lookup_sheet),
+            sprints=self._read_sprints(lookup_sheet),
+            fix_versions=self._read_fix_versions(lookup_sheet),
+            components=self._read_components(lookup_sheet),
+            issue_types=self._read_issue_types(lookup_sheet),
+            ignore_list=self._read_ignore_list(lookup_sheet),
+            priorities=self._read_priorities(lookup_sheet),
+            auto_field_values=self._read_auto_field_values(lookup_sheet),
+            custom_fields=self._read_custom_fields(lookup_sheet),
+        )
+
+    def _read_assignees(self, sheet: str | None) -> list[AssigneeConfig]:
         """Read CfgAssignees table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgAssignees")
         assignees = []
@@ -87,7 +91,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(assignees)} assignees from CfgAssignees table")
         return assignees
 
-    def _read_teams(self, sheet: str) -> list[TeamConfig]:
+    def _read_teams(self, sheet: str | None) -> list[TeamConfig]:
         """Read CfgTeams table."""
         try:
             table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgTeams", optional=True)
@@ -109,7 +113,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(teams)} teams from CfgTeams table")
         return teams
 
-    def _read_sprints(self, sheet: str) -> list[SprintConfig]:
+    def _read_sprints(self, sheet: str | None) -> list[SprintConfig]:
         """Read CfgSprints table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgSprints")
         sprints = []
@@ -126,7 +130,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(sprints)} sprints from CfgSprints table")
         return sprints
 
-    def _read_fix_versions(self, sheet: str) -> list[FixVersionConfig]:
+    def _read_fix_versions(self, sheet: str | None) -> list[FixVersionConfig]:
         """Read CfgFixVersions table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgFixVersions")
         fix_versions = []
@@ -142,7 +146,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(fix_versions)} fix versions from CfgFixVersions table")
         return fix_versions
 
-    def _read_components(self, sheet: str) -> list[ComponentConfig]:
+    def _read_components(self, sheet: str | None) -> list[ComponentConfig]:
         """Read CfgComponents table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgComponents")
         components = []
@@ -158,7 +162,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(components)} components from CfgComponents table")
         return components
 
-    def _read_issue_types(self, sheet: str) -> list[IssueTypeConfig]:
+    def _read_issue_types(self, sheet: str | None) -> list[IssueTypeConfig]:
         """Read CfgIssueTypes table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgIssueTypes")
         issue_types = []
@@ -174,7 +178,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(issue_types)} issue types from CfgIssueTypes table")
         return issue_types
 
-    def _read_ignore_list(self, sheet: str) -> list[IgnoreListConfig]:
+    def _read_ignore_list(self, sheet: str | None) -> list[IgnoreListConfig]:
         """Read CfgIgnoreList table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgIgnoreList")
         ignore_list = []
@@ -190,7 +194,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(ignore_list)} ignore list items from CfgIgnoreList table")
         return ignore_list
 
-    def _read_priorities(self, sheet: str) -> list[PriorityConfig]:
+    def _read_priorities(self, sheet: str | None) -> list[PriorityConfig]:
         """Read CfgPriorities table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgPriorities")
         priorities = []
@@ -206,7 +210,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(priorities)} priorities from CfgPriorities table")
         return priorities
 
-    def _read_auto_field_values(self, sheet: str) -> list[AutoFieldValueConfig]:
+    def _read_auto_field_values(self, sheet: str | None) -> list[AutoFieldValueConfig]:
         """Read CfgAutofieldValues table."""
         table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgAutofieldValues")
         auto_field_values = []
@@ -223,7 +227,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
         logger.debug(f"Read {len(auto_field_values)} auto field values from CfgAutofieldValues table")
         return auto_field_values
 
-    def _read_custom_fields(self, sheet: str) -> list[CustomFieldConfig]:
+    def _read_custom_fields(self, sheet: str | None) -> list[CustomFieldConfig]:
         """Read CfgCustomFields table."""
         try:
             table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgCustomFields", optional=True)
@@ -252,7 +256,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                     "Custom field definition missing 'name' in Excel config",
                     details={
                         "source": "Excel",
-                        "sheet": sheet,
+                        "sheet": sheet or "<indexed>",
                         "row_data": row,
                         "available_columns": available_columns,
                         "id": str(field_id if field_id is not None else "").strip() or None,
@@ -265,7 +269,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                     f"Custom field definition missing 'id' for field '{name_str}' in Excel config",
                     details={
                         "source": "Excel",
-                        "sheet": sheet,
+                        "sheet": sheet or "<indexed>",
                         "row_data": row,
                         "name": name_str,
                     },
@@ -277,7 +281,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
                     f"Custom field definition missing 'type' for field '{name_str}' in Excel config",
                     details={
                         "source": "Excel",
-                        "sheet": sheet,
+                        "sheet": sheet or "<indexed>",
                         "row_data": row,
                         "name": name_str,
                         "id": field_id_str,

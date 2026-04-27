@@ -48,19 +48,12 @@ class ExcelConfiguration:
         self.config_sheet = config_sheet
         self.cfg_req = cfg_req
         self._workbook_manager: ExcelWorkbookManager | None = None
+        self._table_config_load_failed = False
+        self._table_config_load_error: str | None = None
         self.content = self._load_config()
         self.table_config: ExcelTableConfig | None = None  # happy linter
-        try:
-            if self._workbook_manager is not None:
-                logger.debug(f"Loading table configuration from sheet '{self.config_sheet}'")
-                table_reader = ExcelTableReader(self._workbook_manager)
-                self.table_config = table_reader.read_all_tables(self.config_sheet)
-            else:
-                self.table_config = None
-        except Exception as e:
-            # Graceful degradation: continue without table_config if loading fails
-            logger.warning(f"Could not load table configuration: {e}")
-            self.table_config = None
+        # Fail fast during initialization if mandatory Excel config tables are missing.
+        self.load_table_config()
 
         if self.version_check():
             logger.warning(ConfigValidationPolicy.version_warning(self.cfg_req))
@@ -169,12 +162,12 @@ class ExcelConfiguration:
         if value is None:
             # Check Auto Field Values table as fallback
             # Try to load table_config if not already loaded
-            if self.table_config is None:
+            if self.table_config is None and not self._table_config_load_failed:
                 try:
                     self.load_table_config()
                 except Exception:
                     # If loading fails, continue without table_config
-                    pass
+                    self._table_config_load_failed = True
 
             if self.table_config and self.table_config.auto_field_values:
                 auto_field_match = next((a for a in self.table_config.auto_field_values if a.name == key), None)
@@ -261,6 +254,18 @@ class ExcelConfiguration:
         if self.table_config is not None:
             return self.table_config
 
+        if self._table_config_load_failed:
+            error_message = self._table_config_load_error or "Unknown table configuration load failure"
+            raise ExcelConfigurationError(
+                f"Table configuration loading previously failed: {error_message}",
+                details={
+                    "file_path": self.path,
+                    "sheet": self.config_sheet,
+                    "reason": error_message,
+                    "mode": "cached_failure",
+                },
+            )
+
         if self._workbook_manager is None:
             raise ProcessingError(
                 "Workbook manager not initialized. Call load() first.",
@@ -269,7 +274,14 @@ class ExcelConfiguration:
 
         logger.debug(f"Loading table configuration from sheet '{self.config_sheet}'")
         table_reader = ExcelTableReader(self._workbook_manager)
-        self.table_config = table_reader.read_all_tables(self.config_sheet)
+        try:
+            self.table_config = table_reader.read_all_tables(self.config_sheet)
+            self._table_config_load_failed = False
+            self._table_config_load_error = None
+        except Exception as exc:
+            self._table_config_load_failed = True
+            self._table_config_load_error = str(exc)
+            raise
 
         return self.table_config
 

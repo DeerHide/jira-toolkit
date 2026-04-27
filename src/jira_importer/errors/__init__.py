@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from .base import ProcessingError
 from .codes import ErrorCode
-from .config import ConfigurationError, ExcelConfigurationError
+from .config import ConfigurationError, ExcelConfigurationError, MissingConfigElementError
 from .file import FileReadError, FileWriteError, InputFileError
 from .jira import JiraApiError, JiraAuthError
 from .network import NetworkError
@@ -38,6 +38,7 @@ __all__ = [
     "JiraApiError",
     "JiraAuthError",
     "MetadataWriteError",
+    "MissingConfigElementError",
     "NetworkError",
     "ProcessingError",
     "RowProcessingError",

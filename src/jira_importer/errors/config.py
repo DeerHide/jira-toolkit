@@ -42,6 +42,28 @@ class ExcelConfigurationError(ConfigurationError):
         super().__init__(message, details=details)
 
 
+class MissingConfigElementError(ConfigurationError):
+    """Missing required configuration element errors."""
+
+    def __init__(
+        self,
+        message: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize MissingConfigElementError.
+
+        Args:
+            message: Human-readable error message.
+            details: Optional dictionary with additional error details.
+        """
+        ProcessingError.__init__(
+            self,
+            message,
+            code=ErrorCode.CONFIG_MISSING_REQUIRED,
+            details=details,
+        )
+
+
 class ConfigValidationPolicy:
     """Canonical config validation messaging policy.
 

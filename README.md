@@ -97,7 +97,7 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 |--------|-------------|
 | `your-data.xlsx` | Your Excel file to import |
 | `-c, --config` | Use a specific configuration file |
-| `-ce, --config-excel` | Use settings from your Excel file's Config sheet |
+| `-ce, --config-excel` | Use settings from your Excel file's config worksheets (`Config` key/value + `config*`/`cfg*` table discovery) |
 | `-cd, --config-default` | Use the default configuration |
 | `-ci, --config-input` | Use config file next to your Excel file (recommended) |
 | `--cloud` | Import directly to Jira Cloud (requires configuration) |
@@ -310,7 +310,8 @@ Choose the configuration method that works best for your workflow:
 
 - Everything in one file
 - Helpful lookup tables (assignees, sprints, components) in the same Excel
-- **Excel Table Configuration**: Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents`
+- **Excel Table Configuration**: Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents` in sheets prefixed with `config` or `cfg` (case-insensitive)
+- **Fail-fast validation**: Missing required config tables stop execution during initialization (before data sheet processing)
 
 ### Option B: JSON Configuration
 
@@ -320,12 +321,18 @@ Choose the configuration method that works best for your workflow:
 
 **Configuration Sources:**
 
-- **Excel file** (`-ce`): Put your settings in the Excel file's Config sheet
+- **Excel file** (`-ce`): Put key/value settings in `Config`; config tables are auto-discovered from `config*`/`cfg*` sheets (case-insensitive)
 - **JSON file** (`-ci`): Place `config_importer.json` next to your Excel file
 - **Default** (`-cd`): Use the built-in configuration
 - **Custom** (`-c`): Point to a specific configuration file
 
 **Recommendation**: Use the Excel Config sheet (`-ce`) for simplicity, or place a JSON config file next to your Excel file and use `-ci`.
+
+#### Required vs Optional Excel Config Tables
+
+- **Required**: `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`
+- **Optional**: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`
+- If a required table is missing, the app exits early with a configuration error before processing the dataset.
 
 ### Logging
 

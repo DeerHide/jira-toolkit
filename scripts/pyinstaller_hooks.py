@@ -11,8 +11,15 @@ import sys
 from pathlib import Path
 from typing import Any, TypeVar
 
-from .build_utils.build_context import BuildContext  # type: ignore[import-not-found]
-from .build_utils.build_utils import BuildUtils  # type: ignore[import-not-found]
+try:
+    from scripts.build_utils.build_context import BuildContext
+    from scripts.build_utils.build_utils import BuildUtils
+except ModuleNotFoundError:
+    _HOOK_DIR: Path = Path(__file__).resolve().parent
+    if str(_HOOK_DIR) not in sys.path:
+        sys.path.insert(0, str(_HOOK_DIR))
+    from build_utils.build_context import BuildContext
+    from build_utils.build_utils import BuildUtils
 
 T = TypeVar("T")
 
@@ -57,8 +64,15 @@ def pre_build(interface) -> None:
     if "icon" in cfg_files:
         target["icon"] = cfg_files["icon"]
     if "version" in cfg_files:
-        target["include"].append(build_context.include_file(cfg_files["version"]))
-        pp["include"].append((build_context.include_file(cfg_files["version"]), "."))
+        version_file = build_context.include_file(cfg_files["version"])
+        target["include"].append(version_file)
+        plugin_include = pp.get("include")
+        if isinstance(plugin_include, list):
+            plugin_include.append((version_file, "."))
+        elif isinstance(plugin_include, dict):
+            plugin_include[version_file] = "."
+        elif plugin_include is None:
+            pp["include"] = [(version_file, ".")]
     if "add_data" in cfg_pyi:
         target["include"].extend(cfg_pyi["add_data"])
 
@@ -66,7 +80,7 @@ def pre_build(interface) -> None:
 def post_build(interface) -> None:
     """Post-build hook for the Jira Importer application."""
     try:
-        data: dict[str, Any] = interface.pyproject_data  # pylint: disable=unused-variable
+        _ = interface.pyproject_data
     except Exception as e:
         interface.write_line(f"  - error: {e}")
         sys.exit(1)

@@ -115,7 +115,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
     def _read_sprints(self, sheet: str | None) -> list[SprintConfig]:
         """Read CfgSprints table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgSprints")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgSprints", optional=True)
         sprints = []
 
         for row in table_data:
@@ -132,7 +132,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
     def _read_fix_versions(self, sheet: str | None) -> list[FixVersionConfig]:
         """Read CfgFixVersions table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgFixVersions")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgFixVersions", optional=True)
         fix_versions = []
 
         for row in table_data:
@@ -148,7 +148,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
     def _read_components(self, sheet: str | None) -> list[ComponentConfig]:
         """Read CfgComponents table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgComponents")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgComponents", optional=True)
         components = []
 
         for row in table_data:

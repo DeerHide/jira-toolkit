@@ -21,9 +21,7 @@ def _active_ws(wb: Workbook) -> Worksheet:
     return cast("Worksheet", ws)
 
 
-def _write_table(
-    ws: Worksheet, table_name: str, headers: list[str], row_values: list[object], start_row: int = 1
-) -> None:
+def _write_table(ws: Worksheet, table_name: str, headers: list[str], row_values: list[Any], start_row: int = 1) -> None:
     for col_idx, header in enumerate(headers, start=1):
         ws.cell(row=start_row, column=col_idx, value=header)
     for col_idx, value in enumerate(row_values, start=1):
@@ -256,3 +254,32 @@ def test_excel_configuration_cached_table_load_failure_stops_retries(tmp_path: P
     assert "Required table" in str(exc_info.value)
     assert isinstance(exc_info.value, ConfigurationError)
     assert exc_info.value.code == ErrorCode.CONFIG_MISSING_REQUIRED
+
+
+def test_excel_table_reader_treats_sprint_fixversion_component_tables_as_optional(tmp_path: Path) -> None:
+    """Allow missing CfgSprints/CfgFixVersions/CfgComponents without failing table config load."""
+    file_path = tmp_path / "optional_tables_missing.xlsx"
+
+    def setup(wb: Workbook) -> None:
+        ws_cfg = _active_ws(wb)
+        ws_cfg.title = "cfg-main"
+        _write_table(ws_cfg, "CfgAssignees", ["Assignee.Name", "Assignee.ID"], ["Ann", "acc-10"])
+        _write_table(ws_cfg, "CfgIssueTypes", ["IssueType.Name"], ["Story"], start_row=4)
+        _write_table(ws_cfg, "CfgIgnoreList", ["IgnoreList.Name"], ["note"], start_row=7)
+        _write_table(ws_cfg, "CfgPriorities", ["Priority.Name"], ["High"], start_row=10)
+        _write_table(ws_cfg, "CfgAutofieldValues", ["Name", "Value"], ["jira.connection.timeout", "30"], start_row=13)
+        # Intentionally omit CfgSprints, CfgFixVersions, and CfgComponents.
+
+    _save_workbook(file_path, setup)
+
+    manager = ExcelWorkbookManager(file_path)
+    manager.load()
+    try:
+        reader = ExcelTableReader(manager)
+        tables = reader.read_all_tables(config_sheet="Config")
+        assert tables.assignees[0].name == "Ann"
+        assert tables.sprints == []
+        assert tables.fix_versions == []
+        assert tables.components == []
+    finally:
+        manager.close()

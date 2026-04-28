@@ -27,6 +27,17 @@ from .excel_io import ExcelWorkbookManager
 
 logger = logging.getLogger(__name__)
 
+TABLE_CFG_ASSIGNEES = "CfgAssignees"
+TABLE_CFG_TEAMS = "CfgTeams"
+TABLE_CFG_SPRINTS = "CfgSprints"
+TABLE_CFG_FIX_VERSIONS = "CfgFixVersions"
+TABLE_CFG_COMPONENTS = "CfgComponents"
+TABLE_CFG_ISSUE_TYPES = "CfgIssueTypes"
+TABLE_CFG_IGNORE_LIST = "CfgIgnoreList"
+TABLE_CFG_PRIORITIES = "CfgPriorities"
+TABLE_CFG_AUTO_FIELD_VALUES = "CfgAutofieldValues"
+TABLE_CFG_CUSTOM_FIELDS = "CfgCustomFields"
+
 
 class ExcelTableReader:  # pylint: disable=too-few-public-methods
     """Reader for structured Excel configuration tables.
@@ -76,7 +87,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
     def _read_assignees(self, sheet: str | None) -> list[AssigneeConfig]:
         """Read CfgAssignees table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgAssignees")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_ASSIGNEES)
         assignees = []
 
         for row in table_data:
@@ -88,13 +99,13 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete assignee row: {row}")
 
-        logger.debug(f"Read {len(assignees)} assignees from CfgAssignees table")
+        logger.debug(f"Read {len(assignees)} assignees from {TABLE_CFG_ASSIGNEES} table")
         return assignees
 
     def _read_teams(self, sheet: str | None) -> list[TeamConfig]:
         """Read CfgTeams table."""
         try:
-            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgTeams", optional=True)
+            table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_TEAMS, optional=True)
         except Exception:
             # Table doesn't exist, return empty list
             return []
@@ -110,12 +121,12 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete team row: {row}")
 
-        logger.debug(f"Read {len(teams)} teams from CfgTeams table")
+        logger.debug(f"Read {len(teams)} teams from {TABLE_CFG_TEAMS} table")
         return teams
 
     def _read_sprints(self, sheet: str | None) -> list[SprintConfig]:
         """Read CfgSprints table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgSprints", optional=True)
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_SPRINTS, optional=True)
         sprints = []
 
         for row in table_data:
@@ -127,12 +138,12 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete sprint row: {row}")
 
-        logger.debug(f"Read {len(sprints)} sprints from CfgSprints table")
+        logger.debug(f"Read {len(sprints)} sprints from {TABLE_CFG_SPRINTS} table")
         return sprints
 
     def _read_fix_versions(self, sheet: str | None) -> list[FixVersionConfig]:
         """Read CfgFixVersions table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgFixVersions", optional=True)
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_FIX_VERSIONS, optional=True)
         fix_versions = []
 
         for row in table_data:
@@ -143,12 +154,12 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete fix version row: {row}")
 
-        logger.debug(f"Read {len(fix_versions)} fix versions from CfgFixVersions table")
+        logger.debug(f"Read {len(fix_versions)} fix versions from {TABLE_CFG_FIX_VERSIONS} table")
         return fix_versions
 
     def _read_components(self, sheet: str | None) -> list[ComponentConfig]:
         """Read CfgComponents table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgComponents", optional=True)
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_COMPONENTS, optional=True)
         components = []
 
         for row in table_data:
@@ -159,12 +170,12 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete component row: {row}")
 
-        logger.debug(f"Read {len(components)} components from CfgComponents table")
+        logger.debug(f"Read {len(components)} components from {TABLE_CFG_COMPONENTS} table")
         return components
 
     def _read_issue_types(self, sheet: str | None) -> list[IssueTypeConfig]:
         """Read CfgIssueTypes table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgIssueTypes")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_ISSUE_TYPES)
         issue_types = []
 
         for row in table_data:
@@ -175,12 +186,12 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete issue type row: {row}")
 
-        logger.debug(f"Read {len(issue_types)} issue types from CfgIssueTypes table")
+        logger.debug(f"Read {len(issue_types)} issue types from {TABLE_CFG_ISSUE_TYPES} table")
         return issue_types
 
     def _read_ignore_list(self, sheet: str | None) -> list[IgnoreListConfig]:
         """Read CfgIgnoreList table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgIgnoreList")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_IGNORE_LIST)
         ignore_list = []
 
         for row in table_data:
@@ -191,12 +202,12 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete ignore list row: {row}")
 
-        logger.debug(f"Read {len(ignore_list)} ignore list items from CfgIgnoreList table")
+        logger.debug(f"Read {len(ignore_list)} ignore list items from {TABLE_CFG_IGNORE_LIST} table")
         return ignore_list
 
     def _read_priorities(self, sheet: str | None) -> list[PriorityConfig]:
         """Read CfgPriorities table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgPriorities")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_PRIORITIES)
         priorities = []
 
         for row in table_data:
@@ -207,12 +218,12 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete priority row: {row}")
 
-        logger.debug(f"Read {len(priorities)} priorities from CfgPriorities table")
+        logger.debug(f"Read {len(priorities)} priorities from {TABLE_CFG_PRIORITIES} table")
         return priorities
 
     def _read_auto_field_values(self, sheet: str | None) -> list[AutoFieldValueConfig]:
         """Read CfgAutofieldValues table."""
-        table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgAutofieldValues")
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_AUTO_FIELD_VALUES)
         auto_field_values = []
 
         for row in table_data:
@@ -224,13 +235,13 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             else:
                 logger.warning(f"Skipping incomplete auto field value row: {row}")
 
-        logger.debug(f"Read {len(auto_field_values)} auto field values from CfgAutofieldValues table")
+        logger.debug(f"Read {len(auto_field_values)} auto field values from {TABLE_CFG_AUTO_FIELD_VALUES} table")
         return auto_field_values
 
     def _read_custom_fields(self, sheet: str | None) -> list[CustomFieldConfig]:
         """Read CfgCustomFields table."""
         try:
-            table_data = self.workbook_manager.read_table(sheet=sheet, table_name="CfgCustomFields", optional=True)
+            table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_CUSTOM_FIELDS, optional=True)
         except Exception:
             # Table doesn't exist, return empty list
             return []
@@ -335,7 +346,7 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             seen_ids[field_id_str] = cfg
             seen_names[normalized_name] = cfg
 
-        logger.debug(f"Read {len(custom_fields)} custom field definitions from CfgCustomFields table")
+        logger.debug(f"Read {len(custom_fields)} custom field definitions from {TABLE_CFG_CUSTOM_FIELDS} table")
         return custom_fields
 
     def _get_cell_value(self, row: dict[str, Any], column_name: str) -> Any | None:

@@ -85,6 +85,10 @@ xref-*.html
 ~$*.xlsx
 *todo*
 
+# Visual Studio
+.vs/jira-toolkit*
+.vs/slnx.sqlite
+
 # Python
 __pycache__/
 *.py[cod]

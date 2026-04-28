@@ -32,12 +32,31 @@ def norm_abs(path_str: str) -> str:
     return os.fspath(p)
 
 
+def _generate_version_files(interface) -> None:
+    """Generate build and runtime version files."""
+    scripts_dir = str(Path("scripts").resolve())
+    try:
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        import generate_version  # pylint: disable=import-outside-toplevel
+
+        generate_version.main()
+        interface.write_line("Version file generated successfully")
+    except Exception as e:
+        interface.write_line(f"FileVersionInfo generation failed: {e}")
+    finally:
+        if scripts_dir in sys.path:
+            sys.path.remove(scripts_dir)
+
+
 def pre_build(interface) -> None:
     """Pre-build hook for the Jira Importer application."""
     build_context = BuildContext(interface)
     cfg = build_context.cfg
     cfg_files = build_context.files_cfg
     cfg_pyi = build_context.pyinstaller_cfg
+
+    _generate_version_files(interface)
 
     data: dict[str, Any] = interface.pyproject_data
     pp = data.setdefault("tool", {}).setdefault("poetry-pyinstaller-plugin", {})
@@ -87,21 +106,6 @@ def post_build(interface) -> None:
     build_context = BuildContext(interface)
 
     target_name = os.getenv("BUILD_SCRIPT", "jira-importer")
-
-    try:
-        scripts_dir = str(Path("scripts").resolve())
-        if scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
-
-        import generate_version  # pylint: disable=import-outside-toplevel
-
-        generate_version.main()
-        interface.write_line("Version file generated successfully")
-    except Exception as e:
-        interface.write_line(f"FileVersionInfo generation failed: {e}")
-    finally:
-        if scripts_dir in sys.path:
-            sys.path.remove(scripts_dir)
 
     dist = Path("dist") / "pyinstaller" / interface.platform
     build_executable = dist / f"{target_name}.exe"

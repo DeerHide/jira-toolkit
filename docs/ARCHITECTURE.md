@@ -4,9 +4,6 @@ This document describes the current system shape at a high level.
 
 ## Repository Map
 
-<details>
-<summary>Show repository map</summary>
-
 ```text
 jira-toolkit/
 ├── src/jira_importer/        # Application package
@@ -17,8 +14,6 @@ jira-toolkit/
 ├── pyproject.toml            # Packaging and runtime constraints
 └── build.py                  # Build entrypoint
 ```
-
-</details>
 
 ## Runtime Pipeline
 
@@ -34,20 +29,12 @@ flowchart TD
     G -->|Cloud| I[cloud_sink]
 ```
 
-<details>
-<summary>Show pipeline responsibilities</summary>
-
 - Source readers normalize input rows from XLSX/CSV.
 - `ImportProcessor` coordinates validation, optional fixes, and sink dispatch.
 - Rules report problems and patches; fixers apply safe corrections when enabled.
 - Sinks produce CSV output or perform Jira Cloud submission.
 
-</details>
-
 ## Main Modules
-
-<details>
-<summary>Show main modules</summary>
 
 - `src/jira_importer/app.py`: CLI parsing and runtime options.
 - `src/jira_importer/import_pipeline/processor.py`: orchestration entrypoint.
@@ -57,24 +44,14 @@ flowchart TD
 - `src/jira_importer/config/`: config loading and normalized config access.
 - `src/jira_importer/excel/`: Excel workbook and table readers.
 
-</details>
-
 ## Validation And Fix Architecture
-
-<details>
-<summary>Show validation/fix model</summary>
 
 - Validation is row-oriented and patch-based (no in-place mutation).
 - Rules live under `src/jira_importer/import_pipeline/rules/`.
 - Fixers live under `src/jira_importer/import_pipeline/fixes/`.
 - Problem reporting and aggregation live in `src/jira_importer/import_pipeline/reporting.py`.
 
-</details>
-
 ## Cloud Integration Shape
-
-<details>
-<summary>Show cloud module boundaries</summary>
 
 - Cloud sink orchestration: `src/jira_importer/import_pipeline/sinks/cloud_sink.py`
 - API client and auth: `src/jira_importer/import_pipeline/cloud/client.py`, `auth.py`
@@ -82,19 +59,12 @@ flowchart TD
 - Payload mapping and metadata: `mappers.py`, `metadata.py`
 - Batch behavior: `bulk.py`
 
-</details>
-
 ## Extension Points
-
-<details>
-<summary>Show how to extend safely</summary>
 
 - New validation behavior: add a rule and register it in the rule registry.
 - New auto-fix behavior: add a fixer and register by problem code.
 - New output behavior: update sink implementation while preserving sink parity expectations.
 - New config behavior: implement in `config/` and keep precedence consistent with CLI.
-
-</details>
 
 ## Design Constraints
 
@@ -106,11 +76,6 @@ flowchart TD
 
 Use these files as canonical references:
 
-<details>
-<summary>Show source-of-truth list</summary>
-
 - CLI flags and defaults: `src/jira_importer/app.py`
 - Build profiles and behavior switches: `build/configs/profiles.json`
 - Runtime dependency and Python constraints: `pyproject.toml`
-
-</details>

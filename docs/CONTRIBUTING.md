@@ -4,9 +4,6 @@ This guide covers contribution workflow only. For setup and runtime commands, us
 
 ## First-Time Contributor Setup
 
-<details>
-<summary>Show first-time setup steps</summary>
-
 ```bash
 git clone https://github.com/YOUR_USERNAME/jira-toolkit.git
 cd jira-toolkit
@@ -22,8 +19,6 @@ git checkout main
 git pull upstream main
 git checkout -b feature/short-description
 ```
-
-</details>
 
 ## Before You Open A PR
 
@@ -68,17 +63,12 @@ poetry run ruff format src tests
 
 ## Suggested PR Checklist
 
-<details>
-<summary>Show checklist</summary>
-
 - [ ] Scope is clear and limited.
 - [ ] Tests added/updated where behavior changed.
 - [ ] `poetry run pytest` passes.
 - [ ] `poetry run ruff check src tests` passes.
 - [ ] `poetry run mypy src` passes.
 - [ ] Docs updated if user-facing or developer-facing behavior changed.
-
-</details>
 
 ## Help
 

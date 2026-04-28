@@ -7,16 +7,11 @@ It is concise, but sufficient for both regular and occasional contributors.
 
 Use this file for daily developer commands.
 
-<details>
-<summary>Show related documentation files</summary>
-
 - Architecture details: `docs/ARCHITECTURE.md`
 - Contribution process: `docs/CONTRIBUTING.md`
 - Runtime configuration: `docs/CONFIG.md`
 - Cloud integration details: `docs/CLOUD.md`
 - End-user overview: `README.md`
-
-</details>
 
 ## Prerequisites
 
@@ -39,9 +34,6 @@ poetry run python -m jira_importer --version
 poetry run python -m jira_importer --help
 ```
 
-<details>
-<summary>Alternative setup (venv + pip)</summary>
-
 Use this only when Poetry is unavailable in your environment.
 
 ```bash
@@ -52,8 +44,6 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .[dev]
 ```
-
-</details>
 
 ## Run
 
@@ -75,9 +65,6 @@ poetry run python -m jira_importer --credentials clear
 poetry run python -m jira_importer --credentials test
 ```
 
-<details>
-<summary>High-value run variants</summary>
-
 ```bash
 # Excel config sheet
 poetry run python -m jira_importer path/to/data.xlsx --config-excel
@@ -91,8 +78,6 @@ poetry run python -m jira_importer path/to/data.xlsx --config path/to/config.jso
 # Debug output
 poetry run python -m jira_importer path/to/data.xlsx --debug
 ```
-
-</details>
 
 ## Test And Lint
 
@@ -111,9 +96,6 @@ poetry run mypy src
 
 ## Common Contributor Tasks
 
-<details>
-<summary>Show task-to-file map</summary>
-
 - Add or change a CLI flag: `src/jira_importer/app.py`
 - Adjust config loading/precedence: `src/jira_importer/config/`
 - Add/modify validation rules: `src/jira_importer/import_pipeline/rules/`
@@ -121,8 +103,6 @@ poetry run mypy src
 - Change CSV output behavior: `src/jira_importer/import_pipeline/sinks/csv_sink.py`
 - Change cloud import behavior: `src/jira_importer/import_pipeline/sinks/cloud_sink.py`
 - Update credential handling: `src/jira_importer/import_pipeline/cloud/credential_manager.py`
-
-</details>
 
 ## Build
 
@@ -134,37 +114,22 @@ python build.py -c shipping
 python build.py -p -c shipping
 ```
 
-<details>
-<summary>Build profile intent</summary>
-
 - `debug`: local debugging profile
 - `dev`: local development profile
 - `shipping`: production distribution profile
 - `gh_action`: CI-oriented production profile
 
-</details>
-
 ## Troubleshooting
-
-<details>
-<summary>Show common issues</summary>
 
 - Config not found or missing keys: run `--show-config` first.
 - Auth failures: run `--credentials test` and verify Jira permissions.
 - Unexpected output: re-run with `--dry-run --debug`.
 - Environment drift: prefer `poetry install --extras dev` from a clean environment.
 
-</details>
-
 ## Documentation Ownership
 
 To reduce drift:
 
-<details>
-<summary>Show source-of-truth files</summary>
-
 - CLI flags source of truth: `src/jira_importer/app.py`
 - Build profiles source of truth: `build/configs/profiles.json`
 - Package/runtime constraints source of truth: `pyproject.toml`
-
-</details>

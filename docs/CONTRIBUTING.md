@@ -1,192 +1,86 @@
-# Contributing to Jira Importer Toolkit
+# Contributing
 
-Thank you for your interest in contributing to the Jira Importer Toolkit! This guide will help you get started with contributing to the project.
+This guide covers contribution workflow only. For setup and runtime commands, use `docs/DEV.md`.
 
-## 🚀 Quick Start
+## First-Time Contributor Setup
 
-### Prerequisites
-
-- **Python 3.12+** (required for modern features and performance)
-- **Git** for version control
-- **pip** or **Poetry** for package management
-- **Cross-platform** development (Windows, macOS, Linux)
-- **Jira Cloud account** (for testing cloud integration features)
-
-### Setup Steps
-
-1. **Fork and clone the repository**
-
-   ```bash
-   # Fork the repository on GitHub, then clone your fork
-   git clone https://github.com/YOUR_USERNAME/jira-toolkit.git
-   cd jira-toolkit
-
-   # Add upstream remote
-   git remote add upstream https://github.com/DeerHide/jira-toolkit.git
-   ```
-
-2. **Set up your development environment**
-
-   ```bash
-   # Create virtual environment
-   python -m venv .venv
-
-   # Activate it
-   # On Windows:
-   .venv\Scripts\activate
-
-   # On macOS/Linux:
-   source .venv/bin/activate
-   ```
-
-3. **Install dependencies (Poetry-first)**
-
-   ```bash
-   poetry install
-   poetry install --extras dev
-   ```
-
-   Alternative (supported): pip-tools + editable install
-
-   ```bash
-   pip install pip-tools
-   pip install -r requirements.lock
-   python -m pip install -e .[dev]
-   ```
-
-4. **Verify installation**
-
-   ```bash
-   python -m jira_importer --version
-   python -m jira_importer --help
-   ```
-
-   Note: `python -m jira_importer` requires the package to be installed in the active environment
-   (for example via `python -m pip install -e .` or `poetry install`).
-
-For day-to-day development commands, runtime options, builds, debugging, and dependency details, use `docs/DEV.md` as the primary reference.
-
-## 🛠️ Development Workflow
-
-### Making Changes
-
-1. **Create a feature branch**
-
-   ```bash
-   git checkout -b feature/your-feature-name
-   # or
-   git checkout -b fix/your-bug-fix
-   ```
-
-2. **Make your changes**
-   - Write code following the project's style guidelines
-   - Add tests for new functionality
-   - Update documentation as needed
-
-3. **Test your changes**
-
-   ```bash
-   # Run tests
-   pytest
-
-   # Test the application
-   python -m jira_importer --version
-   python -m jira_importer path/to/test.xlsx --dry-run
-   ```
-
-4. **Commit your changes**
-
-   ```bash
-   git add .
-   git commit -m "Add: brief description of your changes"
-   ```
-
-5. **Push and create a pull request**
-
-   ```bash
-   git push origin feature/your-feature-name
-   # Then create a PR on GitHub
-   ```
-
-### Run Tests Before Opening a PR
+<details>
+<summary>Show first-time setup steps</summary>
 
 ```bash
-pytest
-python -m jira_importer --version
-python -m jira_importer path/to/test.xlsx --dry-run
+git clone https://github.com/YOUR_USERNAME/jira-toolkit.git
+cd jira-toolkit
+git remote add upstream https://github.com/DeerHide/jira-toolkit.git
+poetry install --extras dev
 ```
 
-## 📝 Code Style Guidelines
+Keep your branch current:
 
-### Python Conventions
+```bash
+git fetch upstream
+git checkout main
+git pull upstream main
+git checkout -b feature/short-description
+```
 
-- Follow **PEP 8** style guidelines
-- Use meaningful variable and function names
-- Add docstrings to functions and classes when relevant
-- Keep functions focused and concise
-- Use type hints where appropriate
+</details>
 
-### File Organization
+## Before You Open A PR
 
-- Each module should have a single responsibility
-- Use clear imports and avoid circular dependencies
-- Maintain consistent error handling patterns
-- Follow the existing project structure
+1. Create a branch from the latest default branch.
+2. Keep the change focused and reviewable.
+3. Add or update tests for behavior changes.
+4. Update docs when user-facing or developer-facing behavior changes.
 
-### Comments and Documentation
+## Local Checks
 
-- Add comments for complex logic
-- Update docstrings when changing function signatures
-- Keep README.md updated with user-facing changes
-- Update this contributing guide when adding new processes
+Run these before pushing:
 
-## Scope of This Guide
+```bash
+poetry run pytest
+poetry run ruff check src tests
+poetry run mypy src
+```
 
-This document covers contribution workflow, review expectations, and pull request hygiene.  
-For execution details (all runtime flags, debug flows, builds, release mechanics, and full dependency management), see `docs/DEV.md`.
+If formatting is needed:
 
-## 🤝 Pull Request Process
+```bash
+poetry run ruff format src tests
+```
 
-### Before Submitting
+## Pull Request Expectations
 
-1. **Fork the repository** and create a feature branch
-2. **Make your changes** following the code style guidelines
-3. **Test your changes** thoroughly
-4. **Update documentation** if needed
-5. **Commit your changes** with clear commit messages
+- Use a clear title that explains behavioral intent.
+- Describe what changed and why.
+- Include test evidence (commands run and outcomes).
+- Note any risks, limitations, or follow-up tasks.
+- Keep changes focused; avoid bundling unrelated refactors.
+- Keep docs aligned with code sources of truth:
+  - CLI options: `src/jira_importer/app.py`
+  - Build profiles: `build/configs/profiles.json`
+  - Runtime/package constraints: `pyproject.toml`
 
-### Pull Request Guidelines
+## Review Notes
 
-- **Clear title**: Use descriptive titles that state behavior change and intent
-- **Detailed description**: Explain what changes you made and why
-- **Testing**: Describe how you tested your changes
-- **Documentation**: Update relevant documentation files
-- **Breaking changes**: Clearly mark any breaking changes
+- Avoid unrelated refactors in the same PR.
+- Prefer explicit, factual wording in docs.
+- Do not include time estimates in technical documentation.
 
-### Review Process
+## Suggested PR Checklist
 
-- All pull requests require review from maintainers
-- Address feedback promptly
-- Keep pull requests focused and reasonably sized
-- Ensure all CI checks pass
+<details>
+<summary>Show checklist</summary>
 
-## 📞 Getting Help
+- [ ] Scope is clear and limited.
+- [ ] Tests added/updated where behavior changed.
+- [ ] `poetry run pytest` passes.
+- [ ] `poetry run ruff check src tests` passes.
+- [ ] `poetry run mypy src` passes.
+- [ ] Docs updated if user-facing or developer-facing behavior changed.
 
-### Development Support
+</details>
 
-- Check debug logs for detailed error information
-- Review the main README.md for user documentation
-- Create issues for bugs or feature requests
-- Reach out to the development team with questions
+## Help
 
-### Community
-
-- **GitHub Repository**: <https://github.com/DeerHide/jira-toolkit>
-- **Issues**: Use GitHub Issues for bug reports and feature requests
-- **Discussions**: Use GitHub Discussions for questions and community support
-
-**Thank you for contributing to the Jira Importer Toolkit!** 🎉
-
-*This contributing guide is maintained by the Jira Importer Toolkit development team.*
-
-:_GeneratedFile_
+- Issues: [GitHub Issues](https://github.com/DeerHide/jira-toolkit/issues)
+- Discussions: [GitHub Discussions](https://github.com/DeerHide/jira-toolkit/discussions)

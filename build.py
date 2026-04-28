@@ -72,7 +72,7 @@ def check_dependencies(config) -> None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", dependency.lower()])
 
 
-def clean_directories(config, config_name) -> bool:
+def prepare_build_directories(config, config_name) -> bool:
     """Clean dist directory and prepare temp directory."""
     temp_dir = config["directories"]["temp"]
 
@@ -92,7 +92,7 @@ def clean_directories(config, config_name) -> bool:
     return True
 
 
-def copy_build_files(config) -> bool:
+def stage_build_inputs(config) -> bool:
     """Copy necessary files to temp directory."""
     temp_dir = config["directories"]["temp"]
     src_dir = config["directories"]["source"]
@@ -142,7 +142,7 @@ def copy_build_files(config) -> bool:
     return True
 
 
-def build_executable(config, config_name) -> bool:
+def build_with_pyinstaller(config, config_name) -> bool:
     """Build the executable using PyInstaller."""
     # Check if PyInstaller is available
     if importlib.util.find_spec("PyInstaller") is None:
@@ -315,7 +315,7 @@ def get_version_string() -> str:
         return "1.0.0"
 
 
-def copy_resources_to_dist(config, config_name) -> bool:
+def copy_resources_into_dist(config, config_name) -> bool:
     """Copy resources folder to dist directory."""
     if not config["build_options"].get("copy_resources_to_dist", True):
         _logger.info("⏭️  Resources copying disabled in config")
@@ -341,7 +341,7 @@ def copy_resources_to_dist(config, config_name) -> bool:
     return True
 
 
-def copy_documentation(config, config_name) -> bool:
+def copy_docs_into_dist(config, config_name) -> bool:
     """Copy documentation files to dist directory."""
     if not config["build_options"]["copy_documentation"]:
         _logger.info("⏭️  Documentation copying disabled in config")
@@ -427,24 +427,24 @@ def _run_shared_post_build_steps(config, config_name: str, platform_tag: str) ->
     success = True
 
     _logger.info("📁 Copying resources to dist...")
-    if not copy_resources_to_dist(config, config_name):
+    if not copy_resources_into_dist(config, config_name):
         _logger.warning("⚠️  Warning: Failed to copy resources to dist")
         success = False
 
     _logger.info("📚 Copying documentation...")
-    if not copy_documentation(config, config_name):
+    if not copy_docs_into_dist(config, config_name):
         _logger.warning("⚠️  Warning: Failed to copy documentation")
         success = False
 
     _logger.info("📦 Creating ZIP archive...")
-    if not create_zip_archive(config, config_name, platform_tag):
+    if not create_dist_zip_archive(config, config_name, platform_tag):
         _logger.warning("⚠️  Warning: Failed to create ZIP archive")
         success = False
 
     return success
 
 
-def create_zip_archive(config, config_name, platform_tag) -> bool:
+def create_dist_zip_archive(config, config_name, platform_tag) -> bool:
     """Create ZIP archive of the build output."""
     if not config["build_options"].get("create_zip", True):
         _logger.info("⏭️  ZIP creation disabled in config")
@@ -494,7 +494,7 @@ def create_zip_archive(config, config_name, platform_tag) -> bool:
         return False
 
 
-def cleanup_temp_files(config) -> bool:
+def cleanup_build_temp_files(config) -> bool:
     """Clean up temporary files after build completion."""
     temp_dir = config["directories"]["temp"]
 
@@ -657,7 +657,7 @@ def main() -> None:
 
     if CONFIG_BUILD_OPTIONS["clean_dist"]:
         _logger.info("🧹 Preparing build environment...")
-        if not clean_directories(CONFIG, args.config):
+        if not prepare_build_directories(CONFIG, args.config):
             _logger.warning("❌ Failed to prepare build environment")
             sys.exit(1)
     else:
@@ -670,11 +670,11 @@ def main() -> None:
         _logger.error("❌ Failed to build version file: %s", e)
 
     _logger.info("📁 Copying build files...")
-    if not copy_build_files(CONFIG):
+    if not stage_build_inputs(CONFIG):
         _logger.warning("❌ Failed to copy build files")
 
     _logger.info("🔨 Building executable...")
-    build_executable(CONFIG, args.config)  # Pass config_name as an argument
+    build_with_pyinstaller(CONFIG, args.config)  # Pass config_name as an argument
 
     dist_dir = CONFIG["directories"]["dist"]
     config_dist_dir = Path(dist_dir) / args.config  # Use config-specific dist directory
@@ -701,7 +701,7 @@ def main() -> None:
     _run_shared_post_build_steps(CONFIG, args.config, build_context.platform_tag)
 
     if CONFIG["build_options"]["clean_temp"]:
-        if not cleanup_temp_files(CONFIG):
+        if not cleanup_build_temp_files(CONFIG):
             _logger.warning("⚠️  Warning: Failed to clean up temporary files")
     else:
         _logger.info("💾 Keeping temporary files (clean_temp disabled in config)")

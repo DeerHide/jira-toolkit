@@ -39,24 +39,19 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
    source .venv/bin/activate
    ```
 
-3. **Install dependencies**
-
-   **Option A: Using pip-tools (recommended)**
-
-   ```bash
-   # Install pip-tools for dependency management
-   pip install pip-tools
-
-   # Install all dependencies including dev tools
-   pip install -r requirements.lock
-   python -m pip install -e .[dev]
-   ```
-
-   **Option B: Using Poetry**
+3. **Install dependencies (Poetry-first)**
 
    ```bash
    poetry install
    poetry install --extras dev
+   ```
+
+   Alternative (supported): pip-tools + editable install
+
+   ```bash
+   pip install pip-tools
+   pip install -r requirements.lock
+   python -m pip install -e .[dev]
    ```
 
 4. **Verify installation**
@@ -68,6 +63,8 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 
    Note: `python -m jira_importer` requires the package to be installed in the active environment
    (for example via `python -m pip install -e .` or `poetry install`).
+
+For day-to-day development commands, runtime options, builds, debugging, and dependency details, use `docs/DEV.md` as the primary reference.
 
 ## 🛠️ Development Workflow
 
@@ -111,79 +108,13 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
    # Then create a PR on GitHub
    ```
 
-### Running the Application
+### Run Tests Before Opening a PR
 
-1. **Basic usage**
-
-   ```bash
-   python -m jira_importer path/to/your/file.xlsx
-   ```
-
-2. **Debug mode** (detailed logging)
-
-   ```bash
-   python -m jira_importer path/to/your/file.xlsx --debug
-   ```
-
-3. **Auto-fix enabled** (automatic issue resolution)
-
-   ```bash
-   python -m jira_importer path/to/your/file.xlsx --auto-fix
-   ```
-
-4. **Cloud import** (direct to Jira Cloud)
-
-   ```bash
-   python -m jira_importer path/to/your/file.xlsx --cloud
-   ```
-
-5. **Credential management**
-
-   ```bash
-   python -m jira_importer --credentials run    # Set up credentials
-   python -m jira_importer --credentials show   # View stored credentials
-   python -m jira_importer --credentials clear  # Clear credentials
-   ```
-
-### Testing Your Changes
-
-1. **Use sample data**
-   - Get **`ImportTemplate.xlsx`** from **`resources/templates/`** in git or **[GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases)**, or build minimal test workbooks / use **`tests/data/`**
-   - Use **`resources/templates/*.json`** for config-driven tests
-   - Run the importer on your test file
-
-2. **Enable debug mode**
-   - Use the `--debug` flag for detailed logging
-   - Check console output for information
-
-3. **Test cloud integration**
-   - Set up credentials with `--credentials run`
-   - Test with `--cloud` flag
-   - Verify authentication and API calls
-
-### Building
-
-1. **Development build** (for testing)
-
-   ```bash
-   python build.py -c dev
-   ```
-
-2. **Production build** (for distribution)
-
-   ```bash
-   python build.py -c shipping
-   ```
-
-3. **Using Poetry** (alternative build method)
-
-   ```bash
-   # Build Python distribution artifacts for PyPI (sdist + wheel)
-   poetry build
-
-   # Build profile-aligned shipping artifacts using Poetry + PyInstaller
-   python build.py -p -c shipping
-   ```
+```bash
+pytest
+python -m jira_importer --version
+python -m jira_importer path/to/test.xlsx --dry-run
+```
 
 ## 📝 Code Style Guidelines
 
@@ -209,140 +140,10 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 - Keep README.md updated with user-facing changes
 - Update this contributing guide when adding new processes
 
-## 🧪 Testing Guidelines
+## Scope of This Guide
 
-### Manual Testing
-
-1. Test with various Excel file formats
-2. Verify CSV output format
-3. Test configuration file variations
-4. Test error handling scenarios
-5. Test auto-fix functionality with `--auto-fix` flag
-6. Test cloud integration features
-
-### Sample Data
-
-- Use **`ImportTemplate.xlsx`** from **`resources/templates/`**, **Releases**, or fixtures under **`tests/data/`** for test data; JSON under **`resources/templates/`**
-- Create test cases with different data scenarios
-- Test edge cases and error conditions
-- Test with real-world data when possible
-
-### Automated Testing
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=jira_importer
-
-# Run specific test file
-pytest tests/test_specific_module.py
-```
-
-## 🐛 Debugging and Troubleshooting
-
-### Debug Mode
-
-Enable detailed logging and debugging information:
-
-- Use `--debug` or `-d` command line flag
-- Provides detailed logging and extra output
-- Shows internal processing steps and validation details
-
-### Common Development Issues
-
-1. **Import errors**: Ensure all dependencies are installed with `pip install -r requirements.lock`
-2. **File not found**: Check file paths and permissions
-3. **Configuration issues**: Verify JSON syntax in config files
-4. **Authentication errors**: Use `--credentials show` to check stored credentials
-5. **Cloud import failures**: Verify Jira permissions and project access
-6. **Path validation errors**: Ensure file paths don't contain control characters
-7. **Sensitive data in logs**: Sensitive information is automatically redacted for security
-
-### Testing Configuration
-
-Before running imports, test your setup:
-
-```bash
-# Test configuration without processing data
-python -m jira_importer --show-config
-
-# Test data processing without writing output files
-python -m jira_importer path/to/test.xlsx --dry-run
-
-# Test with debug information
-python -m jira_importer path/to/test.xlsx --debug
-```
-
-## 📦 Dependency Management
-
-### Current Dependencies
-
-The project uses dependencies for comprehensive functionality:
-
-**Direct Dependencies:**
-
-- **Data processing**: pandas, openpyxl
-- **UI/Console**: rich, rich-argparse, tqdm, colorlog, colorama
-- **HTTP/API**: requests
-- **Security**: keyring
-- **Logging**: structlog, colorlog
-- **Configuration**: PyYAML
-
-**Development Dependencies:**
-
-- **Testing**: pytest, pytest-cov
-- **Code quality**: black, isort, mypy, ruff, pylint
-- **Build tools**: pip-tools, poetry, pyinstaller
-
-### Managing Dependencies
-
-**Using pip-tools (recommended):**
-
-```bash
-# Update to latest versions
-pip-compile --upgrade requirements.in
-
-# Refresh with current constraints
-pip-compile requirements.in
-
-# Install dependencies
-pip install -r requirements.lock
-```
-
-**Using Poetry:**
-
-```bash
-# Install dependencies
-poetry install
-poetry install --extras dev
-
-# Update dependencies
-poetry update
-```
-
-### Adding New Dependencies
-
-1. Add to `requirements.in` (for pip-tools) or `pyproject.toml` (for Poetry)
-2. Run `pip-compile requirements.in` or `poetry lock`
-3. Commit both files
-
-## 🚀 Release Process
-
-### Building for Distribution
-
-1. **Development Build**: `python build.py -c dev`
-2. **Production Build**: `python build.py -c shipping`
-3. **PyPI Artifacts (sdist + wheel)**: `poetry build`
-4. **Poetry + PyInstaller profile build**: `python build.py -p -c shipping`
-
-### Version Management
-
-- Update version information via `build/version/generate_version.py`
-- Follow semantic versioning principles
-- Update documentation for new features
-- Test thoroughly before release
+This document covers contribution workflow, review expectations, and pull request hygiene.  
+For execution details (all runtime flags, debug flows, builds, release mechanics, and full dependency management), see `docs/DEV.md`.
 
 ## 🤝 Pull Request Process
 
@@ -356,7 +157,7 @@ poetry update
 
 ### Pull Request Guidelines
 
-- **Clear title**: Use descriptive titles like "Add: feature description" or "Fix: bug description"
+- **Clear title**: Use descriptive titles that state behavior change and intent
 - **Detailed description**: Explain what changes you made and why
 - **Testing**: Describe how you tested your changes
 - **Documentation**: Update relevant documentation files
@@ -383,25 +184,6 @@ poetry update
 - **GitHub Repository**: <https://github.com/DeerHide/jira-toolkit>
 - **Issues**: Use GitHub Issues for bug reports and feature requests
 - **Discussions**: Use GitHub Discussions for questions and community support
-
-## 🔮 Future Development
-
-### Planned Features
-
-- **Mac and Linux support** - Native builds for other operating systems
-- **Multiple file imports** - Process several Excel files at once
-- **Project templates** - Ready-made templates for common project types
-- **OAuth 2.0 authentication** - Enhanced authentication options
-- **Advanced reporting** - More detailed import reports and analytics
-
-### Architecture Considerations
-
-- The pipeline is designed for easy extension
-- Maintain backward compatibility where possible
-- Consider performance for large datasets
-- Plan for API integration features
-
----
 
 **Thank you for contributing to the Jira Importer Toolkit!** 🎉
 

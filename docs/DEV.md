@@ -46,27 +46,21 @@ The documentation is organized into focused files for easy navigation:
    source .venv/bin/activate
    ```
 
-3. **Install dependencies**
+3. **Install dependencies (Poetry-first)**
 
-   The project supports both pip-tools and Poetry for dependency management:
+   Use Poetry as the primary contributor workflow:
 
-   **Option A: Using pip-tools (recommended)**
-   ```bash
-   # Install pip-tools for dependency management
-   pip install pip-tools
-
-   # Generate/refresh requirements.lock (if needed)
-   pip-compile requirements.in
-
-   # Install all dependencies
-   pip install -r requirements.lock
-   python -m pip install -e .[dev]
-   ```
-
-   **Option B: Using Poetry**
    ```bash
    poetry install
    poetry install --extras dev
+   ```
+
+   Alternative (supported, secondary): pip-tools + editable install
+
+   ```bash
+   pip install pip-tools
+   pip install -r requirements.lock
+   python -m pip install -e .[dev]
    ```
 
 4. **Verify installation**
@@ -78,8 +72,6 @@ The documentation is organized into focused files for easy navigation:
 
    Note: `python -m jira_importer` requires the package to be installed in the active environment
    (for example via `python -m pip install -e .` or `poetry install`).
-
-## 📁 Project Layout
 
 ## 📁 Project Structure
 
@@ -417,7 +409,17 @@ The project uses dependencies for comprehensive functionality:
 
 ### Managing Dependencies
 
-**Using pip-tools (recommended):**
+Primary workflow (Poetry):
+```bash
+# Install dependencies
+poetry install
+poetry install --extras dev
+
+# Update dependencies
+poetry update
+```
+
+Secondary workflow (pip-tools, supported):
 ```bash
 # Update to latest versions
 pip-compile --upgrade requirements.in
@@ -429,21 +431,11 @@ pip-compile requirements.in
 pip install -r requirements.lock
 ```
 
-**Using Poetry:**
-```bash
-# Install dependencies
-poetry install
-poetry install --extras dev
-
-# Update dependencies
-poetry update
-```
-
 ### Adding New Dependencies
 
-1. Add to `requirements.in` (for pip-tools) or `pyproject.toml` (for Poetry)
-2. Run `pip-compile requirements.in` or `poetry lock`
-3. Commit both files
+1. Add dependency in `pyproject.toml` and run `poetry lock` (primary path)
+2. If maintaining pip-tools lock artifacts for your change, update `requirements.in` and regenerate `requirements.lock`
+3. Commit all updated dependency manifest/lock files together
 
 ## 🚀 Release Information
 
@@ -499,7 +491,7 @@ The project supports multiple build configurations:
 
 ### Community
 
-- **GitHub Repository**: https://github.com/DeerHide/jira-toolkit
+- **GitHub Repository**: <https://github.com/DeerHide/jira-toolkit>
 - **Issues**: Use GitHub Issues for bug reports and feature requests
 - **Discussions**: Use GitHub Discussions for questions and community support
 

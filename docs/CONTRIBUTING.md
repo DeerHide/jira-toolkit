@@ -55,7 +55,8 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
    **Option B: Using Poetry**
 
    ```bash
-   poetry install --with dev
+   poetry install
+   poetry install --extras dev
    ```
 
 4. **Verify installation**
@@ -64,6 +65,9 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
    python -m jira_importer --version
    python -m jira_importer --help
    ```
+
+   Note: `python -m jira_importer` requires the package to be installed in the active environment
+   (for example via `python -m pip install -e .` or `poetry install`).
 
 ## 🛠️ Development Workflow
 
@@ -174,7 +178,11 @@ Thank you for your interest in contributing to the Jira Importer Toolkit! This g
 3. **Using Poetry** (alternative build method)
 
    ```bash
-   poetry build --format pyinstaller
+   # Build Python distribution artifacts for PyPI (sdist + wheel)
+   poetry build
+
+   # Build profile-aligned shipping artifacts using Poetry + PyInstaller
+   python build.py -p -c shipping
    ```
 
 ## 📝 Code Style Guidelines
@@ -307,7 +315,8 @@ pip install -r requirements.lock
 
 ```bash
 # Install dependencies
-poetry install --with dev
+poetry install
+poetry install --extras dev
 
 # Update dependencies
 poetry update
@@ -325,7 +334,8 @@ poetry update
 
 1. **Development Build**: `python build.py -c dev`
 2. **Production Build**: `python build.py -c shipping`
-3. **Poetry Build**: `poetry build --format pyinstaller`
+3. **PyPI Artifacts (sdist + wheel)**: `poetry build`
+4. **Poetry + PyInstaller profile build**: `python build.py -p -c shipping`
 
 ### Version Management
 

@@ -65,7 +65,8 @@ The documentation is organized into focused files for easy navigation:
 
    **Option B: Using Poetry**
    ```bash
-   poetry install --with dev
+   poetry install
+   poetry install --extras dev
    ```
 
 4. **Verify installation**
@@ -74,6 +75,9 @@ The documentation is organized into focused files for easy navigation:
    python -m jira_importer --version
    python -m jira_importer --help
    ```
+
+   Note: `python -m jira_importer` requires the package to be installed in the active environment
+   (for example via `python -m pip install -e .` or `poetry install`).
 
 ## 📁 Project Layout
 
@@ -243,7 +247,11 @@ For detailed technical information, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 3. **Using Poetry** (alternative build method)
    ```bash
-   poetry build --format pyinstaller
+   # Build Python distribution artifacts for PyPI (sdist + wheel)
+   poetry build
+
+   # Build profile-aligned shipping artifacts using Poetry + PyInstaller
+   python build.py -p -c shipping
    ```
 
 ### Testing Your Changes
@@ -424,7 +432,8 @@ pip install -r requirements.lock
 **Using Poetry:**
 ```bash
 # Install dependencies
-poetry install --with dev
+poetry install
+poetry install --extras dev
 
 # Update dependencies
 poetry update
@@ -460,7 +469,8 @@ The project supports multiple build configurations:
 
 1. **Development Build**: `python build.py -c dev`
 2. **Production Build**: `python build.py -c shipping`
-3. **Poetry Build**: `poetry build --format pyinstaller`
+3. **PyPI Artifacts (sdist + wheel)**: `poetry build`
+4. **Poetry + PyInstaller profile build**: `python build.py -p -c shipping`
 
 ## 🔄 Next Steps
 

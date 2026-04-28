@@ -1,4 +1,22 @@
 {
+  "debug": {
+    "pyinstaller": {
+      "onefile": false
+    },
+    "build_options": {
+      "clean_temp": false,
+      "check_dependencies": false,
+      "install_requirements": false,
+      "copy_documentation": false,
+      "create_zip": false
+    },
+    "code_signing": {
+      "enabled": false
+    },
+    "output_control": {
+      "show_debug_info": true
+    }
+  },
   "dev": {
     "pyinstaller": {
       "onefile": false

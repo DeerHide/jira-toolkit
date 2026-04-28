@@ -24,6 +24,7 @@ Dependencies:
 """
 
 import argparse
+import fnmatch
 import importlib.util
 import logging
 import os
@@ -73,13 +74,9 @@ def check_dependencies(config) -> None:
 
 def clean_directories(config, config_name) -> bool:
     """Clean dist directory and prepare temp directory."""
-    dist_dir = config["directories"]["dist"]
     temp_dir = config["directories"]["temp"]
 
-    # Clean config-specific dist subdirectory if specified
-    config_dist_dir = Path(dist_dir) / config_name
-    if not _safe_ops.create_directory(config_dist_dir, "config dist directory", clean_if_exists=True):
-        _logger.warning("❌ Failed to prepare config dist directory: %s", config_dist_dir)
+    if not _prepare_profile_dist_directory(config, config_name, clean_if_exists=True):
         return False
 
     # Clean temp directory only if clean_temp is enabled
@@ -377,6 +374,76 @@ def copy_documentation(config, config_name) -> bool:
     return success
 
 
+def _load_artifact_include_patterns(config) -> tuple[str, ...]:
+    """Get validated artifact include patterns from build configuration."""
+    patterns = config["build_options"].get("artifact_include_patterns")
+    if not isinstance(patterns, list | tuple) or not patterns:
+        _logger.error(
+            "❌ Missing required build option 'artifact_include_patterns'. "
+            "Update build/configs/base.json to include strict artifact patterns."
+        )
+        sys.exit(1)
+
+    normalized_patterns: list[str] = []
+    for pattern in patterns:
+        if not isinstance(pattern, str):
+            _logger.error("❌ Invalid artifact include pattern type: %s (expected string)", type(pattern).__name__)
+            sys.exit(1)
+        normalized = pattern.strip().replace("\\", "/")
+        if not normalized:
+            _logger.error("❌ Empty artifact include pattern is not allowed")
+            sys.exit(1)
+        normalized_patterns.append(normalized)
+
+    return tuple(normalized_patterns)
+
+
+def _artifact_path_is_included(relative_path: Path, include_patterns: tuple[str, ...], *, is_directory: bool = False) -> bool:
+    """Check whether a relative artifact path is allowed by include patterns."""
+    normalized_relative_path = relative_path.as_posix().lstrip("./")
+    if normalized_relative_path in {"", "."}:
+        return False
+
+    for pattern in include_patterns:
+        if fnmatch.fnmatch(normalized_relative_path, pattern):
+            return True
+        if is_directory and pattern.startswith(f"{normalized_relative_path}/"):
+            return True
+    return False
+
+
+def _prepare_profile_dist_directory(config, config_name: str, *, clean_if_exists: bool) -> bool:
+    """Ensure profile dist directory exists, optionally cleaning it first."""
+    base_dist_dir = Path(config["directories"]["dist"])
+    config_dist_dir = base_dist_dir / config_name
+    if not _safe_ops.create_directory(config_dist_dir, "config dist directory", clean_if_exists=clean_if_exists):
+        _logger.warning("❌ Failed to prepare config dist directory: %s", config_dist_dir)
+        return False
+    return True
+
+
+def _run_shared_post_build_steps(config, config_name: str, platform_tag: str) -> bool:
+    """Run post-build steps shared by Poetry and non-Poetry build modes."""
+    success = True
+
+    _logger.info("📁 Copying resources to dist...")
+    if not copy_resources_to_dist(config, config_name):
+        _logger.warning("⚠️  Warning: Failed to copy resources to dist")
+        success = False
+
+    _logger.info("📚 Copying documentation...")
+    if not copy_documentation(config, config_name):
+        _logger.warning("⚠️  Warning: Failed to copy documentation")
+        success = False
+
+    _logger.info("📦 Creating ZIP archive...")
+    if not create_zip_archive(config, config_name, platform_tag):
+        _logger.warning("⚠️  Warning: Failed to create ZIP archive")
+        success = False
+
+    return success
+
+
 def create_zip_archive(config, config_name, platform_tag) -> bool:
     """Create ZIP archive of the build output."""
     if not config["build_options"].get("create_zip", True):
@@ -394,15 +461,29 @@ def create_zip_archive(config, config_name, platform_tag) -> bool:
     version = get_version_string()
     zip_filename = f"jira-importer-{config_name}-{platform_tag}-{version}.zip"
     zip_path = Path(dist_dir) / zip_filename
+    include_patterns = _load_artifact_include_patterns(config)
+
+    _logger.debug("📋 Artifact include patterns for ZIP: %s", include_patterns)
 
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             # Walk through the config dist directory and add all files
-            for root, _, files in os.walk(config_dist_dir):
+            for root, dirs, files in os.walk(config_dist_dir):
+                current_root = Path(root)
+                if current_root != config_dist_dir:
+                    relative_dir = current_root.relative_to(config_dist_dir)
+                    if not _artifact_path_is_included(relative_dir, include_patterns, is_directory=True):
+                        _logger.debug("⏭️  Skipping non-included directory in ZIP: %s", relative_dir)
+                        dirs[:] = []
+                        continue
                 for file in files:
                     file_path = Path(root) / file
+                    relative_file_path = file_path.relative_to(config_dist_dir)
+                    if not _artifact_path_is_included(relative_file_path, include_patterns):
+                        _logger.debug("⏭️  Skipping non-included file in ZIP: %s", relative_file_path)
+                        continue
                     # Calculate relative path from config_dist_dir
-                    arcname = file_path.relative_to(config_dist_dir)
+                    arcname = relative_file_path
                     zipf.write(file_path, arcname)
                     _logger.debug("📦 Added to ZIP: %s", arcname)
 
@@ -428,6 +509,94 @@ def cleanup_temp_files(config) -> bool:
     return True
 
 
+def _directory_has_expected_artifact(directory: Path, expected_artifact_names: set[str]) -> bool:
+    """Check if a directory includes expected build artifact names."""
+    artifact_names_in_dir = {path.name.lower() for path in directory.iterdir()}
+    return any(name in artifact_names_in_dir for name in expected_artifact_names)
+
+
+def _resolve_poetry_dist_directory(base_dist_dir: Path, platform_tag: str, expected_artifact_names: set[str]) -> Path | None:
+    """Detect Poetry PyInstaller output directory."""
+    poetry_root = base_dist_dir / "pyinstaller"
+    if not poetry_root.is_dir():
+        return None
+
+    preferred_dir = poetry_root / platform_tag
+    if preferred_dir.is_dir() and _directory_has_expected_artifact(preferred_dir, expected_artifact_names):
+        return preferred_dir
+
+    candidate_dirs = [path for path in poetry_root.iterdir() if path.is_dir()]
+    if not candidate_dirs:
+        return None
+
+    matching_dirs = [
+        directory for directory in candidate_dirs if _directory_has_expected_artifact(directory, expected_artifact_names)
+    ]
+    if len(matching_dirs) == 1:
+        return matching_dirs[0]
+
+    if len(matching_dirs) > 1:
+        candidates_text = ", ".join(str(path) for path in sorted(matching_dirs))
+        _logger.warning("⚠️  Ambiguous Poetry dist directories for platform '%s': %s", platform_tag, candidates_text)
+        return None
+
+    if len(candidate_dirs) == 1:
+        return candidate_dirs[0]
+
+    candidates_text = ", ".join(str(path) for path in sorted(candidate_dirs))
+    _logger.warning("⚠️  Could not determine Poetry dist directory among candidates: %s", candidates_text)
+    return None
+
+
+def _sync_poetry_artifacts_to_profile_dist(config, config_name: str, platform_tag: str) -> bool:
+    """Copy Poetry build artifacts to the profile-specific dist directory."""
+    base_dist_dir = Path(config["directories"]["dist"])
+    expected_artifact_names = {config["pyinstaller"]["name"].lower()}
+    if platform_tag == "windows":
+        expected_artifact_names.add(f"{config['pyinstaller']['name'].lower()}.exe")
+    source_dir = _resolve_poetry_dist_directory(
+        base_dist_dir=base_dist_dir, platform_tag=platform_tag, expected_artifact_names=expected_artifact_names
+    )
+    if source_dir is None:
+        _logger.warning("⚠️  Poetry dist directory not found under: %s", base_dist_dir / "pyinstaller")
+        return False
+
+    target_dir = base_dist_dir / config_name
+    should_clean_dist = bool(config["build_options"].get("clean_dist", True))
+    if not _prepare_profile_dist_directory(config, config_name, clean_if_exists=should_clean_dist):
+        return False
+
+    include_patterns = _load_artifact_include_patterns(config)
+    _logger.debug("📋 Artifact include patterns for Poetry sync: %s", include_patterns)
+
+    copied_anything = False
+    for artifact in source_dir.iterdir():
+        relative_artifact_path = Path(artifact.name)
+        if not _artifact_path_is_included(relative_artifact_path, include_patterns, is_directory=artifact.is_dir()):
+            _logger.debug("⏭️  Skipping non-included Poetry artifact: %s", relative_artifact_path)
+            continue
+        artifact_target = target_dir / artifact.name
+        if artifact.is_dir():
+            success = _safe_ops.copy_directory(artifact, artifact_target, f"poetry artifact directory: {artifact.name}")
+        elif artifact.is_file():
+            success = _safe_ops.copy_file(artifact, artifact_target, f"poetry artifact file: {artifact.name}")
+        else:
+            _logger.debug("⏭️  Skipping unsupported artifact type: %s", artifact)
+            continue
+
+        if not success:
+            _logger.warning("❌ Failed to copy Poetry artifact: %s", artifact)
+            return False
+        copied_anything = True
+
+    if not copied_anything:
+        _logger.warning("⚠️  No Poetry artifacts copied from: %s", source_dir)
+        return False
+
+    _logger.info("✅ Poetry build artifacts copied to profile dist: %s", target_dir)
+    return True
+
+
 def main() -> None:
     """Main function for the build script."""
     parser = argparse.ArgumentParser(
@@ -443,6 +612,15 @@ def main() -> None:
         _logger.info("🔨 Building solution using Poetry...")
         os.environ["BUILD_PROFILE"] = args.config
         subprocess.check_call(["poetry", "build", "--format", "pyinstaller"])
+        build_context = BuildContext(None, args.config)
+        config = build_context.cfg
+        if not _sync_poetry_artifacts_to_profile_dist(
+            config=config, config_name=args.config, platform_tag=build_context.platform_tag
+        ):
+            _logger.warning("⚠️  Could not align Poetry output with profile dist structure")
+            sys.exit(1)
+
+        _run_shared_post_build_steps(config, args.config, build_context.platform_tag)
         sys.exit(0)
 
     # Load configuration based on argument
@@ -520,17 +698,7 @@ def main() -> None:
                     if file.endswith(".exe"):
                         _logger.debug("Found executable: %s", Path(root) / file)
 
-    _logger.info("📁 Copying resources to dist...")
-    if not copy_resources_to_dist(CONFIG, args.config):
-        _logger.warning("⚠️  Warning: Failed to copy resources to dist")
-
-    _logger.info("📚 Copying documentation...")
-    if not copy_documentation(CONFIG, args.config):  # Pass config_name
-        _logger.warning("⚠️  Warning: Failed to copy documentation")
-
-    _logger.info("📦 Creating ZIP archive...")
-    if not create_zip_archive(CONFIG, args.config, build_context.platform_tag):
-        _logger.warning("⚠️  Warning: Failed to create ZIP archive")
+    _run_shared_post_build_steps(CONFIG, args.config, build_context.platform_tag)
 
     if CONFIG["build_options"]["clean_temp"]:
         if not cleanup_temp_files(CONFIG):

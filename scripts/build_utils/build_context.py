@@ -7,6 +7,7 @@ Author:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from collections.abc import Mapping
@@ -14,12 +15,13 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 T = TypeVar("T")
+_logger = logging.getLogger(__name__)
 
 
 class BuildContext:
     """Build context for the Jira Importer build system."""
 
-    def __init__(self, interface, profile: str = "") -> None:
+    def __init__(self, interface: Any | None, profile: str = "") -> None:
         """Initialize the BuildContext class."""
         self.interface = interface
         self.root_path = Path.cwd()
@@ -30,16 +32,16 @@ class BuildContext:
             self.profile = profile
         else:
             self.profile = os.getenv("BUILD_PROFILE", "dev")
-        self.platform_tag = self._platform_tag()
+        self.platform_tag = self._get_platform_tag()
 
-        print(f"profile -> {self.profile}")
+        _logger.info("profile -> %s", self.profile)
 
-        self._load_config()
+        self._load_configuration()
 
         self.files_cfg = self.cfg.get("files", {})
         self.pyinstaller_cfg = self.cfg.get("pyinstaller", {})
 
-    def get_cfg(self, key: str, default: T | None = None, expected_type: type[T] | None = None) -> T | None:
+    def get_config_value(self, key: str, default: T | None = None, expected_type: type[T] | None = None) -> T | None:
         """Get a configuration value."""
         if "metadata" in self.cfg:
             value: Any = self._get_nested_value(key)
@@ -52,21 +54,21 @@ class BuildContext:
 
         return value  # type: ignore[return-value]
 
-    def include_file(self, path: str) -> str:
-        """Include a file."""
+    def require_existing_file(self, path: str) -> str:
+        """Return file path when it exists, else raise."""
         if Path(path).exists():
             return path
         raise FileNotFoundError(f"Missing file: {path}")
 
-    def _load_config(self) -> None:
+    def _load_configuration(self) -> None:
         """Load the configuration."""
         base_path = Path(os.getenv("BUILD_CFG_BASE", str(self.cfg_dir / "base.json")))
         profiles_path = Path(os.getenv("BUILD_CFG_PROFILES", str(self.cfg_dir / "profiles.json")))
         platforms_path = Path(os.getenv("BUILD_CFG_PLATFORMS", str(self.cfg_dir / "platforms.json")))
 
-        base = self._read_json(base_path)
-        profiles = self._read_json(profiles_path)
-        platforms = self._read_json(platforms_path)
+        base = self._read_json_file(base_path)
+        profiles = self._read_json_file(profiles_path)
+        platforms = self._read_json_file(platforms_path)
 
         plat_key = self.platform_tag
 
@@ -74,8 +76,8 @@ class BuildContext:
         if self.profile not in profiles:
             raise ValueError(f"Unknown profile: {self.profile}. Available profiles: {list(profiles.keys())}")
 
-        cfg = self._deep_merge(base, profiles[self.profile])
-        cfg = self._deep_merge(cfg, platforms.get(plat_key, {}))
+        cfg = self._deep_merge_dicts(base, platforms.get(plat_key, {}))
+        cfg = self._deep_merge_dicts(cfg, profiles[self.profile])
 
         # Validate required configuration keys
         self._validate_config(cfg)
@@ -118,7 +120,7 @@ class BuildContext:
                 return None
         return current
 
-    def _platform_tag(self) -> str:
+    def _get_platform_tag(self) -> str:
         """Detect the current OS platform as one of: windows, macos, linux, other."""
         try:
             platform_key = sys.platform
@@ -132,7 +134,7 @@ class BuildContext:
         except Exception:
             return "other"
 
-    def _read_json(self, path: Path) -> dict:
+    def _read_json_file(self, path: Path) -> dict:
         """Read a JSON file."""
         if not path.is_file():
             raise FileNotFoundError(f"Missing config: {path}")
@@ -142,12 +144,22 @@ class BuildContext:
             content = os.path.expandvars(content)
             return json.loads(content)
 
-    def _deep_merge(self, a: dict, b: Mapping) -> dict:
+    def _deep_merge_dicts(self, a: dict, b: Mapping) -> dict:
         """Return a := a U b (b overrides). Shallow lists are overwritten."""
         out = dict(a)
         for k, v in b.items():
             if isinstance(v, Mapping) and isinstance(out.get(k), Mapping):
-                out[k] = self._deep_merge(out[k], v)  # type: ignore[arg-type]
+                out[k] = self._deep_merge_dicts(out[k], v)  # type: ignore[arg-type]
             else:
                 out[k] = v
         return out
+
+    # Backward-compatible aliases
+    # TODO: Update the other script used for the custom builds to use the BuildContextProtocol
+    def get_cfg(self, key: str, default: T | None = None, expected_type: type[T] | None = None) -> T | None:
+        """Backward-compatible alias for get_config_value."""
+        return self.get_config_value(key=key, default=default, expected_type=expected_type)
+
+    def include_file(self, path: str) -> str:
+        """Backward-compatible alias for require_existing_file."""
+        return self.require_existing_file(path)

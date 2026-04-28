@@ -83,7 +83,7 @@ def pre_build(interface) -> None:
     if "icon" in cfg_files:
         target["icon"] = cfg_files["icon"]
     if "version" in cfg_files:
-        version_file = build_context.include_file(cfg_files["version"])
+        version_file = build_context.require_existing_file(cfg_files["version"])
         target["include"].append(version_file)
         plugin_include = pp.get("include")
         if isinstance(plugin_include, list):

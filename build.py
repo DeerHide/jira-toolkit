@@ -204,6 +204,9 @@ def build_with_pyinstaller(config, config_name) -> bool:
                 ]
             )
 
+        if sys.platform in ["darwin", "linux"]:
+            pyinstaller_cmd.append("--strip")  # no debug symbols (smaller binary)
+
         pyinstaller_cmd.extend(
             [
                 "--console" if config["pyinstaller"]["console"] else "--windowed",
@@ -217,7 +220,6 @@ def build_with_pyinstaller(config, config_name) -> bool:
                 "src",  # Use local src directory
                 "--name",
                 config["pyinstaller"]["name"],
-                "--strip",  # no debug symbols (smaller binary)
             ]
         )
 
@@ -398,7 +400,9 @@ def _load_artifact_include_patterns(config) -> tuple[str, ...]:
     return tuple(normalized_patterns)
 
 
-def _artifact_path_is_included(relative_path: Path, include_patterns: tuple[str, ...], *, is_directory: bool = False) -> bool:
+def _artifact_path_is_included(
+    relative_path: Path, include_patterns: tuple[str, ...], *, is_directory: bool = False
+) -> bool:
     """Check whether a relative artifact path is allowed by include patterns."""
     normalized_relative_path = relative_path.as_posix().lstrip("./")
     if normalized_relative_path in {"", "."}:
@@ -515,7 +519,9 @@ def _directory_has_expected_artifact(directory: Path, expected_artifact_names: s
     return any(name in artifact_names_in_dir for name in expected_artifact_names)
 
 
-def _resolve_poetry_dist_directory(base_dist_dir: Path, platform_tag: str, expected_artifact_names: set[str]) -> Path | None:
+def _resolve_poetry_dist_directory(
+    base_dist_dir: Path, platform_tag: str, expected_artifact_names: set[str]
+) -> Path | None:
     """Detect Poetry PyInstaller output directory."""
     poetry_root = base_dist_dir / "pyinstaller"
     if not poetry_root.is_dir():
@@ -530,7 +536,9 @@ def _resolve_poetry_dist_directory(base_dist_dir: Path, platform_tag: str, expec
         return None
 
     matching_dirs = [
-        directory for directory in candidate_dirs if _directory_has_expected_artifact(directory, expected_artifact_names)
+        directory
+        for directory in candidate_dirs
+        if _directory_has_expected_artifact(directory, expected_artifact_names)
     ]
     if len(matching_dirs) == 1:
         return matching_dirs[0]
@@ -665,7 +673,7 @@ def main() -> None:
 
     _logger.info("🔨 Building version file...")
     try:
-        build_utils.create_version_file()
+        build_utils.generate_version_file()
     except Exception as e:
         _logger.error("❌ Failed to build version file: %s", e)
 

@@ -212,10 +212,16 @@ def load_configuration_with_error_handling(
 
     Returns:
         Tuple of (config, config_path, exit_code). On success, returns (config, config_path, 0).
-        On error, handles error display/logging, calls graceful exit, and returns (None, None, 1).
+        On error, handles error display/logging, calls graceful exit with the derived code,
+        and returns (None, None, derived_exit_code).
     """
     from jira_importer.app import App  # pylint: disable=import-outside-toplevel
-    from jira_importer.errors import format_error_for_display, log_exception  # pylint: disable=import-outside-toplevel
+    from jira_importer.errors import (  # pylint: disable=import-outside-toplevel
+        ErrorCode,
+        ProcessingError,
+        format_error_for_display,
+        log_exception,
+    )
 
     ui_instance = ConsoleIO.get_ui()
 
@@ -227,6 +233,11 @@ def load_configuration_with_error_handling(
         log_exception(logger, config_exc, context="Configuration loading", level=logging.DEBUG)
         error_message = format_error_for_display(config_exc)
         ui_instance.error(error_message)
+        exit_code = (
+            config_exc.code.code
+            if isinstance(config_exc, ProcessingError)
+            else ErrorCode.CONFIG_FILE_ERROR.code
+        )
         # Use App.graceful_exit for consistent error handling
-        App.graceful_exit(exit_code=1004, do_cleanup=False)
-        return None, None, 1
+        App.graceful_exit(exit_code=exit_code, do_cleanup=False)
+        return None, None, exit_code

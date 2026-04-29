@@ -14,15 +14,17 @@ class ConfigurationError(ProcessingError):
     def __init__(
         self,
         message: str,
+        code: ErrorCode = ErrorCode.CONFIG_FILE_ERROR,
         details: dict[str, Any] | None = None,
     ) -> None:
         """Initialize ConfigurationError.
 
         Args:
             message: Human-readable error message.
+            code: Error code enum value.
             details: Optional dictionary with additional error details.
         """
-        super().__init__(message, code=ErrorCode.CONFIG_FILE_ERROR, details=details)
+        super().__init__(message, code=code, details=details)
 
 
 class ExcelConfigurationError(ConfigurationError):
@@ -56,12 +58,7 @@ class MissingConfigElementError(ConfigurationError):
             message: Human-readable error message.
             details: Optional dictionary with additional error details.
         """
-        ProcessingError.__init__(
-            self,
-            message,
-            code=ErrorCode.CONFIG_MISSING_REQUIRED,
-            details=details,
-        )
+        super().__init__(message=message, code=ErrorCode.CONFIG_MISSING_REQUIRED, details=details)
 
 
 class ConfigValidationPolicy:

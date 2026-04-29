@@ -41,6 +41,7 @@
   "metadata": {
     "version": 7
   },
+  "validation": {
     "fixers": {
       "disabled": []
     },

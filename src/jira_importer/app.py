@@ -7,6 +7,7 @@ Author:
 import argparse
 import logging
 import sys
+import typing
 from pathlib import Path
 from typing import Any
 
@@ -462,7 +463,7 @@ class App:
         return Path(args.input_file).parent
 
     @staticmethod
-    def get_output_target_from_args(args: argparse.Namespace) -> str:
+    def get_output_target_from_args(args: argparse.Namespace) -> typing.Literal["cloud", "csv"]:
         """Get the output target based on the command line arguments.
 
         Args:

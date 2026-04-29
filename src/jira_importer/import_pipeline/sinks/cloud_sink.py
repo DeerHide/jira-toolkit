@@ -202,7 +202,7 @@ def _process_batches(
 
     created = 0
     failed = 0
-    errors: list[dict[str, Any]] = []
+    errors: list[CloudBulkIssueError] = []
     batches = 0
     next_batch_num = 1
     parent_key_map: dict[str, str] = {}  # Maps placeholder -> real Jira key

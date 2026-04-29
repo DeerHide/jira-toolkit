@@ -18,3 +18,9 @@ CREDENTIALS_ACTION_RUN: Final[str] = "run"
 CREDENTIALS_ACTION_SHOW: Final[str] = "show"
 CREDENTIALS_ACTION_CLEAR: Final[str] = "clear"
 CREDENTIALS_ACTION_TEST: Final[str] = "test"
+
+# HTTP status ranges
+HTTP_CLIENT_ERROR_MIN: Final[int] = 400
+HTTP_CLIENT_ERROR_MAX: Final[int] = 499
+HTTP_SERVER_ERROR_MIN: Final[int] = 500
+HTTP_SERVER_ERROR_MAX: Final[int] = 599

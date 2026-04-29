@@ -27,6 +27,7 @@ from ..models import (
     ValidationContext,
     ValidationResult,
 )
+from .constants import MIN_CLOUD_ACCOUNT_ID_SUFFIX_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def is_cloud_account_id(value: str) -> bool:
     if ":" not in value:
         return False
     parts = value.split(":", 1)
-    return parts[0].isdigit() and len(parts[1]) > 10
+    return parts[0].isdigit() and len(parts[1]) > MIN_CLOUD_ACCOUNT_ID_SUFFIX_LENGTH
 
 
 def is_display_name(value: str) -> bool:

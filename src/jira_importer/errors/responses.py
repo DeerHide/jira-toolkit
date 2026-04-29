@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from jira_importer.constants import HTTP_CLIENT_ERROR_MIN, HTTP_SERVER_ERROR_MAX
+
 from .base import ProcessingError
 from .codes import ErrorCode
 from .utils import get_error_details, map_exception_to_code
@@ -96,7 +98,7 @@ def error_response_from_http(
     """
     if status_code in (401, 403):
         code = ErrorCode.JIRA_AUTH_ERROR
-    elif 400 <= status_code <= 599:
+    elif HTTP_CLIENT_ERROR_MIN <= status_code <= HTTP_SERVER_ERROR_MAX:
         code = ErrorCode.JIRA_API_ERROR
     else:
         code = ErrorCode.INTERNAL_ERROR

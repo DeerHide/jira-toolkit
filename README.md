@@ -6,7 +6,7 @@ A powerful utility for batch-importing tasks from Excel into Jira. Transform you
 
 ## Quick Navigation
 
-- [Download](#download) | [Quick Start](#quick-start) | [Who Is This For?](#who-is-this-for) | [Common Errors](#common-jira-import-errors) | [Configuration](#configuration) | [Support](#support)
+- [Download](#download) | [Quick Start](#quick-start) | [Choose Your Import Path](#choose-your-import-path) | [CLI Usage](#cli-usage) | [Docs Map](#docs-map) | [Support](#support)
 
 ## Key Features
 
@@ -85,6 +85,13 @@ Perfect for **project managers**, **team leads**, **producers**, and anyone who 
    jira-importer.exe your-data.xlsx --dry-run
    ```
 
+### Choose Your Import Path
+
+- **CSV export (works for Jira Cloud / Server / Data Center):** `jira-importer.exe your-data.xlsx`
+- **Direct API import (Jira Cloud only):** `jira-importer.exe your-data.xlsx --cloud`
+- **Recommended first run:** `jira-importer.exe your-data.xlsx --dry-run`
+- **Credentials for cloud mode:** `jira-importer.exe --credentials run`
+
 ## CLI Usage
 
 ### Easy Mode
@@ -94,7 +101,7 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 ### Command Line Options
 
 | Option | Description |
-|--------|-------------|
+| -------- | ----------- |
 | `your-data.xlsx` | Your Excel file to import |
 | `-c, --config` | Use a specific configuration file |
 | `-ce, --config-excel` | Use settings from your Excel file's config worksheets (`Config` key/value + `config*`/`cfg*` table discovery) |
@@ -109,7 +116,7 @@ On Windows, you can drag and drop your Excel file onto the `jira-importer.exe` f
 | `-d, --debug` | Show detailed information for troubleshooting |
 | `-v, --version` | Show version information |
 
-**Note**: `--cloud` requires `--config-input` or `--config myconfig.json`
+**Note**: `--cloud` requires valid Jira connection configuration (site + project) and credentials (prefer `--credentials run` or environment variables).
 
 ## Input Format
 
@@ -215,11 +222,11 @@ You can configure custom fields in two ways:
 }
 ```
 
-2. **Excel Table Configuration** (recommended for Excel-based workflows):
+1. **Excel Table Configuration** (recommended for Excel-based workflows):
 
    - Create a table named `CfgCustomFields` in your `Config` sheet
    - Columns: `Name`, `Id`, `Type`
-   - The `Name` column must match your Excel data column header exactly (case-sentitive)
+   - The `Name` column must match your Excel data column header (case-insensitive)
 
 **Excel Example:**
 
@@ -462,6 +469,14 @@ jira-importer.exe your-data.xlsx --debug
 - **Sensitive data in logs**: Sensitive information is automatically redacted for security
 - **Need more details**: Use `-d` flag for detailed logging
 - **Test your setup**: Use `--show-config` and `--dry-run` to test before importing
+
+## Docs Map
+
+- End-user configuration: [`docs/CONFIG.md`](docs/CONFIG.md)
+- Cloud import behavior and technical details: [`docs/CLOUD.md`](docs/CLOUD.md)
+- Full feature inventory: [`docs/FEATURES.md`](docs/FEATURES.md)
+- Developer setup/workflow: [`docs/DEV.md`](docs/DEV.md)
+- Contribution process: [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md)
 
 ## Roadmap
 

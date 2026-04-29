@@ -279,7 +279,7 @@ class CloudReportReporter:
             failed_summary = err.failed_summary
             error_messages = err.error_messages
             field_errors = dict(err.field_errors)
-            raw = err.raw
+            display_raw: object = err.raw
         elif isinstance(err, dict):
             element_errors = err.get("elementErrors", {})
             error_messages = tuple(element_errors.get("errorMessages", []))
@@ -287,14 +287,14 @@ class CloudReportReporter:
             failed_element = err.get("failedElementNumber", "Unknown")
             failed_summary = err.get("failedSummary")
             status = err.get("status", "Unknown")
-            raw = err
+            display_raw = err
         else:
             failed_element = "Unknown"
             status = "Unknown"
             failed_summary = None
             error_messages = tuple()
             field_errors = {}
-            raw = err
+            display_raw = err
 
         lines = [f"Row {failed_element} (Jira failed element {failed_element}, HTTP {status})"]
         if isinstance(failed_summary, str) and failed_summary.strip():
@@ -305,6 +305,6 @@ class CloudReportReporter:
             for field, msg in field_errors.items():
                 lines.append(f"{field}: {msg}")
         if len(lines) == 1:
-            lines.append(f"jira: {raw}")
+            lines.append(f"jira: {display_raw}")
         lines.append("hint: run with --debug or --cloud-debug-payloads to inspect the failed payload in detail.")
         return lines

@@ -395,7 +395,7 @@ python -m pytest tests/integration/test_cloud_integration.py -v
 
 ### API Token Handling
 
-- **No token storage**: Tokens are only held in memory during execution
+- **Credential storage model**: Credentials can be stored in OS keyring (recommended), provided via environment variables, or read from config fallback
 - **Secure transmission**: HTTPS only for all API calls
 - **Token validation**: Pre-flight testing before bulk operations
 

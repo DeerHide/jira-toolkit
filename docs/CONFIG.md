@@ -25,7 +25,8 @@ jira-importer.exe your-data.xlsx -ce
 ### Option B: Configure with a JSON file
 
 - Copy `resources/templates/config_importer.json` from the repository next to your Excel file (or use the file from your release bundle)
-- Fill in your Jira details (site address, API token, project key and id)
+- Fill in your Jira details (site address and project key).  
+- Set credentials with `jira-importer.exe --credentials run` (recommended), or environment variables for automation.
 
 How to run:
 
@@ -47,18 +48,20 @@ The most important settings are:
   "jira": {
     "connection": {
       "site_address": "https://yourcompany.atlassian.net",
-      "auth": {
-        "email": "your-email@company.com",
-        "api_token": "YOUR_API_TOKEN"
-      }
+      "auth": {}
     },
     "project": {
-      "key": "PROJ",
-      "id": 12345
+      "key": "PROJ"
     }
   }
 }
 ```
+
+Notes:
+
+- `jira.project.key` is used by cloud/API import flows when a row does not provide a project key.
+- `jira.project.id` may exist in older examples, but it is optional for current importer behavior.
+- For credentials, prefer `--credentials` (keyring) or environment variables. Avoid storing API tokens directly in config files.
 
 - Row skipping (optional) — use a **top-level** `validation` object in JSON (sibling of `app` and `jira`), as in [`resources/templates/config_importer.json`](../resources/templates/config_importer.json). Do not nest these under `app.validation`; that block is used for other options (for example `skip_checks` on individual validations).
 
@@ -84,6 +87,16 @@ With these settings:
 - `-c, --config <file>`: Use a specific JSON file
 
 If you’re not sure, use `-ce` (Excel) or place `config_importer.json` next to your Excel and use `-ci`.
+
+### How config source is resolved
+
+Config source is resolved in this order:
+
+1. Explicit flag (`-ce`, `-ci`, `-cd`, or `-c`)
+2. If no explicit source is set and input is an existing `.xlsx`/`.xlsm` file, use that workbook as config source (same as `-ce`)
+3. Otherwise, fall back to default JSON lookup behavior
+
+This means many Excel-first workflows work without adding `-ce`, though using an explicit flag is still recommended for clarity.
 
 ## Logging (optional)
 
@@ -214,7 +227,7 @@ Add a `custom_fields` array to your JSON config:
 
 **Field Configuration Properties:**
 
-- **`name`** (required): The column header name in your Excel file (must match exactly, case-insensitive)
+- **`name`** (required): The column header name in your Excel file (must match, case-insensitive)
 - **`id`** (required): The Jira custom field ID (format: `customfield_XXXXX`)
 - **`type`** (required): Field type - one of `"text"`, `"number"`, `"date"`, `"select"`, or `"any"`
 
@@ -333,6 +346,17 @@ If you prefer Excel, put these in tables on the `Config` sheet. The importer wil
 - Never share or commit your API token
 - Store configuration files in a safe place
 
+### Credentials resolution (cloud/API)
+
+Credentials are resolved in this order:
+
+1. OS keyring (if enabled)
+2. Environment variables (`JIRA_EMAIL`, `JIRA_API_TOKEN`)
+3. Config values (`jira.connection.auth.email`, `jira.connection.auth.api_token`) as fallback only
+
+Tip: run `jira-importer.exe --credentials run` for guided setup.
+For CI/non-interactive runs, prefer environment variables.
+
 ## Troubleshooting
 
 ### Authentication Issues
@@ -344,7 +368,7 @@ The importer now provides clear, actionable error messages for authentication pr
 | **Error Message** | **What It Means** | **How to Fix** |
 |-------------------|-------------------|----------------|
 | `Authentication successful - connected as: [User Name]` | ✅ Everything is working correctly | No action needed |
-| `Jira authentication failed (HTTP 401) - your API token may have expired` | Your API token has expired | Refresh your token at: `https://yourcompany.atlassian.net/secure/ViewProfile.jspa` |
+| `Jira authentication failed (HTTP 401) - your API token may have expired` | Your API token has expired | Refresh your token at: `https://id.atlassian.com/manage-profile/security/api-tokens` |
 | `Jira authentication failed (HTTP 403) - your API token may be invalid or you lack permissions` | Token is invalid or you don't have the right permissions | Check your token and ensure you have project access |
 | `Jira instance not found at [URL] (HTTP 404)` | Wrong site address | Check your `site_address` in the configuration |
 | `Jira API rate limit exceeded (HTTP 429)` | Too many requests to Jira | Wait a moment and try again |
@@ -374,19 +398,19 @@ If you're getting "Missing jira.connection.site_address" errors:
    {
      "jira": {
        "connection": {
-         "site_address": "https://yourcompany.atlassian.net",
-         "auth": {
-           "email": "your-email@company.com",
-           "api_token": "YOUR_API_TOKEN"
-         }
+         "site_address": "https://yourcompany.atlassian.net"
        }
      }
    }
    ```
 
+3. **Ensure credentials are available** (recommended order):
+   - Run `jira-importer.exe --credentials run` to store credentials securely, or
+   - Set `JIRA_EMAIL` and `JIRA_API_TOKEN` in your environment.
+
 ### Other Common Issues
 
-- **Values rejected**: Make sure your lists (components, priorities, issue types) match your Jira project exactly
+- **Values rejected**: Make sure your lists (components, priorities, issue types) match your Jira project names. Exact naming is recommended (case differences are usually tolerated).
 - **Need more details**: Run with `-d` to get debug logs in `jira_importer_logs/`
 - **File not found**: Check that your Excel file and config file paths are correct
 

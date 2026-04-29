@@ -26,7 +26,16 @@
     "copy_documentation": true,
     "build_version_file": true,
     "copy_resources_to_dist": true,
-    "create_zip": true
+    "create_zip": true,
+    "artifact_include_patterns": [
+      "jira-importer",
+      "jira-importer.exe",
+      "jira-importer.app",
+      "jira-importer.app/**",
+      "resources/**",
+      "*_LICENSE.md",
+      "*_README.md"
+    ]
   },
   "output_control": {
     "verbose": true,

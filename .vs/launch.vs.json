@@ -1,0 +1,90 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "python",
+      "interpreter": "(default)",
+      "interpreterArguments": "",
+      "scriptArguments": "--version",
+      "env": {},
+      "nativeDebug": false,
+      "webBrowserUrl": "",
+      "project": "src\\jira_importer_main.py",
+      "projectTarget": "",
+      "name": "Show Version"
+    },
+    {
+      "type": "python",
+      "interpreter": "(default)",
+      "interpreterArguments": "",
+      "scriptArguments": "--help",
+      "env": {},
+      "nativeDebug": false,
+      "webBrowserUrl": "",
+      "project": "src\\jira_importer_main.py",
+      "projectTarget": "",
+      "name": "Show Help"
+    },
+    {
+      "type": "python",
+      "interpreter": "(default)",
+      "interpreterArguments": "",
+      "scriptArguments": "sandbox/dataset.xlsx -af -dr -ce -d",
+      "env": {},
+      "nativeDebug": false,
+      "webBrowserUrl": "",
+      "project": "src\\jira_importer_main.py",
+      "projectTarget": "",
+      "name": "Run DR: sandbox/dataset.xlsx -af -dr"
+    },
+    {
+      "type": "python",
+      "interpreter": "(default)",
+      "interpreterArguments": "",
+      "scriptArguments": "sandbox/dataset2.xlsx -af -ce -d",
+      "env": {},
+      "nativeDebug": false,
+      "webBrowserUrl": "",
+      "project": "src\\jira_importer_main.py",
+      "projectTarget": "",
+      "name": "Run: sandbox/dataset2.xlsx -af -ce -d"
+    },
+    {
+      "type": "python",
+      "interpreter": "(default)",
+      "interpreterArguments": "",
+      "scriptArguments": "sandbox/dataset2.xlsx -af -dr -ce -d",
+      "env": {},
+      "nativeDebug": false,
+      "webBrowserUrl": "",
+      "project": "src\\jira_importer_main.py",
+      "projectTarget": "",
+      "name": "Run CL: sandbox/dataset2.xlsx -af -ce -y -cl -cld"
+    },
+    {
+      "type": "python",
+      "interpreter": "(default)",
+      "interpreterArguments": "",
+      "scriptArguments": "sandbox/dataset3.xlsx -af -dr -ce -d",
+      "env": {},
+      "nativeDebug": false,
+      "webBrowserUrl": "",
+      "project": "src\\jira_importer_main.py",
+      "projectTarget": "",
+      "name": "Run DR: sandbox/dataset3.xlsx -af -dr -ce -d (split config)"
+    },
+    {
+      "type": "python",
+      "interpreter": "(default)",
+      "interpreterArguments": "",
+      "scriptArguments": "sandbox/dataset3_noIssueTypes.xlsx -af -dr -ce -d",
+      "env": {},
+      "nativeDebug": false,
+      "webBrowserUrl": "",
+      "project": "src\\jira_importer_main.py",
+      "projectTarget": "",
+      "name": "Run DR: sandbox/dataset3_noIssueTypes.xlsx -af -dr -ce -d (split config)"
+    }
+  ]
+}

@@ -88,6 +88,7 @@ xref-*.html
 # Visual Studio
 .vs/jira-toolkit*
 .vs/slnx.sqlite
+VSWorkspaceState.json
 
 # Python
 __pycache__/

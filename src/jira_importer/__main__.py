@@ -8,6 +8,7 @@ Author:
 from __future__ import annotations
 
 # Import libraries
+import errno
 import logging
 import re
 import warnings
@@ -41,6 +42,7 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 ui, fmt = ConsoleIO.get_components()
+ERRNO_PERMISSION_DENIED = errno.EACCES
 
 
 def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
@@ -94,9 +96,7 @@ def main() -> int:
 
     # Handle --credentials mode early (like --version)
     if hasattr(args, "credentials") and args.credentials in CREDENTIALS_ACTIONS:
-        from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
-            run_credentials_cli,
-        )
+        from .import_pipeline.cloud.credential_manager import run_credentials_cli  # pylint: disable=import-outside-toplevel
 
         # For "test" action, we need the actual config to get site_address
         # For other actions (run, show, clear), minimal config is sufficient
@@ -185,9 +185,7 @@ def main() -> int:
         # Note: In dry-run mode, missing credentials only show a warning
         try:
             from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
-            from .import_pipeline.cloud.credential_manager import (  # pylint: disable=import-outside-toplevel
-                validate_cloud_credentials_for_import,
-            )
+            from .import_pipeline.cloud.credential_manager import validate_cloud_credentials_for_import  # pylint: disable=import-outside-toplevel
 
             validate_cloud_credentials_for_import(
                 ui,
@@ -249,7 +247,7 @@ def main() -> int:
     _result_code = 0
     context = PipelineContext(
         input_path=in_path,
-        output_target=output_target,  # type: ignore[assignment]  # str -> Literal conversion
+        output_target=output_target,
         output_filepath=output_filepath,
         output_dir=output_dir_path,
         config=config,
@@ -273,28 +271,27 @@ def main() -> int:
     try:
         runner = ImportRunner(context, options)
         _result_code = runner.run()
-    except ProcessingError as proc_exc:
+    except ProcessingError as processing_error:
         # Use structured error handling for domain exceptions
-        log_exception(logger, proc_exc, context="Import pipeline")
-        error_message = format_error_for_display(proc_exc)
+        log_exception(logger, processing_error, context="Import pipeline")
+        error_message = format_error_for_display(processing_error)
         ui.error(error_message)
         logger.critical(f"Import pipeline failed: {error_message}")
         app.event_close(exit_code=3, cleanup=True)
         return 3
     except (PermissionError, OSError) as file_exc:
         # File I/O errors (e.g. output CSV open in Excel) - wrap in domain exception for consistent handling
-        if isinstance(file_exc, PermissionError) or getattr(file_exc, "errno", None) == 13:
+        if isinstance(file_exc, PermissionError) or getattr(file_exc, "errno", None) == ERRNO_PERMISSION_DENIED:
             path = getattr(file_exc, "filename", None)
             if path is None:
                 match = re.search(r"'([^']+)'", str(file_exc))
                 path = match.group(1) if match else "output file"
-            proc_exc = FileWriteError(
-                f"Cannot write output file '{path}'. The file may be open in Excel or another program. "
-                "Please close it and try again.",
+            file_write_error = FileWriteError(
+                f"Cannot write output file '{path}'. The file may be open in Excel or another program. Please close it and try again.",
                 details={"path": str(path)},
             )
-            log_exception(logger, proc_exc, context="Import pipeline")
-            error_message = format_error_for_display(proc_exc)
+            log_exception(logger, file_write_error, context="Import pipeline")
+            error_message = format_error_for_display(file_write_error)
             ui.error(error_message)
             logger.critical("Import pipeline failed: %s", error_message)
             app.event_close(exit_code=3, cleanup=True)
@@ -326,7 +323,9 @@ def main() -> int:
         if config.get_value("app.import.auto_open_page", default=False, expected_type=bool):
             site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
             if site_address and "BulkCreateSetupPage" not in site_address:
-                site_address += "/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true"
+                site_address += (
+                    "/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true"
+                )
             open_browser(f"{site_address}")
 
         ui.lf()

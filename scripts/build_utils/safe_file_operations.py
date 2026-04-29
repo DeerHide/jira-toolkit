@@ -7,7 +7,9 @@ Author:
 import logging
 import shutil
 import time
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 
 class SafeFileOperations:
@@ -18,10 +20,13 @@ class SafeFileOperations:
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-    def _handle_operation_with_retry(self, operation_name: str, operation_func, *args, **kwargs) -> bool:
+    def _run_with_retry(
+        self, operation_name: str, operation_func: Callable[..., bool], *args: Any, **kwargs: Any
+    ) -> bool:
         """Execute an operation with retry logic and consistent error handling."""
         # Get logger from the calling module
         logger = logging.getLogger(__name__)
+        current_delay = self.retry_delay
 
         for attempt in range(self.max_retries):
             try:
@@ -35,9 +40,9 @@ class SafeFileOperations:
                         self.max_retries,
                         e,
                     )
-                    logger.warning("⏳ Waiting %d seconds before retry...", self.retry_delay)
-                    time.sleep(self.retry_delay)
-                    self.retry_delay *= 2  # Exponential backoff
+                    logger.warning("⏳ Waiting %d seconds before retry...", current_delay)
+                    time.sleep(current_delay)
+                    current_delay *= 2  # Exponential backoff
                 else:
                     logger.error("❌ Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
                     return False
@@ -50,9 +55,9 @@ class SafeFileOperations:
                         self.max_retries,
                         e,
                     )
-                    logger.warning("⏳ Waiting %d seconds before retry...", self.retry_delay)
-                    time.sleep(self.retry_delay)
-                    self.retry_delay *= 2
+                    logger.warning("⏳ Waiting %d seconds before retry...", current_delay)
+                    time.sleep(current_delay)
+                    current_delay *= 2
                 else:
                     logger.error("❌ Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
                     return False
@@ -76,7 +81,7 @@ class SafeFileOperations:
             logger.info("✅ Successfully removed %s: %s", description, directory_path)
             return True
 
-        return self._handle_operation_with_retry(f"removing {description}", _remove_operation)
+        return self._run_with_retry(f"removing {description}", _remove_operation)
 
     def create_directory(
         self, directory_path: str | Path, description: str = "directory", clean_if_exists: bool = False
@@ -94,7 +99,7 @@ class SafeFileOperations:
             logger.info("✅ Created/ensured %s: %s", description, directory_path)
             return True
 
-        return self._handle_operation_with_retry(f"creating {description}", _create_operation)
+        return self._run_with_retry(f"creating {description}", _create_operation)
 
     def copy_file(self, source_path: str | Path, dest_path: str | Path, description: str = "file") -> bool:
         """Safely copy a file with proper error handling."""
@@ -115,7 +120,7 @@ class SafeFileOperations:
                 logger.error("❌ Source %s not found: %s", description, source_path)
                 return False
 
-            return self._handle_operation_with_retry(f"copying {description}", _copy_operation)
+            return self._run_with_retry(f"copying {description}", _copy_operation)
         except Exception as e:
             logger.error("❌ Unexpected error copying %s: %s", description, e)
             return False
@@ -142,7 +147,7 @@ class SafeFileOperations:
                 logger.error("❌ Source %s not found: %s", description, source_path)
                 return False
 
-            return self._handle_operation_with_retry(f"copying {description}", _copy_operation)
+            return self._run_with_retry(f"copying {description}", _copy_operation)
         except Exception as e:
             logger.error("❌ Unexpected error copying %s: %s", description, e)
             return False

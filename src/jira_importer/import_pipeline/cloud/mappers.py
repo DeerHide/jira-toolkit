@@ -383,7 +383,7 @@ class IssueMapper:
         if not values:
             return {}
 
-        mapping: dict[str, str] = {}
+        config_mapping: dict[str, str] = {}
         try:
             for v in values:
                 if v is None:
@@ -391,10 +391,10 @@ class IssueMapper:
                 name = str(v).strip()
                 if not name:
                     continue
-                mapping[name.lower()] = name
+                config_mapping[name.lower()] = name
         except Exception:
             return {}
-        return mapping
+        return config_mapping
 
     def _map_team(self, fields: dict[str, Any], row: Sequence[Any], indices: ColumnIndices) -> None:
         """Map Advanced Roadmaps Team field from row.

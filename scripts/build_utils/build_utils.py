@@ -7,20 +7,29 @@ Author:
 import logging
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, Protocol
+
+
+class BuildContextProtocol(Protocol):
+    """Protocol for build context objects used by BuildUtils."""
+
+    cfg: Mapping[str, Any]
 
 
 class BuildUtils:
     """Build utilities for the Jira Importer build system."""
 
-    def __init__(self, context=None) -> None:
+    def __init__(self, context: BuildContextProtocol | None = None) -> None:
         """Initialize the BuildUtils class."""
-        self.context = context
-        if context:
-            self.sign_config = self.context.cfg["code_signing"]
-        self._logger = self._setup_logger()
+        self.context: BuildContextProtocol | None = context
+        self.sign_config: dict[str, Any] = {}
+        if context is not None:
+            self.sign_config = dict(context.cfg.get("code_signing", {}))
+        self._logger = self._create_logger()
 
-    def _setup_logger(self) -> logging.Logger:
+    def _create_logger(self) -> logging.Logger:
         """Setup a simple logger for consistent output."""
         logger = logging.getLogger(f"{__name__}.BuildUtils")
         if not logger.handlers:
@@ -33,22 +42,25 @@ class BuildUtils:
 
     def sign_executable(self, executable_path: str) -> bool:
         """Sign the executable with the certificate if available."""
-        if not self.sign_config["enabled"]:
+        if not self.sign_config.get("enabled", False):
             self._logger.info("Code signing disabled in config")
             return False
 
-        certificate_path = self.sign_config["certificate"]
-        signtool_path = self.sign_config["signtool"]
-        timestamp_server = self.sign_config["timestamp_server"]
-        digest_algorithm = self.sign_config["digest_algorithm"]
+        required_fields = ("certificate", "signtool", "timestamp_server", "digest_algorithm")
+        missing_fields = [field for field in required_fields if not str(self.sign_config.get(field, "")).strip()]
+        if missing_fields:
+            raise ValueError(f"Code signing is enabled but required config fields are missing: {missing_fields}")
+
+        certificate_path = str(self.sign_config["certificate"])
+        signtool_path = str(self.sign_config["signtool"])
+        timestamp_server = str(self.sign_config["timestamp_server"])
+        digest_algorithm = str(self.sign_config["digest_algorithm"])
 
         if not Path(certificate_path).exists():
-            self._logger.warning("Certificate not found, skipping code signing...")
-            return False
+            raise FileNotFoundError(f"Code signing certificate not found: {certificate_path}")
 
         if not Path(signtool_path).exists():
-            self._logger.warning("Signtool not found, skipping code signing...")
-            return False
+            raise FileNotFoundError(f"Code signing tool not found: {signtool_path}")
 
         if not Path(executable_path).exists():
             self._logger.error("Executable not found for signing")
@@ -90,7 +102,7 @@ class BuildUtils:
             self._logger.error("Error during code signing: %s", e)
             return False
 
-    def create_version_file(self) -> None:
+    def generate_version_file(self) -> None:
         """Create version file using the same pattern as post_build."""
         try:
             scripts_dir = str(Path("scripts").resolve())

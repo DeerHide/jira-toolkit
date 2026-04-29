@@ -82,7 +82,13 @@ Your data is now ready for Jira! The tool handles:
 - ✅ **Custom Fields** mapping and validation
 - ✅ **CSV generation** for manual import OR **direct Jira Cloud import**
 
-## Need Help?
+### Verify Your First Successful Run
+
+- **CSV mode**: You get `your-file_jira_ready.csv` next to your input file.
+- **Cloud mode**: The tool reports created issues (or a cloud submit summary).
+- **If anything looks wrong**: run `--show-config` and then `--dry-run` before re-running import.
+
+## Troubleshooting & Help
 
 ### Test Before Importing
 
@@ -146,7 +152,8 @@ jira-importer.exe --credentials test
 ### Option B: JSON Configuration
 
 - Copy `config_importer.json` next to your Excel file (from **`resources/templates/`** in the repo or from the release bundle)
-- Fill in your Jira details (site address, API token, project key/id)
+- Fill in your Jira details (site address, project key/id)
+- Set credentials with `jira-importer.exe --credentials run` (recommended) or use `JIRA_EMAIL` and `JIRA_API_TOKEN` for automation
 - Run: `jira-importer.exe your-data.xlsx -ci`
 
 **Benefits:**
@@ -210,8 +217,6 @@ The tool automatically detects and fixes:
 
 Many of these can be auto-fixed with the `--auto-fix` flag.
 
-## Troubleshooting
-
 ### Common Issues
 
 - **"File not found"** → Check your Excel file path
@@ -220,14 +225,7 @@ Many of these can be auto-fixed with the `--auto-fix` flag.
 - **Configuration issues** → Check that you're using the right config flags (`-c`, `-ce`, `-ci`, `-cd`)
 - **Need more details** → Use `--debug` flag
 
-### Get Help
-
-- Use `--show-config` to check your setup
-- Use `--dry-run` to test without importing
-- Use `--debug` for detailed error information
-- Visit the [GitHub repository](https://github.com/DeerHide/jira-toolkit) for more help
-
-## Advanced Features
+## Advanced Features (Optional)
 
 ### Hierarchical Issue Types
 
@@ -252,6 +250,8 @@ Use structured tables in your Excel `Config` sheet:
 ### Row Skipping
 
 Skip rows by setting `RowType = "SKIP"` or using issue types like "comment", "note", "skip". In JSON config, enable **`validation.skip_rowtype`** / **`validation.skip_issuetypes`** at the **root** of the file (see **`resources/templates/config_importer.json`** in the repo), not under `app.validation`.
+
+For full configuration details, see [`docs/CONFIG.md`](docs/CONFIG.md).
 
 ## Support
 

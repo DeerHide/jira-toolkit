@@ -271,8 +271,7 @@ def build_with_pyinstaller(config, config_name) -> bool:
         for data_file in config["pyinstaller"]["add_data"]:
             pyinstaller_cmd.extend(["--add-data", data_file])
 
-        # Add main script - use the entry point script
-        pyinstaller_cmd.append("src/jira_importer_main.py")
+        pyinstaller_cmd.append(str(main_script))
 
         subprocess.check_call(pyinstaller_cmd)
         _logger.info("✅ Executable built successfully!")
@@ -381,8 +380,7 @@ def _load_artifact_include_patterns(config) -> tuple[str, ...]:
     patterns = config["build_options"].get("artifact_include_patterns")
     if not isinstance(patterns, list | tuple) or not patterns:
         _logger.error(
-            "❌ Missing required build option 'artifact_include_patterns'. "
-            "Update build/configs/base.json to include strict artifact patterns."
+            "❌ Missing required build option 'artifact_include_patterns'. Update build/configs/base.json to include strict artifact patterns."
         )
         sys.exit(1)
 
@@ -400,9 +398,7 @@ def _load_artifact_include_patterns(config) -> tuple[str, ...]:
     return tuple(normalized_patterns)
 
 
-def _artifact_path_is_included(
-    relative_path: Path, include_patterns: tuple[str, ...], *, is_directory: bool = False
-) -> bool:
+def _artifact_path_is_included(relative_path: Path, include_patterns: tuple[str, ...], *, is_directory: bool = False) -> bool:
     """Check whether a relative artifact path is allowed by include patterns."""
     normalized_relative_path = relative_path.as_posix().lstrip("./")
     if normalized_relative_path in {"", "."}:
@@ -519,9 +515,7 @@ def _directory_has_expected_artifact(directory: Path, expected_artifact_names: s
     return any(name in artifact_names_in_dir for name in expected_artifact_names)
 
 
-def _resolve_poetry_dist_directory(
-    base_dist_dir: Path, platform_tag: str, expected_artifact_names: set[str]
-) -> Path | None:
+def _resolve_poetry_dist_directory(base_dist_dir: Path, platform_tag: str, expected_artifact_names: set[str]) -> Path | None:
     """Detect Poetry PyInstaller output directory."""
     poetry_root = base_dist_dir / "pyinstaller"
     if not poetry_root.is_dir():
@@ -535,11 +529,7 @@ def _resolve_poetry_dist_directory(
     if not candidate_dirs:
         return None
 
-    matching_dirs = [
-        directory
-        for directory in candidate_dirs
-        if _directory_has_expected_artifact(directory, expected_artifact_names)
-    ]
+    matching_dirs = [directory for directory in candidate_dirs if _directory_has_expected_artifact(directory, expected_artifact_names)]
     if len(matching_dirs) == 1:
         return matching_dirs[0]
 
@@ -607,13 +597,9 @@ def _sync_poetry_artifacts_to_profile_dist(config, config_name: str, platform_ta
 
 def main() -> None:
     """Main function for the build script."""
-    parser = argparse.ArgumentParser(
-        description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter
-    )
+    parser = argparse.ArgumentParser(description="Builder for the Jira Importer application.", formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-c", "--config", help="Build configuration name (default: dev)", default="dev")
-    parser.add_argument(
-        "-p", "--build-poetry", help="Build the solution using Poetry", default=False, action="store_true"
-    )
+    parser.add_argument("-p", "--build-poetry", help="Build the solution using Poetry", default=False, action="store_true")
     args = parser.parse_args()
 
     if args.build_poetry:
@@ -622,9 +608,7 @@ def main() -> None:
         subprocess.check_call(["poetry", "build", "--format", "pyinstaller"])
         build_context = BuildContext(None, args.config)
         config = build_context.cfg
-        if not _sync_poetry_artifacts_to_profile_dist(
-            config=config, config_name=args.config, platform_tag=build_context.platform_tag
-        ):
+        if not _sync_poetry_artifacts_to_profile_dist(config=config, config_name=args.config, platform_tag=build_context.platform_tag):
             _logger.warning("⚠️  Could not align Poetry output with profile dist structure")
             sys.exit(1)
 

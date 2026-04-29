@@ -17,7 +17,7 @@ from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from openpyxl.worksheet.worksheet import Worksheet  # type: ignore[import-untyped]
 
 from ..console import ConsoleIO
-from ..errors import FileReadError, FileWriteError, ProcessingError
+from ..errors import FileReadError, FileWriteError, MissingConfigElementError, ProcessingError
 
 logger = logging.getLogger(__name__)
 ui = ConsoleIO.get_ui()  # pylint: disable=invalid-name
@@ -59,6 +59,7 @@ class ExcelWorkbookManager:
         self.path = Path(path)
         self._wb: Workbook | None = None
         self._opened_from_disk: bool = False
+        self._config_table_index: dict[str, str] | None = None
 
     # Lifecycle
     def load(self, *, data_only: bool = True) -> None:
@@ -69,6 +70,7 @@ class ExcelWorkbookManager:
         else:
             self._wb = Workbook()
             self._opened_from_disk = False
+        self._config_table_index = None
 
     def save(self, out_path: str | Path | None = None) -> Path:
         """Save workbook to disk. If out_path is None, overwrite original. Returns the path written."""
@@ -97,9 +99,10 @@ class ExcelWorkbookManager:
         """Release in-memory references."""
         self._wb = None
         self._opened_from_disk = False
+        self._config_table_index = None
 
     # Reads
-    def read_dataset(self, *, sheet: str) -> tuple[list[str], list[list[Any]]]:
+    def read_dataset(self, *, sheet: str, show_progress: bool = True) -> tuple[list[str], list[list[Any]]]:
         """Returns (header, rows) from `sheet`.
 
         - Header: first non-empty row (cells coerced to trimmed str)
@@ -136,8 +139,7 @@ class ExcelWorkbookManager:
         rows_list = list(rows_iter)
         total_rows = len(rows_list)
 
-        # Add progress tracking if UI is available
-        if ui and hasattr(ui, "progress"):
+        if show_progress and ui and hasattr(ui, "progress"):
             with ui.progress() as progress:
                 task = progress.add_task(f"Processing Excel {sheet}", total=total_rows)
 
@@ -153,7 +155,6 @@ class ExcelWorkbookManager:
                     data.append(row)
                     progress.advance(task)
         else:
-            # Fallback without progress tracking
             for raw in rows_list:
                 row = list(raw or [])
                 if self._is_empty_row(row):
@@ -215,7 +216,7 @@ class ExcelWorkbookManager:
 
         First non-empty row is header.
         """
-        header, rows = self.read_dataset(sheet=sheet)
+        header, rows = self.read_dataset(sheet=sheet, show_progress=False)
         if not header:
             return []
         rules: list[dict[str, Any]] = []
@@ -228,7 +229,7 @@ class ExcelWorkbookManager:
     def read_table(
         self,
         *,
-        sheet: str,
+        sheet: str | None,
         table_name: str,
         optional: bool = False,
     ) -> list[dict[str, Any]]:
@@ -238,13 +239,17 @@ class ExcelWorkbookManager:
         text-based table names for backward compatibility.
 
         Args:
-            sheet: Name of the sheet containing the table
+            sheet: Name of the sheet containing the table. If None, resolve
+                table from workbook-level index over config-prefixed sheets.
             table_name: Name of the table (e.g., 'CfgAssignees')
             optional: If True, missing table is logged at DEBUG and returns [].
 
         Returns:
             List of dictionaries representing table rows
         """
+        if sheet is None:
+            return self._read_table_from_config_index(table_name=table_name, optional=optional)
+
         ws = self._get_ws(sheet)
         if ws is None:
             logger.warning(f"Sheet '{sheet}' not found")
@@ -256,6 +261,34 @@ class ExcelWorkbookManager:
 
         # Fallback to text-based table search for backward compatibility
         return self._read_text_based_table(sheet, table_name, optional=optional)
+
+    def _read_table_from_config_index(self, *, table_name: str, optional: bool) -> list[dict[str, Any]]:
+        """Read table using workbook-level index constrained to config-prefixed sheets."""
+        resolved_sheet = self._get_or_build_config_table_index().get(table_name)
+        if resolved_sheet is not None:
+            return self.read_table(sheet=resolved_sheet, table_name=table_name, optional=optional)
+
+        # Backward-compatible fallback: search text-based tables in candidate sheets.
+        for candidate_sheet in self._get_candidate_config_sheets():
+            found, table_data = self._find_text_based_table(candidate_sheet, table_name)
+            if found:
+                return table_data
+
+        if optional:
+            logger.debug(f"Optional table '{table_name}' not found in config-prefixed sheets")
+            return []
+
+        candidate_sheets = self._get_candidate_config_sheets()
+        raise MissingConfigElementError(
+            f"Required table '{table_name}' not found in config-prefixed sheets",
+            details={
+                "table_name": table_name,
+                "candidate_sheets": candidate_sheets,
+                "mode": "indexed",
+                "n_candidate_sheets": len(candidate_sheets),
+                "workbook_path": str(self.path),
+            },
+        )
 
     def _read_excel_table(self, ws, table_name: str) -> list[dict[str, Any]]:
         """Read data from an actual Excel table object.
@@ -315,9 +348,20 @@ class ExcelWorkbookManager:
         Returns:
             List of dictionaries representing table rows
         """
-        header, rows = self.read_dataset(sheet=sheet)
-        if not header:
+        found, table_data = self._find_text_based_table(sheet, table_name)
+        if not found:
+            if optional:
+                logger.debug(f"Table '{table_name}' not found in sheet '{sheet}' (optional)")
+            else:
+                logger.warning(f"Table '{table_name}' not found in sheet '{sheet}'")
             return []
+        return table_data
+
+    def _find_text_based_table(self, sheet: str, table_name: str) -> tuple[bool, list[dict[str, Any]]]:
+        """Locate text-based table and return (found, parsed rows)."""
+        header, rows = self.read_dataset(sheet=sheet, show_progress=False)
+        if not header:
+            return False, []
 
         # Find the table by looking for the table name in the first column
         table_start = None
@@ -332,15 +376,11 @@ class ExcelWorkbookManager:
                 break
 
         if table_start is None:
-            if optional:
-                logger.debug(f"Table '{table_name}' not found in sheet '{sheet}' (optional)")
-            else:
-                logger.warning(f"Table '{table_name}' not found in sheet '{sheet}'")
-            return []
+            return False, []
 
         if table_columns is None:
             logger.warning(f"Table header row not found for '{table_name}' in sheet '{sheet}'")
-            return []
+            return True, []
 
         # Read the table data (skip the table name/header row)
         table_rows = rows[table_start + 1 :]
@@ -357,7 +397,49 @@ class ExcelWorkbookManager:
                     row_dict[table_columns[i]] = value
             table_data.append(row_dict)
 
-        return table_data
+        return True, table_data
+
+    def _get_candidate_config_sheets(self) -> list[str]:
+        """Return candidate sheets for config table lookup using casefold matching."""
+        if self._wb is None:
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "_get_candidate_config_sheets", "file_path": str(self.path)},
+            )
+
+        candidates: list[str] = []
+        for sheet_name in self._wb.sheetnames:
+            normalized = sheet_name.casefold().strip()
+            if normalized.startswith("config") or normalized.startswith("cfg"):
+                candidates.append(sheet_name)
+        return candidates
+
+    def _get_or_build_config_table_index(self) -> dict[str, str]:
+        """Build and return table_name -> sheet_name index once per workbook load."""
+        if self._config_table_index is not None:
+            return self._config_table_index
+
+        if self._wb is None:
+            raise ProcessingError(
+                "Workbook not loaded. Call load() first.",
+                details={"operation": "_get_or_build_config_table_index", "file_path": str(self.path)},
+            )
+
+        index: dict[str, str] = {}
+        for sheet_name in self._get_candidate_config_sheets():
+            ws = self._get_ws(sheet_name, must_exist=False)
+            if ws is None:
+                continue
+            for table in ws.tables:
+                if table not in index:
+                    index[table] = sheet_name
+
+        self._config_table_index = index
+        return self._config_table_index
+
+    def is_config_table_index_built(self) -> bool:
+        """Return whether the config table index is already built."""
+        return self._config_table_index is not None
 
     # Writes
 

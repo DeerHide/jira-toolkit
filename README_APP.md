@@ -147,7 +147,8 @@ jira-importer.exe --credentials test
 
 - Everything in one file
 - Helpful lookup tables (assignees, sprints, components) in the same Excel
-- Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents`
+- Use structured tables like `CfgAssignees`, `CfgSprints`, `CfgComponents` in sheets whose names start with `config` or `cfg` (case-insensitive)
+- Missing required config tables fail fast during initialization (before dataset processing starts)
 
 ### Option B: JSON Configuration
 
@@ -238,7 +239,7 @@ Custom types and their levels can be configured in the configuration files (JSON
 
 ### Excel Table Configuration
 
-Use structured tables in your Excel `Config` sheet:
+Use structured tables in config worksheets (`config*` / `cfg*`, case-insensitive):
 
 - `CfgAssignees` - User mapping
 - `CfgSprints` - Sprint configuration
@@ -246,6 +247,9 @@ Use structured tables in your Excel `Config` sheet:
 - `CfgIssueTypes` - Issue type hierarchy
 - `CfgPriorities` - Priority mapping
 - `CfgTeams` - Team mapping
+
+Required tables: `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`  
+Optional tables: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`
 
 ### Row Skipping
 

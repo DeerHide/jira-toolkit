@@ -99,7 +99,11 @@ class App:
                 self.artifact_manager.delete_all()
             except Exception:  # pylint: disable=broad-except
                 logger.exception("Failed to clean up artifacts during shutdown")
-        logger.info("Jira Importer finished.")
+        ui, _ = self._get_ui_fmt()
+        if exit_code != 0:
+            ui.error(f"Jira Importer finished with error code: {exit_code}")
+        else:
+            ui.success("Jira Importer finished.")
         sys.exit(exit_code)
 
     def event_abort(self, exit_code: int = -1, message: str = "Execution aborted.") -> None:
@@ -230,8 +234,7 @@ class App:
         config_group_exclusive.add_argument(
             "-ci",
             "--config-input",
-            # help="Get the configuration path from the input file location",
-            help=argparse.SUPPRESS,
+            help="Get the configuration path from the input file location",
             action="store_true",
         )
         config_group_exclusive.add_argument(

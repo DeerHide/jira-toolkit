@@ -11,6 +11,7 @@ from typing import Any, TypeVar
 
 from .. import CFG_REQ_DEFAULT, DEFAULT_CONFIG_FILENAME
 from ..errors import ConfigurationError
+from ..errors.config import ConfigValidationPolicy
 from ..import_pipeline.cloud.constants import SENSITIVE_TERMS
 from .config_models import ExcelTableConfig, parse_teams
 from .config_view import ConfigView
@@ -37,8 +38,7 @@ class JsonConfiguration:
         self.cfg_req = cfg_req
         self._table_config: ExcelTableConfig | None = None
         if self.version_check():
-            logger.critical("Wrong file config version or missing version key.")
-            # raise ConfigurationError("Wrong file config version or missing version key.")
+            logger.warning(ConfigValidationPolicy.version_warning(self.cfg_req))
         logger.debug(f"Configuration content: {self._redacted_content()}")
 
     def version_check(self) -> bool:
@@ -101,8 +101,8 @@ class JsonConfiguration:
 
         if expected_type is not None and not isinstance(value, expected_type):
             raise ConfigurationError(
-                f"Config key '{key}' expected {expected_type.__name__}, got {type(value).__name__}",
-                details={"key": key, "expected_type": expected_type.__name__, "actual_type": type(value).__name__},
+                ConfigValidationPolicy.type_mismatch_message(key, expected_type, value),
+                details=ConfigValidationPolicy.type_mismatch_details(key, expected_type, value),
             )
 
         return value  # type: ignore[return-value]

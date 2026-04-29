@@ -16,6 +16,62 @@ from .config_display import display_config_content, display_table_config
 from .config_factory import ConfigurationFactory, ConfigurationType
 
 
+def _is_excel_file_path(path: str) -> bool:
+    """Return True when path points to a supported Excel file extension."""
+    return Path(path).suffix.lower() in {".xlsx", ".xlsm"}
+
+
+def get_config_source_runtime_info(args: Any, config_path: str) -> tuple[str, str]:
+    """Describe effective runtime config source and override guidance.
+
+    Args:
+        args: Parsed command line arguments.
+        config_path: Final configuration path resolved by startup logic.
+
+    Returns:
+        Tuple of (source_label, override_hint) for runtime display.
+    """
+    input_file = getattr(args, "input_file", "")
+    config_arg = getattr(args, "config", DEFAULT_CONFIG_FILENAME)
+    input_is_excel = bool(input_file) and _is_excel_file_path(input_file)
+    embedded_excel_config = bool(input_file) and Path(config_path).resolve() == Path(input_file).resolve()
+
+    if getattr(args, "config_default", False):
+        return (
+            "default config file",
+            "Use --config <path> for JSON, --config-input for local default, or --config-excel for workbook Config sheet.",
+        )
+
+    if getattr(args, "config_input", False):
+        return (
+            "default config file (input directory)",
+            "Use --config <path> for JSON, --config-default for executable default, or --config-excel for workbook Config sheet.",
+        )
+
+    if getattr(args, "config_excel", False) or embedded_excel_config:
+        return (
+            "Excel sheet (Config tab in input workbook)",
+            "Use --config <path> to force JSON, or --config-default / --config-input to force default config file.",
+        )
+
+    if config_arg != DEFAULT_CONFIG_FILENAME:
+        return (
+            "JSON config file",
+            "Use --config-excel for workbook Config sheet, or --config-default / --config-input for default config file.",
+        )
+
+    if Path(config_path).name == DEFAULT_CONFIG_FILENAME and not input_is_excel:
+        return (
+            "default config file",
+            "Use --config <path> for JSON, or --config-excel to use the input workbook Config sheet.",
+        )
+
+    return (
+        "JSON config file",
+        "Use --config-excel for workbook Config sheet, or --config-default / --config-input for default config file.",
+    )
+
+
 def determine_config_path(args: Any) -> str:
     """Determine the configuration file path based on command line arguments.
 
@@ -45,7 +101,7 @@ def determine_config_path(args: Any) -> str:
         config_path = find_config_path(args.config, args.input_file, config_specific=True)
         logging.debug(f"Specific config provided: {config_path}")
     # Smart default: if input is Excel, try using it as config first
-    elif args.input_file and Path(args.input_file).suffix.lower() in {".xlsx", ".xlsm"}:
+    elif args.input_file and _is_excel_file_path(args.input_file):
         # Try using the input Excel file as config source
         input_path = Path(args.input_file)
         if input_path.exists():
@@ -156,10 +212,16 @@ def load_configuration_with_error_handling(
 
     Returns:
         Tuple of (config, config_path, exit_code). On success, returns (config, config_path, 0).
-        On error, handles error display/logging, calls graceful exit, and returns (None, None, 1).
+        On error, handles error display/logging, calls graceful exit with the derived code,
+        and returns (None, None, derived_exit_code).
     """
     from jira_importer.app import App  # pylint: disable=import-outside-toplevel
-    from jira_importer.errors import format_error_for_display, log_exception  # pylint: disable=import-outside-toplevel
+    from jira_importer.errors import (  # pylint: disable=import-outside-toplevel
+        ErrorCode,
+        ProcessingError,
+        format_error_for_display,
+        log_exception,
+    )
 
     ui_instance = ConsoleIO.get_ui()
 
@@ -168,9 +230,14 @@ def load_configuration_with_error_handling(
         config = ConfigurationFactory.create_config(config_path, cfg_req=CFG_REQ_DEFAULT, config_sheet="Config")
         return config, config_path, 0
     except Exception as config_exc:  # pylint: disable=broad-except
-        log_exception(logger, config_exc, context="Configuration loading")
+        log_exception(logger, config_exc, context="Configuration loading", level=logging.DEBUG)
         error_message = format_error_for_display(config_exc)
         ui_instance.error(error_message)
+        exit_code = (
+            config_exc.code.code
+            if isinstance(config_exc, ProcessingError)
+            else ErrorCode.CONFIG_FILE_ERROR.code
+        )
         # Use App.graceful_exit for consistent error handling
-        App.graceful_exit(exit_code=1, do_cleanup=False)
-        return None, None, 1
+        App.graceful_exit(exit_code=exit_code, do_cleanup=False)
+        return None, None, exit_code

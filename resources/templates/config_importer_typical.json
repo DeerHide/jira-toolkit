@@ -1,5 +1,15 @@
 {
+  "app": {
+    "import": {
+      "auto_open_page": false
+    }
+  },
   "jira": {
+    "cloud": {
+      "estimate": {
+        "multiply_by_60": false
+      }
+    },
     "connection": {
       "site_address": "https://your-instance.atlassian.net"
     },
@@ -10,6 +20,12 @@
       { "name": "Task", "level": 3 },
       { "name": "Bug", "level": 3 },
       { "name": "Sub-Task", "level": 4 }
+    ],
+    "custom_fields": [
+      { "name": "CF Number", "id": "customfield_10125", "type": "number" },
+      { "name": "CF Plain Text", "id": "customfield_10124", "type": "text" },
+      { "name": "CF Select", "id": "customfield_10126", "type": "select" },
+      { "name": "CF Date", "id": "customfield_10123", "type": "date" }
     ],
     "priorities": [
       "Highest",
@@ -22,15 +38,18 @@
       "key": "PROJECT-KEY"
     }
   },
+  "metadata": {
+    "version": 7
+  },
   "validation": {
-    "skip_rowtype": true,
+    "fixers": {
+      "disabled": []
+    },
     "skip_issuetypes": [
       "comment",
       "note",
       "skip"
-    ]
-  },
-  "metadata": {
-    "version": 7
+    ],
+    "skip_rowtype": true
   }
 }

@@ -24,7 +24,8 @@ This document covers the current features and capabilities of the Jira Importer 
 #### Excel Table Configuration
 
 - **Structured configuration tables**: Use Excel tables for assignees, sprints, components
-- **Automatic table detection**: Reads configuration from `Config` sheet
+- **Automatic table detection**: Reads configuration tables from sheets prefixed `config*` or `cfg*` (case-insensitive)
+- **Fail-fast config validation**: Missing required config tables stop initialization before dataset processing
 - **Table types supported**:
   - `CfgAssignees`: User mapping (name → ID)
   - `CfgSprints`: Sprint configuration
@@ -33,9 +34,12 @@ This document covers the current features and capabilities of the Jira Importer 
   - `CfgIssueTypes`: Issue type hierarchy
   - `CfgIgnoreList`: Row skipping rules
   - `CfgPriorities`: Priority mapping
-  - `CfgAutoFieldValues`: Auto-populated field values
+  - `CfgAutofieldValues`: Auto-populated field values
   - `CfgCustomFields`: Custom field configuration (name, id, type)
   - `CfgTeams`: Team mapping (name → ID)
+
+- **Required tables**: `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`
+- **Optional tables**: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`
 
 ### Command Line Interface
 
@@ -70,7 +74,7 @@ This document covers the current features and capabilities of the Jira Importer 
 #### Configuration Methods
 
 - **JSON configuration**: Define custom fields in `jira.custom_fields` array
-- **Excel table configuration**: Use `CfgCustomFields` table in Config sheet
+- **Excel table configuration**: Use `CfgCustomFields` table in a `config*`/`cfg*` sheet (case-insensitive)
 - **Automatic validation**: Values are validated based on field type
 - **Error reporting**: Clear error messages with field name, expected format, and row number
 
@@ -129,6 +133,7 @@ jira-importer.exe your-data.xlsx --cloud --auto-fix
 #### Fix Registry
 
 Fixers are registered by problem code in the `FixRegistry`. The system automatically applies fixes when:
+
 - Auto-fix is enabled (`--auto-fix` flag or configuration)
 - A problem code has a registered fixer
 - The fixer determines the fix is safe to apply

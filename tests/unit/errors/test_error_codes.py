@@ -10,6 +10,7 @@ from jira_importer.errors import (
     InputFileError,
     JiraApiError,
     JiraAuthError,
+    MissingConfigElementError,
     ProcessingError,
     ValidationError,
     format_error_for_display,
@@ -26,6 +27,7 @@ class TestErrorCode:
         assert ErrorCode.INVALID_INPUT.value == "INVALID_INPUT"
         assert ErrorCode.INPUT_FILE_ERROR.value == "INPUT_FILE_ERROR"
         assert ErrorCode.CONFIG_FILE_ERROR.value == "CONFIG_FILE_ERROR"
+        assert ErrorCode.CONFIG_MISSING_REQUIRED.value == "CONFIG_MISSING_REQUIRED"
         assert ErrorCode.VALIDATION_FAILED.value == "VALIDATION_FAILED"
         assert ErrorCode.JIRA_AUTH_ERROR.value == "JIRA_AUTH_ERROR"
         assert ErrorCode.JIRA_API_ERROR.value == "JIRA_API_ERROR"
@@ -36,6 +38,7 @@ class TestErrorCode:
         assert ErrorCode.INVALID_INPUT.code == 1001
         assert ErrorCode.INPUT_FILE_ERROR.code == 1003
         assert ErrorCode.CONFIG_FILE_ERROR.code == 1004
+        assert ErrorCode.CONFIG_MISSING_REQUIRED.code == 1006
         assert ErrorCode.VALIDATION_FAILED.code == 1002
         assert ErrorCode.JIRA_AUTH_ERROR.code == 2001
         assert ErrorCode.JIRA_API_ERROR.code == 2002
@@ -51,6 +54,7 @@ class TestErrorCode:
         assert ErrorCode.get_by_number(1001) == ErrorCode.INVALID_INPUT
         assert ErrorCode.get_by_number(1003) == ErrorCode.INPUT_FILE_ERROR
         assert ErrorCode.get_by_number(1004) == ErrorCode.CONFIG_FILE_ERROR
+        assert ErrorCode.get_by_number(1006) == ErrorCode.CONFIG_MISSING_REQUIRED
         assert ErrorCode.get_by_number(2001) == ErrorCode.JIRA_AUTH_ERROR
         assert ErrorCode.get_by_number(9999) is None
 
@@ -108,6 +112,12 @@ class TestExceptions:
         exc = ExcelConfigurationError("Excel config error")
         assert isinstance(exc, ConfigurationError)
         assert exc.code == ErrorCode.CONFIG_FILE_ERROR
+
+    def test_missing_config_element_error_code(self) -> None:
+        """Test that MissingConfigElementError has dedicated code."""
+        exc = MissingConfigElementError("Missing config element")
+        assert isinstance(exc, ConfigurationError)
+        assert exc.code == ErrorCode.CONFIG_MISSING_REQUIRED
 
     def test_input_file_error_code(self) -> None:
         """Test that InputFileError has correct code."""

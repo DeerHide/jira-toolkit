@@ -36,19 +36,19 @@
       "webBrowserUrl": "",
       "project": "src\\jira_importer_main.py",
       "projectTarget": "",
-      "name": "Run: sandbox/dataset.xlsx -af -dr"
+      "name": "Run DR: sandbox/dataset.xlsx -af -dr"
     },
     {
       "type": "python",
       "interpreter": "(default)",
       "interpreterArguments": "",
-      "scriptArguments": "sandbox/dataset2.xlsx -af -dr -ce -d",
+      "scriptArguments": "sandbox/dataset2.xlsx -af -ce -d",
       "env": {},
       "nativeDebug": false,
       "webBrowserUrl": "",
       "project": "src\\jira_importer_main.py",
       "projectTarget": "",
-      "name": "Run DR: sandbox/dataset2.xlsx -af -dr"
+      "name": "Run: sandbox/dataset2.xlsx -af -ce -d"
     },
     {
       "type": "python",
@@ -72,7 +72,7 @@
       "webBrowserUrl": "",
       "project": "src\\jira_importer_main.py",
       "projectTarget": "",
-      "name": "Run DR: sandbox/dataset3.xlsx -af -dr (split config)"
+      "name": "Run DR: sandbox/dataset3.xlsx -af -dr -ce -d (split config)"
     },
     {
       "type": "python",
@@ -84,7 +84,7 @@
       "webBrowserUrl": "",
       "project": "src\\jira_importer_main.py",
       "projectTarget": "",
-      "name": "Run DR: sandbox/dataset3_noIssueTypes.xlsx -af -dr (split config)"
+      "name": "Run DR: sandbox/dataset3_noIssueTypes.xlsx -af -dr -ce -d (split config)"
     }
   ]
 }

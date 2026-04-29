@@ -10,7 +10,7 @@ repos:
       - id: poetry lock and update
         name: poetry lock and update
         entry: "poetry"
-        args: ["update", "--with=test", "--sync"]
+        args: ["install", "--extras", "dev", "--sync"]
         language: system
         types: [python]
         pass_filenames: false

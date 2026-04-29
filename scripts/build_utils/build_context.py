@@ -76,8 +76,12 @@ class BuildContext:
         if self.profile not in profiles:
             raise ValueError(f"Unknown profile: {self.profile}. Available profiles: {list(profiles.keys())}")
 
-        cfg = self._deep_merge_dicts(base, platforms.get(plat_key, {}))
-        cfg = self._deep_merge_dicts(cfg, profiles[self.profile])
+        platform_cfg = platforms.get(plat_key, {})
+        profile_cfg = profiles[self.profile]
+
+        cfg = self._deep_merge_dicts(base, platform_cfg)
+        cfg = self._deep_merge_dicts(cfg, profile_cfg)
+        self._apply_code_signing_platform_gate(cfg=cfg, platform_cfg=platform_cfg, profile_cfg=profile_cfg)
 
         # Validate required configuration keys
         self._validate_config(cfg)
@@ -153,6 +157,30 @@ class BuildContext:
             else:
                 out[k] = v
         return out
+
+    def _apply_code_signing_platform_gate(
+        self,
+        cfg: dict[str, Any],
+        platform_cfg: Mapping[str, Any],
+        profile_cfg: Mapping[str, Any],
+    ) -> None:
+        """Ensure code signing enablement remains gated by platform support.
+
+        The profile can request code signing, but it cannot enable signing if the
+        current platform configuration disables it.
+        """
+        platform_signing = platform_cfg.get("code_signing", {})
+        profile_signing = profile_cfg.get("code_signing", {})
+
+        platform_enabled = bool(platform_signing.get("enabled", False))
+        profile_enabled = bool(profile_signing.get("enabled", platform_enabled))
+        gated_enabled = platform_enabled and profile_enabled
+
+        code_signing_cfg = cfg.get("code_signing")
+        if not isinstance(code_signing_cfg, dict):
+            code_signing_cfg = {}
+            cfg["code_signing"] = code_signing_cfg
+        code_signing_cfg["enabled"] = gated_enabled
 
     # Backward-compatible aliases
     # TODO: Update the other script used for the custom builds to use the BuildContextProtocol

@@ -5,7 +5,6 @@
       "version": "build/version/VSVersionInfo"
     },
     "pyinstaller": {
-      "onefile": true,
       "console": true,
       "name": "jira-importer",
       "add_data": [
@@ -28,7 +27,6 @@
       "version": "build/version/Info.plist"
     },
     "pyinstaller": {
-      "onefile": true,
       "console": true,
       "name": "jira-importer",
       "add_data": [
@@ -46,7 +44,6 @@
       "icon": "build/icons/deerhide_default.png"
     },
     "pyinstaller": {
-      "onefile": true,
       "console": true,
       "name": "jira-importer",
       "add_data": [

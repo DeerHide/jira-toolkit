@@ -8,6 +8,7 @@ Author:
 from __future__ import annotations
 
 # Import libraries
+import errno
 import logging
 import re
 import warnings
@@ -41,6 +42,7 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="openpyxl")
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 ui, fmt = ConsoleIO.get_components()
+ERRNO_PERMISSION_DENIED = errno.EACCES
 
 
 def _show_debug_info(args: Any, config: Any, logger: logging.Logger) -> None:
@@ -279,7 +281,7 @@ def main() -> int:
         return 3
     except (PermissionError, OSError) as file_exc:
         # File I/O errors (e.g. output CSV open in Excel) - wrap in domain exception for consistent handling
-        if isinstance(file_exc, PermissionError) or getattr(file_exc, "errno", None) == 13:
+        if isinstance(file_exc, PermissionError) or getattr(file_exc, "errno", None) == ERRNO_PERMISSION_DENIED:
             path = getattr(file_exc, "filename", None)
             if path is None:
                 match = re.search(r"'([^']+)'", str(file_exc))

@@ -283,8 +283,7 @@ class App:
             "-cld",
             "--cloud-debug-payloads",
             action="store_true",
-            help=argparse.SUPPRESS,
-            # help="Write Jira Cloud API payloads to JSON files for debugging (automatically enabled with -d)",
+            help="Write Jira Cloud API payloads to JSON files for debugging",
         )
 
     @staticmethod

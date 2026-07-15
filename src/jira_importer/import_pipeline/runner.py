@@ -32,6 +32,7 @@ class PipelineOptions:
     fix_cloud_estimates: bool = False
     debug: bool = False
     cloud_debug_payloads: bool = False
+    cloud_submit: bool = False  # True when -cl/--cloud; False for -cld alone (payload dump only)
     auto_reply: bool | None = None
 
 
@@ -265,53 +266,91 @@ class ImportRunner:
         """Handle cloud output and return exit code."""
         self.context.ui.info("Output target: Jira Cloud API")
 
-        # Check for critical assignee, reporter, or team errors before proceeding
-        critical_assignee_errors = [
-            p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("assignee.")
-        ]
-        critical_reporter_errors = [
-            p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("reporter.")
-        ]
-        critical_team_errors = [
-            p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("team.")
-        ]
-        if critical_assignee_errors or critical_reporter_errors or critical_team_errors:
-            if critical_assignee_errors:
-                self.context.ui.error("Critical assignee errors found - cannot proceed with cloud import:")
-                for error in critical_assignee_errors:
-                    self.context.ui.error(f"  Row {error.row_index}: {error.message}")
-            if critical_reporter_errors:
-                self.context.ui.error("Critical reporter errors found - cannot proceed with cloud import:")
-                for error in critical_reporter_errors:
-                    self.context.ui.error(f"  Row {error.row_index}: {error.message}")
-            if critical_team_errors:
-                self.context.ui.error("Critical team errors found - cannot proceed with cloud import:")
-                for error in critical_team_errors:
-                    self.context.ui.error(f"  Row {error.row_index}: {error.message}")
-            App.event_fatal(
-                exit_code=4,
-                message="Critical assignee/reporter/team errors prevent cloud import",
-                args=None,
-            )
+        submit = self.options.cloud_submit
+
+        # Live-import only: critical assignee/reporter/team errors block create API calls
+        if submit:
+            critical_assignee_errors = [
+                p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("assignee.")
+            ]
+            critical_reporter_errors = [
+                p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("reporter.")
+            ]
+            critical_team_errors = [
+                p for p in result.problems if p.severity == ProblemSeverity.CRITICAL and p.code.startswith("team.")
+            ]
+            if critical_assignee_errors or critical_reporter_errors or critical_team_errors:
+                if critical_assignee_errors:
+                    self.context.ui.error("Critical assignee errors found - cannot proceed with cloud import:")
+                    for error in critical_assignee_errors:
+                        self.context.ui.error(f"  Row {error.row_index}: {error.message}")
+                if critical_reporter_errors:
+                    self.context.ui.error("Critical reporter errors found - cannot proceed with cloud import:")
+                    for error in critical_reporter_errors:
+                        self.context.ui.error(f"  Row {error.row_index}: {error.message}")
+                if critical_team_errors:
+                    self.context.ui.error("Critical team errors found - cannot proceed with cloud import:")
+                    for error in critical_team_errors:
+                        self.context.ui.error(f"  Row {error.row_index}: {error.message}")
+                App.event_fatal(
+                    exit_code=4,
+                    message="Critical assignee/reporter/team errors prevent cloud import",
+                    args=None,
+                )
 
         try:
-            # Write payloads if debug mode is enabled or cloud debug flag is set
-            debug_output_dir = (
-                self.context.output_dir if (self.options.debug or self.options.cloud_debug_payloads) else None
-            )
+            # Write payloads if debug mode is enabled or cloud debug flag is set;
+            # -cld alone always writes payloads and does not submit (-cl required for API create)
+            write_payloads = self.options.debug or self.options.cloud_debug_payloads
+            debug_output_dir = self.context.output_dir if write_payloads else None
+            if self.options.cloud_debug_payloads:
+                if submit:
+                    msg = (
+                        "Cloud debug payloads (-cld): writing JSON alongside import"
+                        + (f" → {debug_output_dir}" if debug_output_dir else "")
+                    )
+                    self.context.ui.info(msg)
+                    if self.context.logger:
+                        self.context.logger.info(msg)
+                else:
+                    self.context.ui.info("Cloud debug payloads: writing JSON only (no import)")
+                    self.context.ui.warning(
+                        "Without -cl/--cloud, dumped JSON may not match a live import: parent/child linkage "
+                        "is resolved only after earlier issues are created in Jira."
+                    )
+                    if self.context.logger:
+                        self.context.logger.info(
+                            "Cloud debug payloads (-cld): writing JSON only (no import); "
+                            "parent/child linkage may be unresolved without a live import"
+                        )
             report = write_cloud(
                 result,
                 self.context.config,
                 dry_run=False,
+                submit=submit,
                 output_dir=debug_output_dir,
                 ui=self.context.ui,
                 input_file_stem=self.context.input_path.stem,
             )
-            self.context.ui.success(
-                f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}"
-            )
+            if submit:
+                self.context.ui.success(
+                    f"Cloud import: created={report.created}, failed={report.failed}, batches={report.batches}"
+                )
+            else:
+                self.context.ui.success(f"Cloud payload dump: batches={report.batches} (no issues created)")
             if debug_output_dir:
-                self.context.ui.info(f"Jira Cloud payloads written to: {debug_output_dir}")
+                if report.payload_files:
+                    self.context.ui.info("Jira Cloud payload files:")
+                    for payload_path in report.payload_files:
+                        path_str = str(payload_path)
+                        self.context.ui.say(f"  → {self.context.ui.fmt.path(path_str)}")
+                        if self.context.logger:
+                            self.context.logger.info("Wrote Jira Cloud payload file: %s", path_str)
+                else:
+                    written_msg = f"Jira Cloud payloads directory: {debug_output_dir}"
+                    self.context.ui.info(written_msg)
+                    if self.context.logger:
+                        self.context.logger.info(written_msg)
             if report.created_issue_keys:
                 # Display created issue keys in a user-friendly format
                 issue_keys_str = ", ".join(report.created_issue_keys)
@@ -354,7 +393,13 @@ class ImportRunner:
         summary = self._build_outcome_summary(
             result,
             prefix="Done",
-            output="Jira Cloud API",
+            output=(
+                "Jira Cloud API (+ payload JSON)"
+                if submit and self.options.cloud_debug_payloads
+                else "Jira Cloud API"
+                if submit
+                else "cloud payload JSON (no import)"
+            ),
             extra=extras,
         )
         # Outcome summary (always shown, even in quiet mode)
@@ -514,8 +559,8 @@ class ImportRunner:
 
         # 4. Check critical problems
         if critical_problems:
-            # If --auto-yes and --cloud, terminate immediately
-            if self.options.auto_reply is True and self.context.output_target == "cloud":
+            # If --auto-yes and live cloud import (-cl), terminate immediately
+            if self.options.auto_reply is True and self.options.cloud_submit:
                 critical_count = len(critical_problems)
                 self.context.ui.error(
                     f"Cannot proceed with --auto-yes and --cloud when {critical_count} critical issue(s) are present. "

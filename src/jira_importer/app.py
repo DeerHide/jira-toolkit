@@ -82,7 +82,15 @@ class App:
             return fast_args
 
         parser = App._build_parser()
-        return parser.parse_args(provided_argv)
+        args = parser.parse_args(provided_argv)
+
+        if getattr(args, "cloud_debug_payloads", False) and getattr(args, "dry_run", False):
+            parser.error(
+                "--cloud-debug-payloads (-cld) cannot be used with --dry-run (-dr): "
+                "dry-run writes no output, while -cld must write payload JSON files."
+            )
+
+        return args
 
     def print_version(self) -> None:
         """Print the version of the App, as declared during the build process."""
@@ -283,7 +291,12 @@ class App:
             "-cld",
             "--cloud-debug-payloads",
             action="store_true",
-            help="Write Jira Cloud API payloads to JSON files for debugging",
+            help=(
+                "Write Jira Cloud API payloads to JSON without importing. "
+                "Alone, dumped JSON may not be directly reusable because parent/child links are filled only "
+                "after earlier issues are created—use with -cl/--cloud to import and write resolved payloads. "
+                "Incompatible with --dry-run/-dr."
+            ),
         )
 
     @staticmethod
@@ -357,7 +370,10 @@ class App:
         debug_group.add_argument("-d", "--debug", help="Enable debug logging", action="store_true")
         debug_group.add_argument("-sc", "--show-config", help="Show configuration and exit", action="store_true")
         debug_group.add_argument(
-            "-dr", "--dry-run", help="Process data but stop before writing output", action="store_true"
+            "-dr",
+            "--dry-run",
+            help="Process data but stop before writing output (incompatible with --cloud-debug-payloads/-cld)",
+            action="store_true",
         )
 
     @staticmethod
@@ -474,6 +490,6 @@ class App:
         Returns:
             Output target: "cloud" or "csv".
         """
-        if getattr(args, "output_target_cloud", False):
+        if getattr(args, "output_target_cloud", False) or getattr(args, "cloud_debug_payloads", False):
             return "cloud"
         return "csv"

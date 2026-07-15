@@ -209,7 +209,8 @@ def main() -> int:
             app.event_close(exit_code=2, cleanup=True)
             return 2
 
-        if not args.dry_run:
+        # Only prompt for live import when -cl/--cloud is set (not -cld alone)
+        if not args.dry_run and getattr(args, "output_target_cloud", False):
             _question = "Using the Cloud mode will directly import the data into your Jira Cloud instance. Do you want to continue?"
             if not ui.prompt_yes_no(_question, default=False, auto_reply=autoreply):
                 app.event_abort(exit_code=1, message="Run (--cloud) stopped")
@@ -271,6 +272,7 @@ def main() -> int:
         fix_cloud_estimates=args.fix_cloud_estimates,
         debug=args.debug,
         cloud_debug_payloads=getattr(args, "cloud_debug_payloads", False),
+        cloud_submit=getattr(args, "output_target_cloud", False),
         auto_reply=autoreply,
     )
 

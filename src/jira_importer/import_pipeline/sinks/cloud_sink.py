@@ -42,17 +42,25 @@ from ..models import CloudBulkIssueError, ColumnIndices, ProcessorResult
 logger = logging.getLogger(__name__)
 
 
-def _write_payload_debug(payload: dict[str, Any], batch_num: int, debug_context: CloudDebugContext) -> None:
-    """Write JSON payload to debug file for inspection."""
+def _write_payload_debug(payload: dict[str, Any], batch_num: int, debug_context: CloudDebugContext) -> Path | None:
+    """Write JSON payload to debug file for inspection.
+
+    Returns:
+        Path written, or None if debug output is disabled or write failed.
+    """
     debug_file = debug_context.payload_file(batch_num)
     if debug_file is None:
-        return
+        return None
     try:
         with open(debug_file, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
-        logger.debug(f"Wrote Jira Cloud payload to: {debug_file}")
+        resolved = debug_file.resolve()
+        debug_context.written_files.append(resolved)
+        logger.info("Wrote Jira Cloud payload to: %s", resolved)
+        return resolved
     except (OSError, TypeError, ValueError) as e:
         logger.warning(f"Failed to write payload debug file: {e}")
+        return None
 
 
 @dataclass
@@ -64,6 +72,7 @@ class CloudSubmitReport:
     batches: int
     errors: list[CloudBulkIssueError]
     created_issue_keys: list[str] = field(default_factory=list)
+    payload_files: list[Path] = field(default_factory=list)
 
 
 @dataclass
@@ -72,6 +81,7 @@ class CloudDebugContext:
 
     output_dir: Path | None = None
     input_file_stem: str | None = None
+    written_files: list[Path] = field(default_factory=list)
 
     def payload_file(self, batch_num: int) -> Path | None:
         """Build payload debug file path for a batch, if debug output is enabled."""
@@ -89,8 +99,7 @@ def _validate_config(config: object) -> tuple[str, str, str]:
     base_url = cfg.get("jira.connection.site_address", None)
     if not base_url:
         raise ConfigurationError(
-            "Missing jira.connection.site_address in configuration for Cloud sink. "
-            "You can set it in your JSON/Excel config.",
+            "Missing jira.connection.site_address in configuration for Cloud sink. You can set it in your JSON/Excel config.",
             details={"config_key": "jira.connection.site_address"},
         )
 
@@ -98,8 +107,7 @@ def _validate_config(config: object) -> tuple[str, str, str]:
     parsed = urlparse(str(base_url))
     if not parsed.scheme or not parsed.netloc:
         raise ConfigurationError(
-            "Invalid jira.connection.site_address in configuration for Cloud sink. "
-            "Expected an HTTPS URL like 'https://your-domain.atlassian.net'.",
+            "Invalid jira.connection.site_address in configuration for Cloud sink. Expected an HTTPS URL like 'https://your-domain.atlassian.net'.",
             details={"config_key": "jira.connection.site_address", "value": str(base_url)},
         )
     if parsed.scheme.lower() != "https":
@@ -128,8 +136,7 @@ def _validate_config(config: object) -> tuple[str, str, str]:
     # Lightweight email format validation
     if "@" not in email or email.strip().startswith("@") or email.strip().endswith("@"):
         raise ConfigurationError(
-            f"Invalid Jira account email configured for Cloud sink: '{email}'. "
-            "Please provide a valid email address (e.g. name@example.com).",
+            f"Invalid Jira account email configured for Cloud sink: '{email}'. Please provide a valid email address (e.g. name@example.com).",
             details={"config_key": "jira.connection.auth.email", "value": email},
         )
 
@@ -171,6 +178,8 @@ def _process_batches(
     config: object,
     auth_context: dict | None,
     input_file_stem: str | None = None,
+    *,
+    submit: bool = True,
 ) -> CloudSubmitReport:
     """Process issues in batches and return submission report."""
     cfg = ConfigView(config)
@@ -191,9 +200,7 @@ def _process_batches(
     custom_configs_by_id: dict[str, CustomFieldConfig] = {cfg.id: cfg for cfg in custom_field_configs}
 
     # Separate issues into three categories based on configurable issue type levels
-    epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues = _separate_parent_child_issues(
-        result, mapper, config, custom_configs_by_id
-    )
+    epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues = _separate_parent_child_issues(result, mapper, config, custom_configs_by_id)
 
     if dry_run:
         return CloudSubmitReport(created=0, failed=0, batches=0, errors=[], created_issue_keys=[])
@@ -210,7 +217,7 @@ def _process_batches(
 
     # Batch 1: Create Epics first (standalone)
     if epics:
-        logger.info(f"Creating {len(epics)} epics...")
+        logger.info(f"{'Writing payloads for' if not submit else 'Creating'} {len(epics)} epics...")
         epic_results = _create_issues_batch(
             client,
             epics,
@@ -219,6 +226,7 @@ def _process_batches(
             ui,
             auth_context,
             start_batch_num=next_batch_num,
+            submit=submit,
         )
         created += epic_results["created"]
         failed += epic_results["failed"]
@@ -237,9 +245,10 @@ def _process_batches(
 
     # Batch 2: Create Stories and Tasks with parent references to Epics
     if stories_and_tasks:
-        logger.info(f"Creating {len(stories_and_tasks)} stories and tasks...")
-        # Update stories and tasks with actual parent keys
-        _update_child_parents(stories_and_tasks, parent_key_map, parent_mapping, mapper, config)
+        logger.info(f"{'Writing payloads for' if not submit else 'Creating'} {len(stories_and_tasks)} stories and tasks...")
+        # Only rewrite parents after live creates; dump-only keeps mapper placeholders as-is
+        if submit:
+            _update_child_parents(stories_and_tasks, parent_key_map, parent_mapping, mapper, config)
         story_task_results = _create_issues_batch(
             client,
             stories_and_tasks,
@@ -248,6 +257,7 @@ def _process_batches(
             ui,
             auth_context,
             start_batch_num=next_batch_num,
+            submit=submit,
         )
         created += story_task_results["created"]
         failed += story_task_results["failed"]
@@ -266,12 +276,13 @@ def _process_batches(
 
     # Batch 3: Create Sub-tasks with parent references to Stories/Tasks
     if sub_tasks:
-        logger.info(f"Creating {len(sub_tasks)} sub-tasks...")
-        # Resolve Sub-task parent references now that Stories/Tasks exist
-        if result.indices is not None:
-            _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues, config)
-        # Update sub-tasks with real parent keys
-        _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper, config)
+        logger.info(f"{'Writing payloads for' if not submit else 'Creating'} {len(sub_tasks)} sub-tasks...")
+        if submit:
+            # Resolve Sub-task parent references now that Stories/Tasks exist
+            if result.indices is not None:
+                _resolve_subtask_parents(sub_tasks, parent_key_map, result.indices, all_issues, config)
+            # Update sub-tasks with real parent keys
+            _update_child_parents(sub_tasks, parent_key_map, parent_mapping, mapper, config)
         subtask_results = _create_issues_batch(
             client,
             sub_tasks,
@@ -280,6 +291,7 @@ def _process_batches(
             ui,
             auth_context,
             start_batch_num=next_batch_num,
+            submit=submit,
         )
         created += subtask_results["created"]
         failed += subtask_results["failed"]
@@ -293,7 +305,12 @@ def _process_batches(
                 created_issue_keys.append(issue["key"])
 
     return CloudSubmitReport(
-        created=created, failed=failed, batches=batches, errors=errors, created_issue_keys=created_issue_keys
+        created=created,
+        failed=failed,
+        batches=batches,
+        errors=errors,
+        created_issue_keys=created_issue_keys,
+        payload_files=list(debug_context.written_files),
     )
 
 
@@ -302,6 +319,7 @@ def write_cloud(
     config: object,
     *,
     dry_run: bool = False,
+    submit: bool = True,
     output_dir: Path | None = None,
     ui: Any | None = None,
     auto_reply: bool | None = None,
@@ -313,6 +331,7 @@ def write_cloud(
         result: Processed result containin rows and column indices.
         config: Configuration object.
         dry_run: If True, skip actual API calls.
+        submit: If False, build and optionally write payloads but do not POST issue/bulk.
         output_dir: Optional directory for debug output.
         ui: Optional UI object for progress tracking and user interaction.
         auto_reply: Optional auto-reply flag for non-interactive mode.
@@ -375,6 +394,7 @@ def write_cloud(
         config,
         auth_context,
         input_file_stem=input_file_stem,
+        submit=submit,
     )
 
 
@@ -401,9 +421,7 @@ def _separate_parent_child_issues(
     all_issues, summary_to_row = _collect_issues_with_summaries(result, mapper, custom_configs_by_id)
 
     # Separate based on issue type and fix parent references
-    epics, stories_and_tasks, sub_tasks, parent_mapping = _classify_and_fix_issues(
-        all_issues, summary_to_row, result.indices, config
-    )
+    epics, stories_and_tasks, sub_tasks, parent_mapping = _classify_and_fix_issues(all_issues, summary_to_row, result.indices, config)
 
     logger.info(f"Separated {len(epics)} epics, {len(stories_and_tasks)} stories/tasks, and {len(sub_tasks)} sub-tasks")
     return epics, stories_and_tasks, sub_tasks, parent_mapping, all_issues
@@ -426,9 +444,7 @@ def _collect_issues_with_summaries(
             )
         # Pass row_index (0-based) + 1 to get 1-based index (header = 1)
         # First data row is at index 0, so row_index + 1 = 2 (first data row)
-        payload = mapper.map_row(
-            row, result.indices, custom_configs_by_id=custom_configs_by_id, row_index=row_index + 1
-        )
+        payload = mapper.map_row(row, result.indices, custom_configs_by_id=custom_configs_by_id, row_index=row_index + 1)
         summary = payload.get("fields", {}).get("summary", "")
         all_issues.append((row_index, payload, summary, row))  # Include original row data
         if summary:
@@ -439,9 +455,7 @@ def _collect_issues_with_summaries(
 
 def _classify_and_fix_issues(
     all_issues: list, summary_to_row: dict[str, int], indices: ColumnIndices, config: Any
-) -> tuple[
-    list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], dict[str, str]
-]:
+) -> tuple[list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], list[tuple[int, dict[str, Any]]], dict[str, str]]:
     """Classify issues into three categories: Epics, Stories/Tasks, and Sub-tasks."""
     epics: list[tuple[int, dict[str, Any]]] = []
     stories_and_tasks: list[tuple[int, dict[str, Any]]] = []
@@ -555,27 +569,19 @@ def _process_parent_issue(
                     if parent_level == LEVEL_2_EPIC and "parent" not in parent_payload.get("fields", {}):
                         # Valid parent reference - keep it as row index for later mapping
                         payload["fields"]["parent"]["key"] = corrected_parent
-                        logger.info(
-                            f"Row {row_index}: Corrected parent reference from '{parent_key}' to '{corrected_parent}'"
-                        )
+                        logger.info(f"Row {row_index}: Corrected parent reference from '{parent_key}' to '{corrected_parent}'")
                     else:
                         # Invalid parent reference - remove it
                         del payload["fields"]["parent"]
-                        logger.debug(
-                            f"Row {row_index}: Removed invalid parent reference '{parent_key}' (referenced parent is not a valid Epic)"
-                        )
+                        logger.debug(f"Row {row_index}: Removed invalid parent reference '{parent_key}' (referenced parent is not a valid Epic)")
                 else:
                     # Invalid row index - remove parent reference
                     del payload["fields"]["parent"]
-                    logger.debug(
-                        f"Row {row_index}: Removed invalid parent reference '{parent_key}' (invalid row index)"
-                    )
+                    logger.debug(f"Row {row_index}: Removed invalid parent reference '{parent_key}' (invalid row index)")
             except (ValueError, TypeError):
                 # corrected_parent is not a row index - remove parent reference
                 del payload["fields"]["parent"]
-                logger.debug(
-                    f"Row {row_index}: Removed invalid parent reference '{parent_key}' (not a valid row index)"
-                )
+                logger.debug(f"Row {row_index}: Removed invalid parent reference '{parent_key}' (not a valid row index)")
         else:
             # Remove invalid parent reference
             del payload["fields"]["parent"]
@@ -629,9 +635,7 @@ def _try_fix_parent_reference(
             return str(i)
 
     # Check if this looks like a "Jira Cloud API Integration" sub-task
-    if "Jira Cloud API Integration" in summary_to_row and any(
-        keyword in child_summary.lower() for keyword in PARENT_RESOLUTION_KEYWORDS
-    ):
+    if "Jira Cloud API Integration" in summary_to_row and any(keyword in child_summary.lower() for keyword in PARENT_RESOLUTION_KEYWORDS):
         return str(summary_to_row["Jira Cloud API Integration"])
 
     return None
@@ -696,9 +700,7 @@ def _handle_batch_error_response(
             details={"batch_num": batch_num, "issue_type": issue_type},
         )
     elif resp.status_code == HTTP_FORBIDDEN:
-        error_msg = (
-            "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions" + context_suffix
-        )
+        error_msg = "Authentication failed (HTTP 403) - your API token may be invalid or you lack permissions" + context_suffix
         logger.error(error_msg)
         raise JiraAuthError(
             error_msg,
@@ -742,6 +744,8 @@ def _process_single_batch(
     debug_context: CloudDebugContext,
     issue_type: str,
     context_suffix: str,
+    *,
+    submit: bool = True,
 ) -> tuple[int, int, list[CloudBulkIssueError], list[dict[str, Any]]]:
     """Process a single batch of issues.
 
@@ -753,6 +757,7 @@ def _process_single_batch(
         debug_context: Debug configuration for payload artifact output.
         issue_type: Type of issues being created.
         context_suffix: Additional context for error messages.
+        submit: If False, write debug payload (when configured) and skip API create.
 
     Returns:
         Tuple of (created_count, failed_count, errors_list, created_issues_list).
@@ -766,6 +771,9 @@ def _process_single_batch(
     # Write payload to debug file if output_dir is provided
     if debug_context.output_dir:
         _write_payload_debug(payload, batch_num, debug_context)
+
+    if not submit:
+        return (0, 0, [], [])
 
     resp = client.post("issue/bulk", json=payload)
 
@@ -827,6 +835,8 @@ def _create_issues_batch(
     ui: Any = None,
     auth_context: dict[str, Any] | None = None,
     start_batch_num: int = 1,
+    *,
+    submit: bool = True,
 ) -> dict[str, Any]:
     """Create a batch of issues and return results.
 
@@ -838,6 +848,7 @@ def _create_issues_batch(
         ui: Optional UI object with progress() method for progress tracking.
         auth_context: Optional authentication context for error messages.
         start_batch_num: First batch number to use for debug payload files.
+        submit: If False, write debug payloads only and skip API create.
 
     Returns:
         Dictionary with keys: created, failed, errors, batches, created_issues.
@@ -858,19 +869,17 @@ def _create_issues_batch(
     # Build auth context suffix for error messages
     context_suffix = ""
     if auth_context is not None:
-        context_suffix = (
-            f" (email: {auth_context.get('email') or 'unknown'}, "
-            f"secret source: {auth_context.get('secret_source') or 'unknown'})"
-        )
+        context_suffix = f" (email: {auth_context.get('email') or 'unknown'}, secret source: {auth_context.get('secret_source') or 'unknown'})"
 
     # Process batches with optional progress tracking
     batch_iter = chunk_issues(payloads, batch_size=BATCH_SIZE)
     payload_cursor = 0
+    progress_label = f"{'Writing' if not submit else 'Creating'} {issue_type} issues"
 
     if ui and hasattr(ui, "progress"):
         # Use progress tracking
         with ui.progress() as progress:
-            task = progress.add_task(f"Creating {issue_type} issues", total=total_batches)
+            task = progress.add_task(progress_label, total=total_batches)
 
             for batch in batch_iter:
                 batch_context = issues[payload_cursor : payload_cursor + len(batch)]
@@ -886,6 +895,7 @@ def _create_issues_batch(
                     debug_context,
                     issue_type,
                     context_suffix,
+                    submit=submit,
                 )
 
                 created += batch_created
@@ -910,6 +920,7 @@ def _create_issues_batch(
                 debug_context,
                 issue_type,
                 context_suffix,
+                submit=submit,
             )
 
             created += batch_created
@@ -927,9 +938,7 @@ def _create_issues_batch(
     }
 
 
-def _build_parent_key_mapping(
-    parent_issues: list[tuple[int, dict[str, Any]]], created_issues: list[dict[str, Any]]
-) -> dict[str, str]:
+def _build_parent_key_mapping(parent_issues: list[tuple[int, dict[str, Any]]], created_issues: list[dict[str, Any]]) -> dict[str, str]:
     """Build mapping from placeholder keys to real Jira keys."""
     mapping: dict[str, str] = {}
 
@@ -964,9 +973,7 @@ def _resolve_subtask_parents(
             if corrected_parent and corrected_parent in parent_key_map:
                 real_parent_key = parent_key_map[corrected_parent]
                 payload["fields"]["parent"]["key"] = real_parent_key
-                logger.info(
-                    f"Row {row_index}: Resolved Sub-task parent reference from '{parent_key}' to '{real_parent_key}'"
-                )
+                logger.info(f"Row {row_index}: Resolved Sub-task parent reference from '{parent_key}' to '{real_parent_key}'")
             else:
                 # Try to find parent by Issue ID
                 try:
@@ -990,11 +997,7 @@ def _resolve_subtask_parents(
                             # Find the row in all_issues that corresponds to this row_idx
                             actual_issue_id = None
                             for check_row_idx, (_, _, _, original_row) in enumerate(all_issues):
-                                if (
-                                    check_row_idx == row_idx
-                                    and indices.issue_id is not None
-                                    and indices.issue_id < len(original_row)
-                                ):
+                                if check_row_idx == row_idx and indices.issue_id is not None and indices.issue_id < len(original_row):
                                     issue_id_value = original_row[indices.issue_id]
                                     if issue_id_value and str(issue_id_value).strip():
                                         try:
@@ -1005,9 +1008,7 @@ def _resolve_subtask_parents(
 
                             if actual_issue_id == parent_issue_id:
                                 payload["fields"]["parent"]["key"] = value
-                                logger.info(
-                                    f"Row {row_index}: Resolved Sub-task parent reference from '{parent_key}' to '{value}'"
-                                )
+                                logger.info(f"Row {row_index}: Resolved Sub-task parent reference from '{parent_key}' to '{value}'")
                                 found_parent = True
                                 break
 
@@ -1058,9 +1059,7 @@ def _update_child_parents(
                     # Convert level 4 issue to default level 3 since parent is invalid
                     fallback_type = get_default_level3_type(config_view.get)
                     child_payload["fields"]["issuetype"]["name"] = fallback_type
-                    logger.info(
-                        f"Row {row_index}: Converted {issuetype} to {fallback_type} (invalid parent reference '{placeholder_key}')"
-                    )
+                    logger.info(f"Row {row_index}: Converted {issuetype} to {fallback_type} (invalid parent reference '{placeholder_key}')")
 
                 # Remove invalid parent reference
                 del child_payload["fields"]["parent"]

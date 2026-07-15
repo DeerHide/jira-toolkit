@@ -18,7 +18,7 @@ urllib3>=2.7.0
 idna>=3.15
 
 # Security and credentials
-keyring
+keyring>=25.7.0
 
 # Configuration
 PyYAML

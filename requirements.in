@@ -14,7 +14,8 @@ openpyxl
 
 # HTTP and API
 requests>=2.33.0
-urllib3>=2.6.3
+urllib3>=2.7.0
+idna>=3.15
 
 # Security and credentials
 keyring

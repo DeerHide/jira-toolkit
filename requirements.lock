@@ -27,8 +27,10 @@ filelock==3.20.3
     # via virtualenv
 identify==2.6.15
     # via pre-commit
-idna==3.11
-    # via requests
+idna==3.18
+    # via
+    #   -r requirements.in
+    #   requests
 jaraco-classes==3.4.0
     # via keyring
 jaraco-context==6.0.1
@@ -99,7 +101,7 @@ tqdm==4.67.1
     # via -r requirements.in
 tzdata==2025.2
     # via pandas
-urllib3==2.6.3
+urllib3==2.7.0
     # via
     #   -r requirements.in
     #   requests

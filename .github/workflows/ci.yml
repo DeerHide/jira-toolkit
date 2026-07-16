@@ -1,0 +1,94 @@
+# PR and branch checks only.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Configure in-project virtualenv
+        run: |
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
+
+      - name: Refresh lockfile for CI
+        run: poetry lock
+
+      - name: Upload poetry.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: poetry-lock
+          path: poetry.lock
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ./.venv
+          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Install project dependencies
+        run: poetry install --extras dev --sync
+
+  pre-commit:
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Download poetry.lock
+        uses: actions/download-artifact@v4
+        with:
+          name: poetry-lock
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ./.venv
+          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Configure in-project virtualenv
+        run: |
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
+
+      - name: Install project dependencies
+        run: poetry install --extras dev --sync
+
+      - name: Run pre-commit (format, lint, types, tests)
+        run: |
+          export PYTHONPATH=./src:./tests:${PYTHONPATH:-}
+          poetry run pre-commit run --all-files

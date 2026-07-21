@@ -92,11 +92,7 @@ repos:
           - "pre-commit"
           - "manual"
       - id: check-json
-        stages:
-          - "pre-commit"
-          - "manual"
-      - id: pretty-format-json
-        args: ["--autofix"]
+        exclude: ^tests/
         stages:
           - "pre-commit"
           - "manual"

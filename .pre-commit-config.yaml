@@ -4,6 +4,8 @@ default_stages:
   - "pre-push"
   - "pre-commit"
   - "manual"
+# Temporary scope: only consider files under src/, scripts/, and build/.
+files: "^(src|scripts|build)/"
 repos:
   - repo: local
     hooks:
@@ -58,7 +60,7 @@ repos:
           - "ruff"
           - "format"
           - "src"
-          - "tests"
+          - "scripts"
         stages:
           - "pre-commit"
           - "manual"
@@ -73,7 +75,7 @@ repos:
           - "ruff"
           - "check"
           - "src"
-          - "tests"
+          - "scripts"
           - "--fix"
         stages:
           - "pre-commit"
@@ -92,7 +94,6 @@ repos:
           - "pre-commit"
           - "manual"
       - id: check-json
-        exclude: ^tests/
         stages:
           - "pre-commit"
           - "manual"

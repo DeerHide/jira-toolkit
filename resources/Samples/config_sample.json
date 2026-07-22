@@ -5,6 +5,9 @@
     }
   },
   "jira": {
+    "connection": {
+      "site_address": "https://your-instance.atlassian.net"
+    },
     "issuetypes": [
       { "name": "Initiative", "level": 1 },
       { "name": "Epic", "level": 2 },

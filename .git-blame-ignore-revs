@@ -1,1 +1,8 @@
+# Bulk reformat after pre-commit update
 aa0cfcbc12d1404df2b7a980824f3dccc80a3040
+# JT-359: pre-commit formatting (tests readability / line wraps)
+a8725846120a26b6993e910827edc138b8c5910a
+# JT-359: pre-commit formatting (src)
+149c9d6653662817f948a69a731fd6c96c7af8ff
+# JT-359: pre-commit formatting (misc)
+c5290994cd8c66df6bd6a137c81b6726287e4b49

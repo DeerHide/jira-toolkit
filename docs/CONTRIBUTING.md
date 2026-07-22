@@ -9,6 +9,8 @@ git clone https://github.com/YOUR_USERNAME/jira-toolkit.git
 cd jira-toolkit
 git remote add upstream https://github.com/DeerHide/jira-toolkit.git
 poetry install --extras dev
+# Make git blame skip known formatting-only commits
+git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 Keep your branch current:
@@ -54,6 +56,19 @@ poetry run ruff format src tests
   - CLI options: `src/jira_importer/app.py`
   - Build profiles: `build/configs/profiles.json`
   - Runtime/package constraints: `pyproject.toml`
+
+## Blame and formatting commits
+
+This repo keeps formatting-only commits in `.git-blame-ignore-revs`.
+After cloning, run:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
+When you land a pure formatter/layout commit (e.g. bulk `ruff format`),
+add its full SHA to that file with a one-line comment explaining why.
+Do not list commits that change behavior.
 
 ## Review Notes
 

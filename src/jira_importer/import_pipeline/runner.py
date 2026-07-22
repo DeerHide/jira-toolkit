@@ -305,9 +305,8 @@ class ImportRunner:
             debug_output_dir = self.context.output_dir if write_payloads else None
             if self.options.cloud_debug_payloads:
                 if submit:
-                    msg = (
-                        "Cloud debug payloads (-cld): writing JSON alongside import"
-                        + (f" → {debug_output_dir}" if debug_output_dir else "")
+                    msg = "Cloud debug payloads (-cld): writing JSON alongside import" + (
+                        f" → {debug_output_dir}" if debug_output_dir else ""
                     )
                     self.context.ui.info(msg)
                     if self.context.logger:

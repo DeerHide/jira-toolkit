@@ -161,9 +161,7 @@ class ReporterResolverRule(IRowRule):
                     problems.append(
                         Problem(
                             code="reporter.no_table_config",
-                            message=(
-                                f"Cannot resolve reporter '{reporter_value}' - no CfgAssignees table available"
-                            ),
+                            message=(f"Cannot resolve reporter '{reporter_value}' - no CfgAssignees table available"),
                             severity=ProblemSeverity.CRITICAL,
                             row_index=ctx.row_index,
                             col_key="reporter",
@@ -183,9 +181,7 @@ class ReporterResolverRule(IRowRule):
                     problems.append(
                         Problem(
                             code="reporter.display_name",
-                            message=(
-                                f"Reporter contains display name '{reporter_value}' - will resolve to accountId"
-                            ),
+                            message=(f"Reporter contains display name '{reporter_value}' - will resolve to accountId"),
                             severity=ProblemSeverity.FIX,
                             row_index=ctx.row_index,
                             col_key="reporter",
@@ -200,9 +196,7 @@ class ReporterResolverRule(IRowRule):
                 problems.append(
                     Problem(
                         code="reporter.no_table_config",
-                        message=(
-                            f"Cannot resolve reporter '{reporter_name_value}' - no CfgAssignees table available"
-                        ),
+                        message=(f"Cannot resolve reporter '{reporter_name_value}' - no CfgAssignees table available"),
                         severity=ProblemSeverity.CRITICAL,
                         row_index=ctx.row_index,
                         col_key="reporter",

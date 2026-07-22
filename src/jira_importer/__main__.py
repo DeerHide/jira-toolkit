@@ -96,7 +96,9 @@ def main() -> int:
 
     # Handle --credentials mode early (like --version)
     if hasattr(args, "credentials") and args.credentials in CREDENTIALS_ACTIONS:
-        from .import_pipeline.cloud.credential_manager import run_credentials_cli  # pylint: disable=import-outside-toplevel
+        from .import_pipeline.cloud.credential_manager import (
+            run_credentials_cli,  # pylint: disable=import-outside-toplevel
+        )
 
         # For "test" action, we need the actual config to get site_address
         # For other actions (run, show, clear), minimal config is sufficient
@@ -191,7 +193,9 @@ def main() -> int:
         # Note: In dry-run mode, missing credentials only show a warning
         try:
             from .config.config_view import ConfigView  # pylint: disable=import-outside-toplevel
-            from .import_pipeline.cloud.credential_manager import validate_cloud_credentials_for_import  # pylint: disable=import-outside-toplevel
+            from .import_pipeline.cloud.credential_manager import (
+                validate_cloud_credentials_for_import,  # pylint: disable=import-outside-toplevel
+            )
 
             validate_cloud_credentials_for_import(
                 ui,
@@ -331,9 +335,7 @@ def main() -> int:
         if config.get_value("app.import.auto_open_page", default=False, expected_type=bool):
             site_address = config.get_value("jira.connection.site_address", default="", expected_type=str)
             if site_address and "BulkCreateSetupPage" not in site_address:
-                site_address += (
-                    "/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true"
-                )
+                site_address += "/secure/BulkCreateSetupPage!default.jspa?externalSystem=com.atlassian.jira.plugins.jim-plugin%3AbulkCreateCsv&new=true"
             open_browser(f"{site_address}")
 
         ui.lf()

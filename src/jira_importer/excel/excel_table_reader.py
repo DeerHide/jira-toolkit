@@ -241,7 +241,9 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
     def _read_custom_fields(self, sheet: str | None) -> list[CustomFieldConfig]:
         """Read CfgCustomFields table."""
         try:
-            table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_CUSTOM_FIELDS, optional=True)
+            table_data = self.workbook_manager.read_table(
+                sheet=sheet, table_name=TABLE_CFG_CUSTOM_FIELDS, optional=True
+            )
         except Exception:
             # Table doesn't exist, return empty list
             return []

@@ -234,9 +234,7 @@ def load_configuration_with_error_handling(
         error_message = format_error_for_display(config_exc)
         ui_instance.error(error_message)
         exit_code = (
-            config_exc.code.code
-            if isinstance(config_exc, ProcessingError)
-            else ErrorCode.CONFIG_FILE_ERROR.code
+            config_exc.code.code if isinstance(config_exc, ProcessingError) else ErrorCode.CONFIG_FILE_ERROR.code
         )
         # Use App.graceful_exit for consistent error handling
         App.graceful_exit(exit_code=exit_code, do_cleanup=False)

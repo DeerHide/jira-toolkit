@@ -16,7 +16,6 @@ hiddenimports += [
     "requests.sessions",
     "requests.structures",
     "requests.utils",
-
     # urllib3 modules
     "urllib3",
     "urllib3.util",
@@ -25,7 +24,6 @@ hiddenimports += [
     "urllib3.connectionpool",
     "urllib3.response",
     "urllib3.exceptions",
-
     # Third-party dependencies
     "certifi",
     "charset_normalizer",

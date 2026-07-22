@@ -34,4 +34,3 @@ def split_multi_value_cell(raw: Any, sep: str = ";") -> list[str]:
         return []
 
     return [part.strip() for part in text.split(sep) if part.strip()]
-

@@ -11,7 +11,7 @@ Author:
 import sys
 
 
-def test_imports():
+def test_imports() -> None:
     """Test if all required third-party modules can be imported."""
     print("🧪 Testing third-party module imports...")
 
@@ -38,7 +38,7 @@ def test_imports():
         "idna",
     ]
 
-    failed_imports = []
+    failed_imports: list[str] = []
 
     for module in required_modules:
         try:
@@ -52,60 +52,56 @@ def test_imports():
         print(f"\n❌ Failed to import {len(failed_imports)} modules:")
         for module in failed_imports:
             print(f"  - {module}")
-        return False
+
+    assert not failed_imports, f"Failed to import modules: {failed_imports}"
     print(f"\n✅ All {len(required_modules)} third-party modules imported successfully!")
-    return True
 
 
-def test_requests_functionality():
+def test_requests_functionality() -> None:
     """Test basic requests functionality."""
     print("\n🌐 Testing requests functionality...")
 
-    try:
-        import requests  # type: ignore[import-untyped] pylint: disable=import-outside-toplevel
+    import requests  # type: ignore[import-untyped] pylint: disable=import-outside-toplevel
 
-        # Test basic session creation
-        session = requests.Session()
-        print("✅ Session creation successful")
+    # Test basic session creation
+    session = requests.Session()
+    print("✅ Session creation successful")
 
-        # Test adapter registration
-        from requests.adapters import (  # type: ignore[import-untyped] pylint: disable=import-outside-toplevel
-            HTTPAdapter,
-        )
+    # Test adapter registration
+    from requests.adapters import (  # type: ignore[import-untyped] pylint: disable=import-outside-toplevel
+        HTTPAdapter,
+    )
 
-        adapter = HTTPAdapter()
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        print("✅ Adapter registration successful")
+    adapter = HTTPAdapter()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    print("✅ Adapter registration successful")
 
-        # Test auth
-        from requests.auth import HTTPBasicAuth  # type: ignore[import-untyped] pylint: disable=import-outside-toplevel
+    # Test auth
+    from requests.auth import HTTPBasicAuth  # type: ignore[import-untyped] pylint: disable=import-outside-toplevel
 
-        auth = HTTPBasicAuth("test", "test")
-        print("✅ Auth creation successful")
-
-        return True
-
-    except Exception as e:
-        print(f"❌ Requests functionality test failed: {e}")
-        return False
+    auth = HTTPBasicAuth("test", "test")
+    assert auth, "Auth creation failed"
+    print("✅ Auth creation successful")
 
 
-def main():
+def main() -> int:
     """Run all tests."""
     print("🔧 Testing PyInstaller build includes requests dependencies\n")
 
-    # Test imports
-    imports_ok = test_imports()
+    try:
+        test_imports()
+        test_requests_functionality()
+    except AssertionError:
+        print("\n❌ Some tests failed. Check the PyInstaller build configuration.")
+        return 1
+    except Exception as e:
+        print(f"\n❌ Requests functionality test failed: {e}")
+        print("\n❌ Some tests failed. Check the PyInstaller build configuration.")
+        return 1
 
-    # Test functionality
-    functionality_ok = test_requests_functionality()
-
-    if imports_ok and functionality_ok:
-        print("\n🎉 All tests passed! The PyInstaller build correctly includes requests dependencies.")
-        return 0
-    print("\n❌ Some tests failed. Check the PyInstaller build configuration.")
-    return 1
+    print("\n🎉 All tests passed! The PyInstaller build correctly includes requests dependencies.")
+    return 0
 
 
 if __name__ == "__main__":

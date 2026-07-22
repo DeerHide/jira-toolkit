@@ -248,7 +248,7 @@ Use structured tables in config worksheets (`config*` / `cfg*`, case-insensitive
 - `CfgPriorities` - Priority mapping
 - `CfgTeams` - Team mapping
 
-Required tables: `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`  
+Required tables: `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`
 Optional tables: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`
 
 ### Row Skipping

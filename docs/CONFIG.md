@@ -25,7 +25,7 @@ jira-importer.exe your-data.xlsx -ce
 ### Option B: Configure with a JSON file
 
 - Copy `resources/templates/config_importer.json` from the repository next to your Excel file (or use the file from your release bundle)
-- Fill in your Jira details (site address and project key).  
+- Fill in your Jira details (site address and project key).
 - Set credentials with `jira-importer.exe --credentials run` (recommended), or environment variables for automation.
 
 How to run:

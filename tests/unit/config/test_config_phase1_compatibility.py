@@ -57,7 +57,9 @@ def _write_excel_placeholder(tmp_path: Path) -> str:
 class TestConfigPhase1Compatibility:
     """Tests for JT-314 Phase 1 compatibility contract."""
 
-    def test_json_version_issue_warns_and_does_not_block(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    def test_json_version_issue_warns_and_does_not_block(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """JSON version issues should warn with future requirement text."""
         config_path = _write_json_config(tmp_path, {"metadata": {"version": 0}})
 
@@ -66,7 +68,9 @@ class TestConfigPhase1Compatibility:
 
         assert config.get_value("metadata.version") == 0
         assert any(
-            "will be required in a future release" in record.message for record in caplog.records if record.levelname == "WARNING"
+            "will be required in a future release" in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
         )
 
     def test_excel_version_issue_warns_and_does_not_block(
@@ -87,10 +91,14 @@ class TestConfigPhase1Compatibility:
 
         assert config.get_value("metadata.version") == "0"
         assert any(
-            "will be required in a future release" in record.message for record in caplog.records if record.levelname == "WARNING"
+            "will be required in a future release" in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
         )
 
-    def test_excel_string_coercion_is_preserved_in_phase1(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_excel_string_coercion_is_preserved_in_phase1(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Excel keeps implicit coercion for bool/int/float string values."""
         excel_path = _write_excel_placeholder(tmp_path)
         fake_data = {
@@ -111,7 +119,9 @@ class TestConfigPhase1Compatibility:
         assert config.get_value("jira.timeout.seconds", expected_type=int) == 120
         assert config.get_value("jira.estimate.factor", expected_type=float) == 1.5
 
-    def test_type_mismatch_message_and_details_are_aligned(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_type_mismatch_message_and_details_are_aligned(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Equivalent type mismatch should use aligned message/details in JSON and Excel."""
         key = "app.import.auto_open_page"
 

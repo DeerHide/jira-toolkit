@@ -20,9 +20,7 @@ from jira_importer.import_pipeline.models import (
 class TestTeamResolverWithJsonConfig:
     """Team resolution uses get_table_config() from JsonConfiguration."""
 
-    def test_team_rule_no_table_config_error_when_jira_teams_present(
-        self, tmp_path: Path
-    ) -> None:
+    def test_team_rule_no_table_config_error_when_jira_teams_present(self, tmp_path: Path) -> None:
         """With jira.teams in JSON config, team rule does not report team.no_table_config."""
         config_path = tmp_path / "config.json"
         config_path.write_text(
@@ -63,9 +61,7 @@ class TestTeamResolverWithJsonConfig:
         assert result.problems[0].code == "team.display_name"
         assert result.problems[0].severity.value == "fix"
 
-    def test_team_rule_accepts_team_id_when_jira_teams_present(
-        self, tmp_path: Path
-    ) -> None:
+    def test_team_rule_accepts_team_id_when_jira_teams_present(self, tmp_path: Path) -> None:
         """When row has Team ID that exists in jira.teams, no problem is reported."""
         config_path = tmp_path / "config.json"
         config_path.write_text(

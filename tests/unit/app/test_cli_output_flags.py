@@ -60,4 +60,4 @@ class TestCliOutputFlags:
         with pytest.raises(SystemExit) as exc_info:
             App.parse_args(argv)
 
-        assert exc_info.value.code == 2
+        assert exc_info.value.code == 2  # type: ignore[attr-defined]

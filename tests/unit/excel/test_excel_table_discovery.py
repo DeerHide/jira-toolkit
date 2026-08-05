@@ -318,3 +318,111 @@ def test_excel_table_reader_reads_cfgsettings_table(tmp_path: Path) -> None:
         assert tables.settings[0].value_type == "int"
     finally:
         manager.close()
+
+
+def test_excel_table_reader_reads_cfgbasic_and_cfgadvanced_as_optional(tmp_path: Path) -> None:
+    """Read CfgBasic/CfgAdvanced when present; missing tables stay empty."""
+    file_path = tmp_path / "basic_advanced_settings.xlsx"
+
+    def setup(wb: Workbook) -> None:
+        ws_basic = _active_ws(wb)
+        ws_basic.title = "Config - Basic"
+        _write_table(
+            ws_basic,
+            "CfgBasic",
+            ["Name", "Value", "Note"],
+            ["jira.project.key", "JITTP2", "project"],
+        )
+
+        ws_advanced = wb.create_sheet("Config - Advanced")
+        _write_table(
+            ws_advanced,
+            "CfgAdvanced",
+            ["Name", "Value", "Note"],
+            ["app.import.auto_open_page", "yes", "open page"],
+        )
+
+    _save_workbook(file_path, setup)
+
+    manager = ExcelWorkbookManager(file_path)
+    manager.load()
+    try:
+        reader = ExcelTableReader(manager)
+        basic = reader.read_basic_settings()
+        advanced = reader.read_advanced_settings()
+        settings = reader.read_settings()
+
+        assert len(basic) == 1
+        assert basic[0].name == "jira.project.key"
+        assert basic[0].value == "JITTP2"
+        assert len(advanced) == 1
+        assert advanced[0].name == "app.import.auto_open_page"
+        assert advanced[0].value == "yes"
+        assert settings == []
+    finally:
+        manager.close()
+
+
+def test_excel_configuration_merges_basic_advanced_and_settings_tables(tmp_path: Path) -> None:
+    """ExcelConfiguration should merge Basic → Advanced → CfgSettings into nested content."""
+    file_path = tmp_path / "merged_settings.xlsx"
+
+    def setup(wb: Workbook) -> None:
+        ws_basic = _active_ws(wb)
+        ws_basic.title = "Config - Basic"
+        _write_table(
+            ws_basic,
+            "CfgBasic",
+            ["Name", "Value"],
+            ["jira.project.key", "FROM_BASIC"],
+        )
+        _write_table(
+            ws_basic,
+            "CfgAssignees",
+            ["Assignee.Name", "Assignee.ID"],
+            ["Ann", "acc-10"],
+            start_row=4,
+        )
+        _write_table(ws_basic, "CfgIssueTypes", ["IssueType.Name"], ["Story"], start_row=7)
+        _write_table(ws_basic, "CfgIgnoreList", ["IgnoreList.Name"], ["note"], start_row=10)
+        _write_table(ws_basic, "CfgPriorities", ["Priority.Name"], ["High"], start_row=13)
+        _write_table(
+            ws_basic,
+            "CfgAutofieldValues",
+            ["Name", "Value"],
+            ["unused.autofield", "x"],
+            start_row=16,
+        )
+
+        ws_advanced = wb.create_sheet("Config - Advanced")
+        _write_table(
+            ws_advanced,
+            "CfgAdvanced",
+            ["Name", "Value"],
+            ["jira.connection.site_address", "https://advanced.example"],
+        )
+        ws_advanced.cell(row=3, column=1, value="jira.project.key")
+        ws_advanced.cell(row=3, column=2, value="FROM_ADVANCED")
+        ws_advanced.tables["CfgAdvanced"].ref = "A1:B3"
+
+        ws_factory = wb.create_sheet("Config - Factory")
+        ws_factory.cell(row=1, column=1, value="Name")
+        ws_factory.cell(row=1, column=2, value="Value")
+        ws_factory.cell(row=1, column=3, value="Type")
+        ws_factory.cell(row=2, column=1, value="metadata.version")
+        ws_factory.cell(row=2, column=2, value="8")
+        ws_factory.cell(row=2, column=3, value="int")
+        ws_factory.cell(row=3, column=1, value="jira.project.key")
+        ws_factory.cell(row=3, column=2, value="FROM_SETTINGS")
+        ws_factory.cell(row=3, column=3, value="str")
+        ws_factory.add_table(Table(displayName="CfgSettings", ref="A1:C3"))
+
+    _save_workbook(file_path, setup)
+
+    config = ExcelConfiguration(str(file_path), config_sheet="Config", cfg_req=7)
+    try:
+        assert config.get_value("metadata.version") == 8
+        assert config.get_value("jira.project.key") == "FROM_SETTINGS"
+        assert config.get_value("jira.connection.site_address") == "https://advanced.example"
+    finally:
+        config.close()

@@ -34,15 +34,17 @@ This document covers the current features and capabilities of the Jira Importer 
   - `CfgIssueTypes`: Issue type hierarchy
   - `CfgIgnoreList`: Row skipping rules
   - `CfgPriorities`: Priority mapping
-  - `CfgSettings`: Table-driven singleton settings (`Name`, `Value`, optional `Type`)
+  - `CfgBasic`: Everyday Name/Value settings (e.g. `jira.project.key`, site address)
+  - `CfgAdvanced`: Advanced Name/Value settings (e.g. `app.import.auto_open_page`)
+  - `CfgSettings`: Table-driven singleton/system settings (`Name`, `Value`, optional `Type`)
   - `CfgAutofieldValues`: Auto-populated field values
   - `CfgCustomFields`: Custom field configuration (name, id, type)
   - `CfgTeams`: Team mapping (name → ID)
 
 - **Required tables**: `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`
-- **Optional tables**: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`, `CfgSettings`
-- **Settings precedence**: `CfgSettings` overrides legacy key/value rows for overlapping keys
-- **Compatibility note**: `CfgAutofieldValues` remains supported for dataset/runtime auto field behavior
+- **Optional tables**: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`, `CfgBasic`, `CfgAdvanced`, `CfgSettings`
+- **Settings precedence** (later wins): legacy `Config` key/value sheet → `CfgBasic` → `CfgAdvanced` → `CfgSettings`
+- **Compatibility note**: `CfgAutofieldValues` remains supported for dataset/runtime auto field behavior; `metadata.version` may still fall back from it when missing elsewhere
 
 ### Command Line Interface
 

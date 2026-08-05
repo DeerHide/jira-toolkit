@@ -42,6 +42,14 @@ class _FakeTableReader:
         """Return no table config to keep tests focused."""
         return None
 
+    def read_basic_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgBasic rows by default."""
+        return []
+
+    def read_advanced_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgAdvanced rows by default."""
+        return []
+
     def read_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
         """Return no CfgSettings rows by default."""
         return []
@@ -59,6 +67,14 @@ class _FakeTableReaderWithMetadataVersion:
             auto_field_values=[AutoFieldValueConfig(name="metadata.version", value="7")]
         )
 
+    def read_basic_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgBasic rows for this test double."""
+        return []
+
+    def read_advanced_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgAdvanced rows for this test double."""
+        return []
+
     def read_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
         """Return no CfgSettings rows for this test double."""
         return []
@@ -74,11 +90,52 @@ class _FakeTableReaderWithCfgSettings:
         """Return empty full table config, not needed for these tests."""
         return ExcelTableConfig()
 
+    def read_basic_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgBasic rows for this test double."""
+        return []
+
+    def read_advanced_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgAdvanced rows for this test double."""
+        return []
+
     def read_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
         """Return CfgSettings values used for merge precedence."""
         return [
             SettingConfig(name="metadata.version", value=7, value_type="int"),
             SettingConfig(name="app.import.auto_open_page", value=False, value_type="bool"),
+        ]
+
+
+class _FakeTableReaderWithLayeredSettings:
+    """Test double exposing Basic/Advanced/Settings layers for precedence tests."""
+
+    def __init__(self, workbook_manager: _FakeWorkbookManager) -> None:
+        self.workbook_manager = workbook_manager
+
+    def read_all_tables(self, config_sheet: str):  # pylint: disable=unused-argument
+        """Return empty full table config, not needed for these tests."""
+        return ExcelTableConfig()
+
+    def read_basic_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return CfgBasic values used for merge precedence."""
+        return [
+            SettingConfig(name="jira.project.key", value="BASIC"),
+            SettingConfig(name="jira.connection.site_address", value="https://basic.example"),
+            SettingConfig(name="app.import.auto_open_page", value="yes"),
+        ]
+
+    def read_advanced_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return CfgAdvanced values used for merge precedence."""
+        return [
+            SettingConfig(name="app.import.auto_open_page", value="no"),
+            SettingConfig(name="jira.components_source", value="jira"),
+        ]
+
+    def read_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return CfgSettings values used for merge precedence."""
+        return [
+            SettingConfig(name="metadata.version", value=8, value_type="int"),
+            SettingConfig(name="app.import.auto_open_page", value=True, value_type="bool"),
         ]
 
 
@@ -229,6 +286,29 @@ class TestConfigPhase1Compatibility:
         config = ExcelConfiguration(excel_path, cfg_req=7)
         assert config.get_value("metadata.version") == 7
         assert config.get_value("app.import.auto_open_page", expected_type=bool) is False
+
+    def test_excel_basic_advanced_settings_merge_with_cfgsettings_precedence(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CfgBasic then CfgAdvanced then CfgSettings should merge with later layers winning."""
+        excel_path = _write_excel_placeholder(tmp_path)
+        fake_data = {"jira.project.key": "LEGACY"}
+
+        monkeypatch.setattr(
+            "jira_importer.config.excel_config.ExcelWorkbookManager",
+            lambda path: _FakeWorkbookManager(path, fake_data),
+        )
+        monkeypatch.setattr(
+            "jira_importer.config.excel_config.ExcelTableReader",
+            _FakeTableReaderWithLayeredSettings,
+        )
+
+        config = ExcelConfiguration(excel_path, cfg_req=7)
+        assert config.get_value("jira.project.key") == "BASIC"
+        assert config.get_value("jira.connection.site_address") == "https://basic.example"
+        assert config.get_value("jira.components_source") == "jira"
+        assert config.get_value("metadata.version") == 8
+        assert config.get_value("app.import.auto_open_page", expected_type=bool) is True
 
     def test_excel_cfgsettings_version_avoids_legacy_warning(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture

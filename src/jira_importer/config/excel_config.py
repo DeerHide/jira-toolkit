@@ -99,12 +99,17 @@ class ExcelConfiguration:
     @staticmethod
     def _merge_flat_config(
         base_config: dict[str, Any],
-        settings: list[SettingConfig],
+        *settings_layers: list[SettingConfig],
     ) -> dict[str, Any]:
-        """Merge flat config sources with CfgSettings precedence."""
+        """Merge flat config sources with later settings layers taking precedence.
+
+        Precedence (later wins): base_config, then each settings layer in order
+        (typically CfgBasic → CfgAdvanced → CfgSettings).
+        """
         merged = dict(base_config)
-        for setting in settings:
-            merged[setting.name] = setting.value
+        for settings in settings_layers:
+            for setting in settings:
+                merged[setting.name] = setting.value
         return merged
 
     def _get_version_from_table_config(self) -> Any | None:
@@ -126,8 +131,10 @@ class ExcelConfiguration:
             self._workbook_manager.load()
             config_dict = self._workbook_manager.read_config(sheet=self.config_sheet)
             table_reader = ExcelTableReader(self._workbook_manager)
+            cfg_basic = table_reader.read_basic_settings(config_sheet=self.config_sheet)
+            cfg_advanced = table_reader.read_advanced_settings(config_sheet=self.config_sheet)
             cfg_settings = table_reader.read_settings(config_sheet=self.config_sheet)
-            merged_config = self._merge_flat_config(config_dict, cfg_settings)
+            merged_config = self._merge_flat_config(config_dict, cfg_basic, cfg_advanced, cfg_settings)
 
             # Convert flat key-value pairs to nested structure
             return self._build_nested_config(merged_config)

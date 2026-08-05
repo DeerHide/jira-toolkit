@@ -62,5 +62,70 @@
     "code_signing": {
       "enabled": true
     }
+  },
+  "deerhide": {
+    "metadata": {
+      "name": "jira-importer-deerhide"
+    },
+    "pyinstaller": {
+      "name": "jira-importer-deerhide",
+      "onefile": true
+    },
+    "build_options": {
+      "copy_documentation": false,
+      "copy_resources_to_dist": false
+    }
+  },
+  "juniper": {
+    "metadata": {
+      "name": "jira-importer-juniper"
+    },
+    "pyinstaller": {
+      "name": "jira-importer-juniper",
+      "onefile": true
+    },
+    "build_options": {
+      "copy_documentation": false,
+      "copy_resources_to_dist": false
+    }
+  },
+  "larch": {
+    "metadata": {
+      "name": "jira-importer-larch"
+    },
+    "pyinstaller": {
+      "name": "jira-importer-larch",
+      "onefile": true
+    },
+    "build_options": {
+      "copy_documentation": false,
+      "copy_resources_to_dist": false
+    }
+  },
+  "maple": {
+    "metadata": {
+      "name": "jira-importer-maple"
+    },
+    "pyinstaller": {
+      "name": "jira-importer-maple",
+      "onefile": true
+    },
+    "build_options": {
+      "copy_documentation": false,
+      "copy_resources_to_dist": false
+    }
+  },
+  "velmios": {
+    "metadata": {
+      "name": "jira-importer-velmios"
+    },
+    "pyinstaller": {
+      "name": "jira-importer-velmios",
+      "onefile": true
+    },
+    "build_options": {
+      "copy_documentation": false,
+      "copy_resources_to_dist": false
+    }
   }
 }

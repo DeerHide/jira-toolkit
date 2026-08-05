@@ -283,3 +283,38 @@ def test_excel_table_reader_treats_sprint_fixversion_component_tables_as_optiona
         assert tables.components == []
     finally:
         manager.close()
+
+
+def test_excel_table_reader_reads_cfgsettings_table(tmp_path: Path) -> None:
+    """Read CfgSettings rows when present in config-prefixed sheets."""
+    file_path = tmp_path / "settings_table.xlsx"
+
+    def setup(wb: Workbook) -> None:
+        ws_cfg = _active_ws(wb)
+        ws_cfg.title = "cfg-main"
+        _write_table(ws_cfg, "CfgAssignees", ["Assignee.Name", "Assignee.ID"], ["Ann", "acc-10"])
+        _write_table(ws_cfg, "CfgIssueTypes", ["IssueType.Name"], ["Story"], start_row=4)
+        _write_table(ws_cfg, "CfgIgnoreList", ["IgnoreList.Name"], ["note"], start_row=7)
+        _write_table(ws_cfg, "CfgPriorities", ["Priority.Name"], ["High"], start_row=10)
+        _write_table(ws_cfg, "CfgAutofieldValues", ["Name", "Value"], ["jira.connection.timeout", "30"], start_row=13)
+        _write_table(
+            ws_cfg,
+            "CfgSettings",
+            ["Name", "Value", "Type"],
+            ["metadata.version", "7", "int"],
+            start_row=16,
+        )
+
+    _save_workbook(file_path, setup)
+
+    manager = ExcelWorkbookManager(file_path)
+    manager.load()
+    try:
+        reader = ExcelTableReader(manager)
+        tables = reader.read_all_tables(config_sheet="Config")
+        assert len(tables.settings) == 1
+        assert tables.settings[0].name == "metadata.version"
+        assert tables.settings[0].value == 7
+        assert tables.settings[0].value_type == "int"
+    finally:
+        manager.close()

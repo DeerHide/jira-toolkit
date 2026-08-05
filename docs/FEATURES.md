@@ -34,12 +34,15 @@ This document covers the current features and capabilities of the Jira Importer 
   - `CfgIssueTypes`: Issue type hierarchy
   - `CfgIgnoreList`: Row skipping rules
   - `CfgPriorities`: Priority mapping
+  - `CfgSettings`: Table-driven singleton settings (`Name`, `Value`, optional `Type`)
   - `CfgAutofieldValues`: Auto-populated field values
   - `CfgCustomFields`: Custom field configuration (name, id, type)
   - `CfgTeams`: Team mapping (name → ID)
 
 - **Required tables**: `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`
-- **Optional tables**: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`
+- **Optional tables**: `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`, `CfgSettings`
+- **Settings precedence**: `CfgSettings` overrides legacy key/value rows for overlapping keys
+- **Compatibility note**: `CfgAutofieldValues` remains supported for dataset/runtime auto field behavior
 
 ### Command Line Interface
 

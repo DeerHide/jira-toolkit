@@ -176,6 +176,8 @@
       "This documentation section is for reference only — it is not read by the application",
       "Use top-level validation.* for skip/fixer/estimate rules (not app.validation)",
       "app.validation.skip_checks is legacy and is not read by the current app",
+        "Excel config mode supports CfgSettings for table-driven singleton settings (e.g., metadata.version)",
+        "CfgAutofieldValues remains available for dataset/runtime auto field values in Excel mode",
       "Issue type and priority names must match your Jira instance",
       "Store credentials with: jira-importer.exe --credentials run",
       "For Excel-based configuration, use the Config sheet and -ce"

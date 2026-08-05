@@ -75,6 +75,15 @@ class AutoFieldValueConfig:
 
 
 @dataclass(slots=True, frozen=True)
+class SettingConfig:
+    """Configuration for generic settings key/value rows."""
+
+    name: str
+    value: Any
+    value_type: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
 class TeamConfig:
     """Configuration for team mapping.
 
@@ -396,6 +405,7 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
     priorities: list[PriorityConfig] | None = None
     auto_field_values: list[AutoFieldValueConfig] | None = None
     custom_fields: list[CustomFieldConfig] | None = None
+    settings: list[SettingConfig] | None = None
 
     def __post_init__(self):
         """Initialize empty lists if None."""
@@ -419,6 +429,8 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
             object.__setattr__(self, "auto_field_values", [])
         if self.custom_fields is None:
             object.__setattr__(self, "custom_fields", [])
+        if self.settings is None:
+            object.__setattr__(self, "settings", [])
 
     def get_assignee_by_name(self, assignee_name: str) -> AssigneeConfig | None:
         """Get assignee configuration by name."""
@@ -513,4 +525,8 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
             "ignore_list": [{"name": i.name} for i in (self.ignore_list or [])],
             "priorities": [{"name": p.name} for p in (self.priorities or [])],
             "auto_field_values": [{"name": a.name, "value": a.value} for a in (self.auto_field_values or [])],
+            "settings": [
+                {"name": s.name, "value": s.value, "type": s.value_type}
+                for s in (self.settings or [])
+            ],
         }

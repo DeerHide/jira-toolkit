@@ -7,6 +7,7 @@ Author:
 from __future__ import annotations
 
 import logging
+import json
 from typing import Any
 
 from ..config.config_models import (
@@ -20,6 +21,7 @@ from ..config.config_models import (
     IssueTypeConfig,
     PriorityConfig,
     SprintConfig,
+    SettingConfig,
     TeamConfig,
 )
 from ..errors import ConfigurationError
@@ -37,6 +39,7 @@ TABLE_CFG_IGNORE_LIST = "CfgIgnoreList"
 TABLE_CFG_PRIORITIES = "CfgPriorities"
 TABLE_CFG_AUTO_FIELD_VALUES = "CfgAutofieldValues"
 TABLE_CFG_CUSTOM_FIELDS = "CfgCustomFields"
+TABLE_CFG_SETTINGS = "CfgSettings"
 
 
 class ExcelTableReader:  # pylint: disable=too-few-public-methods
@@ -83,7 +86,15 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
             priorities=self._read_priorities(lookup_sheet),
             auto_field_values=self._read_auto_field_values(lookup_sheet),
             custom_fields=self._read_custom_fields(lookup_sheet),
+            settings=self._read_settings(lookup_sheet),
         )
+
+    def read_settings(self, config_sheet: str = "Config") -> list[SettingConfig]:
+        """Read settings from CfgSettings for early configuration merge."""
+        # Keep arg for API consistency with other readers.
+        logger.debug(f"Reading {TABLE_CFG_SETTINGS} using indexed discovery (config_sheet='{config_sheet}')")
+        lookup_sheet: str | None = None
+        return self._read_settings(lookup_sheet)
 
     def _read_assignees(self, sheet: str | None) -> list[AssigneeConfig]:
         """Read CfgAssignees table."""
@@ -350,6 +361,85 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
         logger.debug(f"Read {len(custom_fields)} custom field definitions from {TABLE_CFG_CUSTOM_FIELDS} table")
         return custom_fields
+
+    def _read_settings(self, sheet: str | None) -> list[SettingConfig]:
+        """Read CfgSettings table."""
+        table_data = self.workbook_manager.read_table(sheet=sheet, table_name=TABLE_CFG_SETTINGS, optional=True)
+        settings: list[SettingConfig] = []
+
+        for row in table_data:
+            name = self._get_cell_value(row, "Name")
+            value = self._get_cell_value(row, "Value")
+            value_type = self._get_cell_value(row, "Type")
+
+            name_str = str(name if name is not None else "").strip()
+            if not name_str:
+                logger.warning(f"Skipping CfgSettings row with missing name: {row}")
+                continue
+
+            normalized_type = str(value_type).strip().lower() if value_type is not None else ""
+            coerced = self._coerce_setting_value(value=value, value_type=normalized_type, key=name_str)
+            settings.append(
+                SettingConfig(
+                    name=name_str,
+                    value=coerced,
+                    value_type=normalized_type or None,
+                )
+            )
+
+        logger.debug(f"Read {len(settings)} settings from {TABLE_CFG_SETTINGS} table")
+        return settings
+
+    @staticmethod
+    def _coerce_setting_value(value: Any, value_type: str, key: str) -> Any:
+        """Coerce CfgSettings value based on optional Type column."""
+        if not value_type:
+            return value
+
+        if value_type == "str":
+            return "" if value is None else str(value)
+        if value_type == "int":
+            try:
+                return int(value)
+            except (TypeError, ValueError) as exc:
+                raise ConfigurationError(
+                    f"CfgSettings key '{key}' expected int value, got '{value}'",
+                    details={"key": key, "type": "int", "value": value},
+                ) from exc
+        if value_type == "float":
+            try:
+                return float(value)
+            except (TypeError, ValueError) as exc:
+                raise ConfigurationError(
+                    f"CfgSettings key '{key}' expected float value, got '{value}'",
+                    details={"key": key, "type": "float", "value": value},
+                ) from exc
+        if value_type == "bool":
+            if isinstance(value, bool):
+                return value
+            value_str = str(value).strip().lower()
+            if value_str in {"true", "1", "yes", "on", "enabled"}:
+                return True
+            if value_str in {"false", "0", "no", "off", "disabled"}:
+                return False
+            raise ConfigurationError(
+                f"CfgSettings key '{key}' expected bool value, got '{value}'",
+                details={"key": key, "type": "bool", "value": value},
+            )
+        if value_type == "json":
+            try:
+                return json.loads(str(value))
+            except (TypeError, ValueError) as exc:
+                raise ConfigurationError(
+                    f"CfgSettings key '{key}' expected valid JSON value, got '{value}'",
+                    details={"key": key, "type": "json", "value": value},
+                ) from exc
+
+        raise ConfigurationError(
+            f"CfgSettings key '{key}' has unsupported type '{value_type}'. "
+            "Supported types: str, int, float, bool, json",
+            details={"key": key, "type": value_type, "value": value},
+        )
 
     def _get_cell_value(self, row: dict[str, Any], column_name: str) -> Any | None:
         """Get cell value from row dictionary.

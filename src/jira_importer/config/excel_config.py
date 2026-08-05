@@ -15,7 +15,7 @@ from ..errors import ExcelConfigurationError, ProcessingError
 from ..errors.config import ConfigValidationPolicy
 from ..excel.excel_io import ExcelWorkbookManager
 from ..excel.excel_table_reader import ExcelTableReader
-from .config_models import ExcelTableConfig
+from .config_models import ExcelTableConfig, SettingConfig
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
@@ -62,15 +62,26 @@ class ExcelConfiguration:
 
     def version_check(self) -> bool:
         """Check the version of the configuration file."""
-        # Check for new structure first
-        if "metadata" in self.content:
-            cfg_version = self.content.get("metadata", {}).get("version")
-        else:
-            # Fallback to old structure
-            logger.warning(
-                "Using legacy configuration structure. Please migrate to 'metadata.version' and nested keys."
-            )
-            cfg_version = self.content.get("app.config.version")
+        cfg_version = self.content.get("metadata", {}).get("version") if "metadata" in self.content else None
+
+        if cfg_version is None:
+            legacy_version = self.content.get("app.config.version")
+            if legacy_version is not None:
+                logger.warning(
+                    "Using legacy configuration structure. Please migrate to 'metadata.version' and nested keys."
+                )
+                cfg_version = legacy_version
+
+        # Backward-compatible fallback:
+        # some workbooks store metadata.version in CfgAutofieldValues.
+        if cfg_version is None:
+            table_version = self._get_version_from_table_config()
+            if table_version is not None:
+                cfg_version = table_version
+                logger.warning(
+                    "Using fallback metadata.version from CfgAutofieldValues. "
+                    "Prefer declaring it in Config key/value rows as 'metadata.version'."
+                )
 
         logger.debug(f"Config version: {cfg_version} ({self.cfg_req} needed)")
         if cfg_version is None:
@@ -85,6 +96,28 @@ class ExcelConfiguration:
             logger.error("Invalid version format in configuration.")
             return True
 
+    @staticmethod
+    def _merge_flat_config(
+        base_config: dict[str, Any],
+        settings: list[SettingConfig],
+    ) -> dict[str, Any]:
+        """Merge flat config sources with CfgSettings precedence."""
+        merged = dict(base_config)
+        for setting in settings:
+            merged[setting.name] = setting.value
+        return merged
+
+    def _get_version_from_table_config(self) -> Any | None:
+        """Get metadata.version from table config fallback when available."""
+        if self.table_config is None or not self.table_config.auto_field_values:
+            return None
+
+        for item in self.table_config.auto_field_values:
+            name = str(item.name).strip().lower()
+            if name == "metadata.version":
+                return item.value
+        return None
+
     def _load_config(self) -> dict[str, Any]:
         """Load the configuration from Excel file."""
         logger.debug(f"Reading Excel configuration file: {self.path}")
@@ -92,9 +125,12 @@ class ExcelConfiguration:
             self._workbook_manager = ExcelWorkbookManager(self.path)
             self._workbook_manager.load()
             config_dict = self._workbook_manager.read_config(sheet=self.config_sheet)
+            table_reader = ExcelTableReader(self._workbook_manager)
+            cfg_settings = table_reader.read_settings(config_sheet=self.config_sheet)
+            merged_config = self._merge_flat_config(config_dict, cfg_settings)
 
             # Convert flat key-value pairs to nested structure
-            return self._build_nested_config(config_dict)
+            return self._build_nested_config(merged_config)
         except ExcelConfigurationError:
             # Re-raise domain configuration errors unchanged
             raise

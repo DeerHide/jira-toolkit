@@ -10,6 +10,7 @@ import pytest
 
 from jira_importer.config.excel_config import ExcelConfiguration
 from jira_importer.config.json_config import JsonConfiguration
+from jira_importer.config.config_models import AutoFieldValueConfig, ExcelTableConfig, SettingConfig
 from jira_importer.errors import ConfigurationError, ExcelConfigurationError
 
 
@@ -40,6 +41,45 @@ class _FakeTableReader:
     def read_all_tables(self, config_sheet: str):  # pylint: disable=unused-argument
         """Return no table config to keep tests focused."""
         return None
+
+    def read_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgSettings rows by default."""
+        return []
+
+
+class _FakeTableReaderWithMetadataVersion:
+    """Test double returning metadata.version from CfgAutofieldValues."""
+
+    def __init__(self, workbook_manager: _FakeWorkbookManager) -> None:
+        self.workbook_manager = workbook_manager
+
+    def read_all_tables(self, config_sheet: str):  # pylint: disable=unused-argument
+        """Return table config with metadata.version fallback value."""
+        return ExcelTableConfig(
+            auto_field_values=[AutoFieldValueConfig(name="metadata.version", value="7")]
+        )
+
+    def read_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return no CfgSettings rows for this test double."""
+        return []
+
+
+class _FakeTableReaderWithCfgSettings:
+    """Test double exposing CfgSettings values for precedence tests."""
+
+    def __init__(self, workbook_manager: _FakeWorkbookManager) -> None:
+        self.workbook_manager = workbook_manager
+
+    def read_all_tables(self, config_sheet: str):  # pylint: disable=unused-argument
+        """Return empty full table config, not needed for these tests."""
+        return ExcelTableConfig()
+
+    def read_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
+        """Return CfgSettings values used for merge precedence."""
+        return [
+            SettingConfig(name="metadata.version", value=7, value_type="int"),
+            SettingConfig(name="app.import.auto_open_page", value=False, value_type="bool"),
+        ]
 
 
 def _write_json_config(tmp_path: Path, payload: dict[str, object]) -> str:
@@ -118,6 +158,99 @@ class TestConfigPhase1Compatibility:
         assert config.get_value("app.import.auto_open_page", expected_type=bool) is True
         assert config.get_value("jira.timeout.seconds", expected_type=int) == 120
         assert config.get_value("jira.estimate.factor", expected_type=float) == 1.5
+
+    def test_excel_version_falls_back_to_auto_field_values_when_missing_in_config_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Excel version check should use CfgAutofieldValues as backward-compatible fallback."""
+        excel_path = _write_excel_placeholder(tmp_path)
+        fake_data = {"jira.connection.site_address": "https://example.atlassian.net"}
+
+        monkeypatch.setattr(
+            "jira_importer.config.excel_config.ExcelWorkbookManager",
+            lambda path: _FakeWorkbookManager(path, fake_data),
+        )
+        monkeypatch.setattr("jira_importer.config.excel_config.ExcelTableReader", _FakeTableReaderWithMetadataVersion)
+
+        caplog.set_level("WARNING")
+        config = ExcelConfiguration(excel_path, cfg_req=7)
+
+        assert config.get_value("metadata.version") == "7"
+        assert any(
+            "fallback metadata.version from CfgAutofieldValues" in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
+        )
+        assert not any(
+            "Missing version in configuration." in record.message
+            for record in caplog.records
+            if record.levelname == "ERROR"
+        )
+
+    def test_excel_version_prefers_config_rows_over_auto_field_values_fallback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Excel version should prefer key/value config rows over table fallback."""
+        excel_path = _write_excel_placeholder(tmp_path)
+        fake_data = {"metadata.version": "7"}
+
+        monkeypatch.setattr(
+            "jira_importer.config.excel_config.ExcelWorkbookManager",
+            lambda path: _FakeWorkbookManager(path, fake_data),
+        )
+        monkeypatch.setattr("jira_importer.config.excel_config.ExcelTableReader", _FakeTableReaderWithMetadataVersion)
+
+        caplog.set_level("WARNING")
+        config = ExcelConfiguration(excel_path, cfg_req=7)
+
+        assert config.get_value("metadata.version") == "7"
+        assert not any(
+            "fallback metadata.version from CfgAutofieldValues" in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
+        )
+
+    def test_excel_cfgsettings_overrides_legacy_key_value_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CfgSettings should take precedence over legacy Config key/value rows."""
+        excel_path = _write_excel_placeholder(tmp_path)
+        fake_data = {
+            "metadata.version": "3",
+            "app.import.auto_open_page": "yes",
+        }
+
+        monkeypatch.setattr(
+            "jira_importer.config.excel_config.ExcelWorkbookManager",
+            lambda path: _FakeWorkbookManager(path, fake_data),
+        )
+        monkeypatch.setattr("jira_importer.config.excel_config.ExcelTableReader", _FakeTableReaderWithCfgSettings)
+
+        config = ExcelConfiguration(excel_path, cfg_req=7)
+        assert config.get_value("metadata.version") == 7
+        assert config.get_value("app.import.auto_open_page", expected_type=bool) is False
+
+    def test_excel_cfgsettings_version_avoids_legacy_warning(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No legacy warning should be emitted when metadata.version is resolved from CfgSettings."""
+        excel_path = _write_excel_placeholder(tmp_path)
+        fake_data = {"jira.connection.site_address": "https://example.atlassian.net"}
+
+        monkeypatch.setattr(
+            "jira_importer.config.excel_config.ExcelWorkbookManager",
+            lambda path: _FakeWorkbookManager(path, fake_data),
+        )
+        monkeypatch.setattr("jira_importer.config.excel_config.ExcelTableReader", _FakeTableReaderWithCfgSettings)
+
+        caplog.set_level("WARNING")
+        config = ExcelConfiguration(excel_path, cfg_req=7)
+        assert config.get_value("metadata.version") == 7
+        assert not any(
+            "Using legacy configuration structure" in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
+        )
 
     def test_type_mismatch_message_and_details_are_aligned(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

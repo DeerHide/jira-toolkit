@@ -1,12 +1,12 @@
 {
   "app": {
     "import": {
-      "auto_open_page": false
+      "auto_open_page": true
     }
   },
   "jira": {
     "connection": {
-      "site_address": "https://your-instance.atlassian.net"
+      "site_address": "https://deerhide.atlassian.net"
     },
     "issuetypes": [
       { "name": "Initiative", "level": 1 },
@@ -25,10 +25,29 @@
     ],
     "project": {
       "key": "JITTP2"
-    }
+    },
+    "components": [
+      "Product",
+      "UX",
+      "Frontend",
+      "Testing",
+      "Payments",
+      "Security",
+      "Analytics",
+      "Backend",
+      "Strategy",
+      "Localization"
+    ],
+    "assignees": [
+      { "name": "joe.grunt", "id": "712020:09876543212345678901" },
+      { "name": "john.doe", "id": "712020:09876543212345678902" },
+      { "name": "jane.smith", "id": "712020:09876543212345678903" },
+      { "name": "Alice A", "id": "712020:09876543212345678904" },
+      { "name": "Bob B", "id": "712020:09876543212345678905" }
+    ]
   },
   "metadata": {
-    "version": 7
+    "version": 8
   },
   "validation": {
     "skip_issuetypes": [

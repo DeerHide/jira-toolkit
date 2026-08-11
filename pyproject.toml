@@ -11,7 +11,7 @@ authors = [
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "openpyxl>=3.1.0",
-    "rich>=13.0.0",
+    "rich>=15.0.0",
     "rich-argparse>=1.7.0",
     "colorlog>=6.7.0",
     "requests>=2.33.0",
@@ -26,7 +26,8 @@ dev = [
     "pre-commit>=3.0.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
-    "mypy>=1.0.0",
+    "mypy>=2.3.0",
+    "types-requests>=2.32.0",
     "ruff>=0.6.0",
     "pylint>=3.2.0",
 ]

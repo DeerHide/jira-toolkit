@@ -13,13 +13,13 @@ from typing import Any, TypeVar
 
 try:
     from scripts.build_utils.build_context import BuildContext
-    from scripts.build_utils.build_utils import BuildUtils
+    from scripts.build_utils.build_utils import BuildUtils, load_generate_version_module
 except ModuleNotFoundError:
     _HOOK_DIR: Path = Path(__file__).resolve().parent
     if str(_HOOK_DIR) not in sys.path:
         sys.path.insert(0, str(_HOOK_DIR))
     from build_utils.build_context import BuildContext
-    from build_utils.build_utils import BuildUtils
+    from build_utils.build_utils import BuildUtils, load_generate_version_module
 
 T = TypeVar("T")
 
@@ -32,23 +32,6 @@ def norm_abs(path_str: str) -> str:
     return os.fspath(p)
 
 
-def _generate_version_files(interface) -> None:
-    """Generate build and runtime version files."""
-    scripts_dir = str(Path("scripts").resolve())
-    try:
-        if scripts_dir not in sys.path:
-            sys.path.insert(0, scripts_dir)
-        import generate_version  # pylint: disable=import-outside-toplevel
-
-        generate_version.main()
-        interface.write_line("Version file generated successfully")
-    except Exception as e:
-        interface.write_line(f"FileVersionInfo generation failed: {e}")
-    finally:
-        if scripts_dir in sys.path:
-            sys.path.remove(scripts_dir)
-
-
 def pre_build(interface) -> None:
     """Pre-build hook for the Jira Importer application."""
     build_context = BuildContext(interface)
@@ -56,7 +39,11 @@ def pre_build(interface) -> None:
     cfg_files = build_context.files_cfg
     cfg_pyi = build_context.pyinstaller_cfg
 
-    _generate_version_files(interface)
+    try:
+        BuildUtils(build_context).generate_version_file(increment=True)
+        interface.write_line("Version file generated successfully")
+    except Exception as e:
+        interface.write_line(f"FileVersionInfo generation failed: {e}")
 
     data: dict[str, Any] = interface.pyproject_data
     pp = data.setdefault("tool", {}).setdefault("poetry-pyinstaller-plugin", {})
@@ -119,3 +106,5 @@ def post_build(interface) -> None:
 
     if "BUILD_PROFILE" in os.environ:
         del os.environ["BUILD_PROFILE"]
+
+    load_generate_version_module().clear_version_session()

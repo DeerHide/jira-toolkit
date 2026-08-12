@@ -4,11 +4,14 @@ Author:
     Julien (@tom4897)
 """
 
+from __future__ import annotations
+
 import logging
 import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Protocol
 
 
@@ -16,6 +19,16 @@ class BuildContextProtocol(Protocol):
     """Protocol for build context objects used by BuildUtils."""
 
     cfg: Mapping[str, Any]
+
+
+def load_generate_version_module() -> ModuleType:
+    """Import scripts/generate_version.py."""
+    scripts_dir = str(Path(__file__).resolve().parents[1])
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import generate_version  # pylint: disable=import-outside-toplevel
+
+    return generate_version
 
 
 class BuildUtils:
@@ -67,7 +80,6 @@ class BuildUtils:
             return False
 
         try:
-            # Use signtool to sign the executable
             sign_cmd = [
                 signtool_path,
                 "sign",
@@ -77,7 +89,7 @@ class BuildUtils:
                 digest_algorithm,
                 "/t",
                 timestamp_server,
-                "/v",  # Verbose output
+                "/v",
                 executable_path,
             ]
 
@@ -102,19 +114,11 @@ class BuildUtils:
             self._logger.error("Error during code signing: %s", e)
             return False
 
-    def generate_version_file(self) -> None:
-        """Create version file using the same pattern as post_build."""
+    def generate_version_file(self, *, increment: bool = True) -> None:
+        """Generate version artifacts (shared generate_version entrypoint)."""
         try:
-            scripts_dir = str(Path("scripts").resolve())
-            if scripts_dir not in sys.path:
-                sys.path.insert(0, scripts_dir)
-
-            import generate_version  # pylint: disable=import-outside-toplevel
-
-            generate_version.main()
+            generate_version = load_generate_version_module()
+            generate_version.generate_version_files(increment=increment)
         except Exception as e:
             self._logger.error("Version file generation failed: %s", e)
             raise
-        finally:
-            if scripts_dir in sys.path:
-                sys.path.remove(scripts_dir)

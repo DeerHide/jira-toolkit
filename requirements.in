@@ -1,15 +1,10 @@
-# Core logging
-structlog
-
 # Console / UI
 rich
 rich-argparse
-tqdm
 colorlog
 colorama; platform_system == "Windows"
 
 # Data handling
-pandas
 openpyxl
 
 # HTTP and API
@@ -19,9 +14,6 @@ idna>=3.15
 
 # Security and credentials
 keyring>=25.7.0
-
-# Configuration
-PyYAML
 
 # Dev tooling
 pre-commit

@@ -5,12 +5,11 @@ on:
   pull_request:
     branches:
       - main
-      - master
       - dev
   push:
     branches:
       - main
-      - master
+      - dev
 
 defaults:
   run:

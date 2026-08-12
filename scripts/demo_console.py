@@ -5,17 +5,15 @@ Author:
     Julien (@tom4897)
 """
 
-import os
 import sys
 
-from jira_importer.console import (  # type: ignore[import]  # pylint: disable=wrong-import-position
-    STYLE,
-    THEME,
-    ConsoleIO,
-    ConsoleUI,
-)
+from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SRC = _REPO_ROOT / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+from jira_importer.console import STYLE, THEME, ConsoleIO, ConsoleUI  # pylint: disable=wrong-import-position
 
 
 def demo_formatting_text(ui: ConsoleUI):
@@ -100,6 +98,13 @@ def demo_formatting_themes(ui: ConsoleUI):
         ui.say(f"theme.{theme_name}: {theme_value}")
 
 
+def demo_formatting_markdown(ui: ConsoleUI):
+    """Demo formatting markdown."""
+    ui.lf()
+    ui.title_banner("MARKDOWN")
+    ui.render_markdown(file_path=Path(__file__).resolve().parent.parent / "README_APP.md")
+
+
 def main():
     """Run the console UI demo showcasing formatting, panels, and themes."""
     ui = ConsoleIO.get_ui()
@@ -113,11 +118,14 @@ def main():
     ui.lf()
     demo_formatting_prefixes(ui)
 
-    # ui.lf()
-    # demo_formatting_styles(ui)
+    ui.lf()
+    demo_formatting_styles(ui)
 
-    # ui.lf()
-    # demo_formatting_themes(ui)
+    ui.lf()
+    demo_formatting_themes(ui)
+
+    ui.lf()
+    demo_formatting_markdown(ui)
 
 
 if __name__ == "__main__":

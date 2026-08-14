@@ -38,9 +38,9 @@ def main() -> int:
                 check=True,
                 capture_output=True,
             )
-            print("✓ Regenerated requirements.lock")
+            print("[OK] Regenerated requirements.lock")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print("⚠ Skipping lock file regeneration (pip-tools not available)")
+            print("[WARN] Skipping lock file regeneration (pip-tools not available)")
 
     # install requirements
     if requirements_lock.exists():
@@ -48,16 +48,16 @@ def main() -> int:
     elif requirements_txt.exists():
         requirements_file = requirements_txt
     else:
-        print("⚠ No requirements file found (requirements.lock or requirements.txt)")
+        print("[ERROR] No requirements file found (requirements.lock or requirements.txt)")
         return 1
 
-    print(f"📦 Installing requirements from {requirements_file.name}...")
+    print(f"[INFO] Installing requirements from {requirements_file.name}...")
     try:
         subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(requirements_file)], check=True)
-        print("✓ Requirements installed successfully")
+        print("[OK] Requirements installed successfully")
         return 0
     except subprocess.CalledProcessError:
-        print("⚠ Failed to install requirements")
+        print("[ERROR] Failed to install requirements")
         return 1
 
 

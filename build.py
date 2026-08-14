@@ -50,7 +50,7 @@ _safe_ops = SafeFileOperations()
 def check_dependencies(config) -> None:
     """Check if required dependencies are available."""
     if not config["build_options"]["check_dependencies"]:
-        _logger.info("⏭️  Dependency checking disabled in config")
+        _logger.info("[SKIP] Dependency checking disabled in config")
         return
 
     # Map package names to their import names (some packages have different import names)
@@ -65,9 +65,9 @@ def check_dependencies(config) -> None:
         import_name = import_name_map.get(dependency.lower(), dependency.lower())
         try:
             __import__(import_name)
-            _logger.info("✅ %s is available", dependency)
+            _logger.info("[OK] %s is available", dependency)
         except ImportError:
-            _logger.warning("❌ %s not found. Installing...", dependency)
+            _logger.warning("[WARN] %s not found. Installing...", dependency)
             # Use original dependency name for pip install (not the import name)
             subprocess.check_call([sys.executable, "-m", "pip", "install", dependency.lower()])
 
@@ -82,11 +82,11 @@ def prepare_build_directories(config, config_name) -> bool:
     # Clean temp directory only if clean_temp is enabled
     if config["build_options"]["clean_temp"]:
         if not _safe_ops.create_directory(temp_dir, "temp directory", clean_if_exists=True):
-            _logger.warning("❌ Failed to prepare temp directory: %s", temp_dir)
+            _logger.error("[ERROR] Failed to prepare temp directory: %s", temp_dir)
             return False
     # Just ensure temp directory exists
     elif not _safe_ops.create_directory(temp_dir, "temp directory"):
-        _logger.warning("❌ Failed to ensure temp directory exists: %s", temp_dir)
+        _logger.error("[ERROR] Failed to ensure temp directory exists: %s", temp_dir)
         return False
 
     return True
@@ -104,7 +104,7 @@ def stage_build_inputs(config) -> bool:
 
     # Ensure temp directory exists (in case clean_directories wasn't called)
     if not _safe_ops.create_directory(temp_dir, "temp directory"):
-        _logger.warning("❌ Failed to ensure temp directory exists: %s", temp_dir)
+        _logger.error("[ERROR] Failed to ensure temp directory exists: %s", temp_dir)
         return False
 
     # Copy icon file if it exists
@@ -114,7 +114,7 @@ def stage_build_inputs(config) -> bool:
         if not _safe_ops.copy_file(icon_file, icon_dest, "icon file"):
             return False
     else:
-        _logger.info("⏭️  No icon file specified for this platform")
+        _logger.info("[SKIP] No icon file specified for this platform")
 
     # Copy version file if it exists
     if version_file:
@@ -123,7 +123,7 @@ def stage_build_inputs(config) -> bool:
         if not _safe_ops.copy_file(version_file, version_dest, "version file"):
             return False
     else:
-        _logger.info("⏭️  No version file specified for this platform")
+        _logger.info("[SKIP] No version file specified for this platform")
 
     # Handle src directory - remove if exists, then copy
     temp_src_dir = Path(temp_dir) / "src"
@@ -136,9 +136,9 @@ def stage_build_inputs(config) -> bool:
         if not _safe_ops.copy_directory(resources_dir, temp_resources_dir, "resources directory"):
             return False
     else:
-        _logger.warning("⚠️  Resources directory not found: %s", resources_dir)
+        _logger.warning("[WARN] Resources directory not found: %s", resources_dir)
 
-    _logger.info("✅ Build files copied to temp directory successfully")
+    _logger.info("[OK] Build files copied to temp directory successfully")
     return True
 
 
@@ -146,7 +146,7 @@ def build_with_pyinstaller(config, config_name) -> bool:
     """Build the executable using PyInstaller."""
     # Check if PyInstaller is available
     if importlib.util.find_spec("PyInstaller") is None:
-        _logger.error("❌ PyInstaller is not installed. Please install it first:")
+        _logger.error("[ERROR] PyInstaller is not installed. Please install it first:")
         _logger.error("   %s -m pip install pyinstaller", sys.executable)
         _logger.error("   or: poetry install --with pyinstaller")
         sys.exit(1)
@@ -167,7 +167,7 @@ def build_with_pyinstaller(config, config_name) -> bool:
             else:
                 raise FileNotFoundError(f"No entry point script found in {src_dir} for PyInstaller compilation.")
 
-    _logger.info("🔨 Building executable from: %s", main_script)
+    _logger.info("[INFO] Building executable from: %s", main_script)
 
     # Get absolute paths for better reliability
     temp_dir = Path(config["directories"]["temp"]).resolve()
@@ -274,9 +274,9 @@ def build_with_pyinstaller(config, config_name) -> bool:
         pyinstaller_cmd.append(str(main_script))
 
         subprocess.check_call(pyinstaller_cmd)
-        _logger.info("✅ Executable built successfully!")
+        _logger.info("[OK] Executable built successfully!")
     except subprocess.CalledProcessError as e:
-        _logger.error("❌ PyInstaller build failed: %s", e)
+        _logger.error("[ERROR] PyInstaller build failed: %s", e)
         sys.exit(1)
     finally:
         # Always restore original working directory
@@ -291,7 +291,7 @@ def get_version_string() -> str:
         # Import the version module to get version info
         version_path = Path("src/jira_importer/version.py")
         if not version_path.exists():
-            _logger.warning("⚠️  Version file not found: %s", version_path)
+            _logger.warning("[WARN] Version file not found: %s", version_path)
             return "1.0.0"
 
         # Read and execute the version file to get __version_info__
@@ -312,14 +312,14 @@ def get_version_string() -> str:
 
         return f"{major}.{minor}.{patch}"
     except Exception as e:
-        _logger.warning("⚠️  Could not extract version info: %s", e)
+        _logger.warning("[WARN] Could not extract version info: %s", e)
         return "1.0.0"
 
 
 def copy_resources_into_dist(config, config_name) -> bool:
     """Copy resources folder to dist directory."""
     if not config["build_options"].get("copy_resources_to_dist", True):
-        _logger.info("⏭️  Resources copying disabled in config")
+        _logger.info("[SKIP] Resources copying disabled in config")
         return True
 
     resources_dir = config["directories"]["resources"]
@@ -327,25 +327,25 @@ def copy_resources_into_dist(config, config_name) -> bool:
     config_dist_dir = Path(dist_dir) / config_name
 
     if not Path(resources_dir).exists():
-        _logger.warning("⚠️  Resources directory not found: %s", resources_dir)
+        _logger.warning("[WARN] Resources directory not found: %s", resources_dir)
         return False
 
     if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
-        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
+        _logger.warning("[WARN] Could not find dist directory at %s", config_dist_dir)
         return False
 
     resources_dest = config_dist_dir / "resources"
     if not _safe_ops.copy_directory(resources_dir, resources_dest, "resources directory"):
         return False
 
-    _logger.info("✅ Resources copied to dist successfully")
+    _logger.info("[OK] Resources copied to dist successfully")
     return True
 
 
 def copy_docs_into_dist(config, config_name) -> bool:
     """Copy documentation files to dist directory."""
     if not config["build_options"]["copy_documentation"]:
-        _logger.info("⏭️  Documentation copying disabled in config")
+        _logger.info("[SKIP] Documentation copying disabled in config")
         return True
 
     dist_dir = config["directories"]["dist"]
@@ -356,7 +356,7 @@ def copy_docs_into_dist(config, config_name) -> bool:
     config_dist_dir = Path(dist_dir) / config_name
 
     if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
-        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
+        _logger.warning("[WARN] Could not find dist directory at %s", config_dist_dir)
         return False
 
     license_dest = config_dist_dir / f"{config['pyinstaller']['name']}_LICENSE.md"
@@ -370,7 +370,7 @@ def copy_docs_into_dist(config, config_name) -> bool:
         success = False
 
     if success:
-        _logger.info("✅ Documentation copied successfully")
+        _logger.info("[OK] Documentation copied successfully")
 
     return success
 
@@ -380,18 +380,18 @@ def _load_artifact_include_patterns(config) -> tuple[str, ...]:
     patterns = config["build_options"].get("artifact_include_patterns")
     if not isinstance(patterns, list | tuple) or not patterns:
         _logger.error(
-            "❌ Missing required build option 'artifact_include_patterns'. Update build/configs/base.json to include strict artifact patterns."
+            "[ERROR] Missing required build option 'artifact_include_patterns'. Update build/configs/base.json to include strict artifact patterns."
         )
         sys.exit(1)
 
     normalized_patterns: list[str] = []
     for pattern in patterns:
         if not isinstance(pattern, str):
-            _logger.error("❌ Invalid artifact include pattern type: %s (expected string)", type(pattern).__name__)
+            _logger.error("[ERROR] Invalid artifact include pattern type: %s (expected string)", type(pattern).__name__)
             sys.exit(1)
         normalized = pattern.strip().replace("\\", "/")
         if not normalized:
-            _logger.error("❌ Empty artifact include pattern is not allowed")
+            _logger.error("[ERROR] Empty artifact include pattern is not allowed")
             sys.exit(1)
         normalized_patterns.append(normalized)
 
@@ -417,7 +417,7 @@ def _prepare_profile_dist_directory(config, config_name: str, *, clean_if_exists
     base_dist_dir = Path(config["directories"]["dist"])
     config_dist_dir = base_dist_dir / config_name
     if not _safe_ops.create_directory(config_dist_dir, "config dist directory", clean_if_exists=clean_if_exists):
-        _logger.warning("❌ Failed to prepare config dist directory: %s", config_dist_dir)
+        _logger.error("[ERROR] Failed to prepare config dist directory: %s", config_dist_dir)
         return False
     return True
 
@@ -426,19 +426,19 @@ def _run_shared_post_build_steps(config, config_name: str, platform_tag: str) ->
     """Run post-build steps shared by Poetry and non-Poetry build modes."""
     success = True
 
-    _logger.info("📁 Copying resources to dist...")
+    _logger.info("[INFO] Copying resources to dist...")
     if not copy_resources_into_dist(config, config_name):
-        _logger.warning("⚠️  Warning: Failed to copy resources to dist")
+        _logger.warning("[WARN] Failed to copy resources to dist")
         success = False
 
-    _logger.info("📚 Copying documentation...")
+    _logger.info("[INFO] Copying documentation...")
     if not copy_docs_into_dist(config, config_name):
-        _logger.warning("⚠️  Warning: Failed to copy documentation")
+        _logger.warning("[WARN] Failed to copy documentation")
         success = False
 
-    _logger.info("📦 Creating ZIP archive...")
+    _logger.info("[INFO] Creating ZIP archive...")
     if not create_dist_zip_archive(config, config_name, platform_tag):
-        _logger.warning("⚠️  Warning: Failed to create ZIP archive")
+        _logger.warning("[WARN] Failed to create ZIP archive")
         success = False
 
     return success
@@ -447,14 +447,14 @@ def _run_shared_post_build_steps(config, config_name: str, platform_tag: str) ->
 def create_dist_zip_archive(config, config_name, platform_tag) -> bool:
     """Create ZIP archive of the build output."""
     if not config["build_options"].get("create_zip", True):
-        _logger.info("⏭️  ZIP creation disabled in config")
+        _logger.info("[SKIP] ZIP creation disabled in config")
         return True
 
     dist_dir = config["directories"]["dist"]
     config_dist_dir = Path(dist_dir) / config_name
 
     if not _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
-        _logger.warning("⚠️  Warning: Could not find dist directory at %s", config_dist_dir)
+        _logger.warning("[WARN] Could not find dist directory at %s", config_dist_dir)
         return False
 
     # Get version string
@@ -463,7 +463,7 @@ def create_dist_zip_archive(config, config_name, platform_tag) -> bool:
     zip_path = Path(dist_dir) / zip_filename
     include_patterns = _load_artifact_include_patterns(config)
 
-    _logger.debug("📋 Artifact include patterns for ZIP: %s", include_patterns)
+    _logger.debug("[DEBUG] Artifact include patterns for ZIP: %s", include_patterns)
 
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
@@ -473,24 +473,24 @@ def create_dist_zip_archive(config, config_name, platform_tag) -> bool:
                 if current_root != config_dist_dir:
                     relative_dir = current_root.relative_to(config_dist_dir)
                     if not _artifact_path_is_included(relative_dir, include_patterns, is_directory=True):
-                        _logger.debug("⏭️  Skipping non-included directory in ZIP: %s", relative_dir)
+                        _logger.debug("[SKIP] Skipping non-included directory in ZIP: %s", relative_dir)
                         dirs[:] = []
                         continue
                 for file in files:
                     file_path = Path(root) / file
                     relative_file_path = file_path.relative_to(config_dist_dir)
                     if not _artifact_path_is_included(relative_file_path, include_patterns):
-                        _logger.debug("⏭️  Skipping non-included file in ZIP: %s", relative_file_path)
+                        _logger.debug("[SKIP] Skipping non-included file in ZIP: %s", relative_file_path)
                         continue
                     # Calculate relative path from config_dist_dir
                     arcname = relative_file_path
                     zipf.write(file_path, arcname)
-                    _logger.debug("📦 Added to ZIP: %s", arcname)
+                    _logger.debug("[DEBUG] Added to ZIP: %s", arcname)
 
-        _logger.info("✅ ZIP archive created successfully: %s", zip_path)
+        _logger.info("[OK] ZIP archive created successfully: %s", zip_path)
         return True
     except Exception as e:
-        _logger.error("❌ Failed to create ZIP archive: %s", e)
+        _logger.error("[ERROR] Failed to create ZIP archive: %s", e)
         return False
 
 
@@ -500,11 +500,11 @@ def cleanup_build_temp_files(config) -> bool:
 
     if _safe_ops.directory_exists(temp_dir, "temp directory"):
         if _safe_ops.remove_directory(temp_dir, "temp directory"):
-            _logger.info("✅ Temporary files cleaned up successfully")
+            _logger.info("[OK] Temporary files cleaned up successfully")
         else:
-            _logger.warning("⚠️  Warning: Could not clean up temp directory")
+            _logger.warning("[WARN] Could not clean up temp directory")
     else:
-        _logger.debug("⏭️  No temp directory to clean up")
+        _logger.debug("[SKIP] No temp directory to clean up")
 
     return True
 
@@ -535,14 +535,14 @@ def _resolve_poetry_dist_directory(base_dist_dir: Path, platform_tag: str, expec
 
     if len(matching_dirs) > 1:
         candidates_text = ", ".join(str(path) for path in sorted(matching_dirs))
-        _logger.warning("⚠️  Ambiguous Poetry dist directories for platform '%s': %s", platform_tag, candidates_text)
+        _logger.warning("[WARN] Ambiguous Poetry dist directories for platform '%s': %s", platform_tag, candidates_text)
         return None
 
     if len(candidate_dirs) == 1:
         return candidate_dirs[0]
 
     candidates_text = ", ".join(str(path) for path in sorted(candidate_dirs))
-    _logger.warning("⚠️  Could not determine Poetry dist directory among candidates: %s", candidates_text)
+    _logger.warning("[WARN] Could not determine Poetry dist directory among candidates: %s", candidates_text)
     return None
 
 
@@ -556,7 +556,7 @@ def _sync_poetry_artifacts_to_profile_dist(config, config_name: str, platform_ta
         base_dist_dir=base_dist_dir, platform_tag=platform_tag, expected_artifact_names=expected_artifact_names
     )
     if source_dir is None:
-        _logger.warning("⚠️  Poetry dist directory not found under: %s", base_dist_dir / "pyinstaller")
+        _logger.warning("[WARN] Poetry dist directory not found under: %s", base_dist_dir / "pyinstaller")
         return False
 
     target_dir = base_dist_dir / config_name
@@ -565,13 +565,13 @@ def _sync_poetry_artifacts_to_profile_dist(config, config_name: str, platform_ta
         return False
 
     include_patterns = _load_artifact_include_patterns(config)
-    _logger.debug("📋 Artifact include patterns for Poetry sync: %s", include_patterns)
+    _logger.debug("[DEBUG] Artifact include patterns for Poetry sync: %s", include_patterns)
 
     copied_anything = False
     for artifact in source_dir.iterdir():
         relative_artifact_path = Path(artifact.name)
         if not _artifact_path_is_included(relative_artifact_path, include_patterns, is_directory=artifact.is_dir()):
-            _logger.debug("⏭️  Skipping non-included Poetry artifact: %s", relative_artifact_path)
+            _logger.debug("[SKIP] Skipping non-included Poetry artifact: %s", relative_artifact_path)
             continue
         artifact_target = target_dir / artifact.name
         if artifact.is_dir():
@@ -579,19 +579,19 @@ def _sync_poetry_artifacts_to_profile_dist(config, config_name: str, platform_ta
         elif artifact.is_file():
             success = _safe_ops.copy_file(artifact, artifact_target, f"poetry artifact file: {artifact.name}")
         else:
-            _logger.debug("⏭️  Skipping unsupported artifact type: %s", artifact)
+            _logger.debug("[SKIP] Skipping unsupported artifact type: %s", artifact)
             continue
 
         if not success:
-            _logger.warning("❌ Failed to copy Poetry artifact: %s", artifact)
+            _logger.error("[ERROR] Failed to copy Poetry artifact: %s", artifact)
             return False
         copied_anything = True
 
     if not copied_anything:
-        _logger.warning("⚠️  No Poetry artifacts copied from: %s", source_dir)
+        _logger.warning("[WARN] No Poetry artifacts copied from: %s", source_dir)
         return False
 
-    _logger.info("✅ Poetry build artifacts copied to profile dist: %s", target_dir)
+    _logger.info("[OK] Poetry build artifacts copied to profile dist: %s", target_dir)
     return True
 
 
@@ -603,13 +603,13 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.build_poetry:
-        _logger.info("🔨 Building solution using Poetry...")
+        _logger.info("[INFO] Building solution using Poetry...")
         os.environ["BUILD_PROFILE"] = args.config
         subprocess.check_call(["poetry", "build", "--format", "pyinstaller"])
         build_context = BuildContext(None, args.config)
         config = build_context.cfg
         if not _sync_poetry_artifacts_to_profile_dist(config=config, config_name=args.config, platform_tag=build_context.platform_tag):
-            _logger.warning("⚠️  Could not align Poetry output with profile dist structure")
+            _logger.error("[ERROR] Could not align Poetry output with profile dist structure")
             sys.exit(1)
 
         _run_shared_post_build_steps(config, args.config, build_context.platform_tag)
@@ -625,47 +625,47 @@ def main() -> None:
     CONFIG_PYI = build_context.pyinstaller_cfg  # pylint: disable=invalid-name
     CONFIG_BUILD_OPTIONS = build_context.cfg["build_options"]  # pylint: disable=invalid-name
 
-    _logger.info("🖥️  Detected platform: %s", build_context.platform_tag)
-    _logger.info("🚀 Starting Jira Importer build process...")
+    _logger.info("[INFO] Detected platform: %s", build_context.platform_tag)
+    _logger.info("[INFO] Starting Jira Importer build process...")
     print("=" * 20)
-    _logger.info("📋 Using configuration: %s", args.config)
+    _logger.info("[INFO] Using configuration: %s", args.config)
     print("=" * 20)
 
-    _logger.info("📋 Checking dependencies...")
+    _logger.info("[INFO] Checking dependencies...")
     check_dependencies(CONFIG)
 
     if CONFIG_BUILD_OPTIONS["install_requirements"]:
-        _logger.info("📦 Installing requirements...")
+        _logger.info("[INFO] Installing requirements...")
         try:
             requirements_file = CONFIG_FILES["requirements"]
             subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_file])
-            _logger.info("✅ Requirements installed successfully")
+            _logger.info("[OK] Requirements installed successfully")
         except subprocess.CalledProcessError as e:
-            _logger.error("❌ Failed to install requirements: %s", e)
+            _logger.error("[ERROR] Failed to install requirements: %s", e)
         except Exception as e:
-            _logger.error("❌ Failed to install requirements: %s", e)
+            _logger.error("[ERROR] Failed to install requirements: %s", e)
     else:
-        _logger.info("⏭️  Requirements installation disabled in config")
+        _logger.info("[SKIP] Requirements installation disabled in config")
 
     if CONFIG_BUILD_OPTIONS["clean_dist"]:
-        _logger.info("🧹 Preparing build environment...")
+        _logger.info("[INFO] Preparing build environment...")
         if not prepare_build_directories(CONFIG, args.config):
-            _logger.warning("❌ Failed to prepare build environment")
+            _logger.error("[ERROR] Failed to prepare build environment")
             sys.exit(1)
     else:
-        _logger.info("⏭️  Directory cleaning disabled in config")
+        _logger.info("[SKIP] Directory cleaning disabled in config")
 
-    _logger.info("🔨 Building version file...")
+    _logger.info("[INFO] Building version file...")
     try:
         build_utils.generate_version_file()
     except Exception as e:
-        _logger.error("❌ Failed to build version file: %s", e)
+        _logger.error("[ERROR] Failed to build version file: %s", e)
 
-    _logger.info("📁 Copying build files...")
+    _logger.info("[INFO] Copying build files...")
     if not stage_build_inputs(CONFIG):
-        _logger.warning("❌ Failed to copy build files")
+        _logger.error("[ERROR] Failed to copy build files")
 
-    _logger.info("🔨 Building executable...")
+    _logger.info("[INFO] Building executable...")
     build_with_pyinstaller(CONFIG, args.config)  # Pass config_name as an argument
 
     dist_dir = CONFIG["directories"]["dist"]
@@ -676,12 +676,12 @@ def main() -> None:
 
     if _safe_ops.file_exists(executable_path, "executable"):
         print("\n" + "=" * 50)
-        _logger.info("🔐 CODE SIGNING")
+        _logger.info("[INFO] CODE SIGNING")
         print("=" * 50)
         build_utils = BuildUtils(build_context)
         build_utils.sign_executable(executable_path)
     else:
-        _logger.warning("⚠️  Warning: Expected executable not found at %s", executable_path)
+        _logger.warning("[WARN] Expected executable not found at %s", executable_path)
         _logger.debug("Checking for executable in dist directory...")
         # List contents of dist directory to help debug
         if _safe_ops.directory_exists(config_dist_dir, "config dist directory"):
@@ -694,15 +694,15 @@ def main() -> None:
 
     if CONFIG["build_options"]["clean_temp"]:
         if not cleanup_build_temp_files(CONFIG):
-            _logger.warning("⚠️  Warning: Failed to clean up temporary files")
+            _logger.warning("[WARN] Failed to clean up temporary files")
     else:
-        _logger.info("💾 Keeping temporary files (clean_temp disabled in config)")
+        _logger.info("[INFO] Keeping temporary files (clean_temp disabled in config)")
         temp_dir = CONFIG["directories"]["temp"]
-        _logger.info("📁 Temp files location: %s", temp_dir)
+        _logger.info("[INFO] Temp files location: %s", temp_dir)
 
     print("\n" + "=" * 50)
-    _logger.info("🎉 Build completed successfully!")
-    _logger.info("📦 Executable location: %s", config_dist_dir)
+    _logger.info("[OK] Build completed successfully!")
+    _logger.info("[INFO] Executable location: %s", config_dist_dir)
     print("=" * 50)
 
 

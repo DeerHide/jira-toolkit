@@ -34,35 +34,35 @@ class SafeFileOperations:
             except PermissionError as e:
                 if attempt < self.max_retries - 1:
                     logger.warning(
-                        "⚠️  Permission error during %s (attempt %d/%d): %s",
+                        "[WARN] Permission error during %s (attempt %d/%d): %s",
                         operation_name,
                         attempt + 1,
                         self.max_retries,
                         e,
                     )
-                    logger.warning("⏳ Waiting %d seconds before retry...", current_delay)
+                    logger.warning("[INFO] Waiting %d seconds before retry...", current_delay)
                     time.sleep(current_delay)
                     current_delay *= 2  # Exponential backoff
                 else:
-                    logger.error("❌ Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
+                    logger.error("[ERROR] Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
                     return False
             except OSError as e:
                 if attempt < self.max_retries - 1:
                     logger.warning(
-                        "⚠️  OS error during %s (attempt %d/%d): %s",
+                        "[WARN] OS error during %s (attempt %d/%d): %s",
                         operation_name,
                         attempt + 1,
                         self.max_retries,
                         e,
                     )
-                    logger.warning("⏳ Waiting %d seconds before retry...", current_delay)
+                    logger.warning("[INFO] Waiting %d seconds before retry...", current_delay)
                     time.sleep(current_delay)
                     current_delay *= 2
                 else:
-                    logger.error("❌ Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
+                    logger.error("[ERROR] Failed %s after %d attempts: %s", operation_name, self.max_retries, e)
                     return False
             except Exception as e:
-                logger.error("❌ Unexpected error during %s: %s", operation_name, e)
+                logger.error("[ERROR] Unexpected error during %s: %s", operation_name, e)
                 return False
         return False
 
@@ -72,13 +72,13 @@ class SafeFileOperations:
         logger = logging.getLogger(__name__)
 
         if not directory_path.exists():
-            logger.info("⏭️  %s does not exist: %s", description.capitalize(), directory_path)
+            logger.info("[SKIP] %s does not exist: %s", description.capitalize(), directory_path)
             return True
 
         def _remove_operation():
-            logger.info("🧹 Removing %s: %s", description, directory_path)
+            logger.info("[INFO] Removing %s: %s", description, directory_path)
             shutil.rmtree(directory_path)
-            logger.info("✅ Successfully removed %s: %s", description, directory_path)
+            logger.info("[OK] Successfully removed %s: %s", description, directory_path)
             return True
 
         return self._run_with_retry(f"removing {description}", _remove_operation)
@@ -96,7 +96,7 @@ class SafeFileOperations:
                     return False
 
             directory_path.mkdir(parents=True, exist_ok=True)
-            logger.info("✅ Created/ensured %s: %s", description, directory_path)
+            logger.info("[OK] Created/ensured %s: %s", description, directory_path)
             return True
 
         return self._run_with_retry(f"creating {description}", _create_operation)
@@ -112,17 +112,17 @@ class SafeFileOperations:
             dest_path.parent.mkdir(parents=True, exist_ok=True)
 
             shutil.copy2(source_path, dest_path)
-            logger.info("✅ Successfully copied %s: %s → %s", description, source_path, dest_path)
+            logger.info("[OK] Successfully copied %s: %s -> %s", description, source_path, dest_path)
             return True
 
         try:
             if not source_path.exists():
-                logger.error("❌ Source %s not found: %s", description, source_path)
+                logger.error("[ERROR] Source %s not found: %s", description, source_path)
                 return False
 
             return self._run_with_retry(f"copying {description}", _copy_operation)
         except Exception as e:
-            logger.error("❌ Unexpected error copying %s: %s", description, e)
+            logger.error("[ERROR] Unexpected error copying %s: %s", description, e)
             return False
 
     def copy_directory(self, source_path: str | Path, dest_path: str | Path, description: str = "directory") -> bool:
@@ -134,22 +134,22 @@ class SafeFileOperations:
         def _copy_operation():
             # Remove destination if it exists
             if dest_path.exists():
-                logger.info("🗑️  Removing existing %s: %s", description, dest_path)
+                logger.info("[INFO] Removing existing %s: %s", description, dest_path)
                 if not self.remove_directory(dest_path, description):
                     return False
 
             shutil.copytree(source_path, dest_path)
-            logger.info("✅ Successfully copied %s: %s → %s", description, source_path, dest_path)
+            logger.info("[OK] Successfully copied %s: %s -> %s", description, source_path, dest_path)
             return True
 
         try:
             if not source_path.exists():
-                logger.error("❌ Source %s not found: %s", description, source_path)
+                logger.error("[ERROR] Source %s not found: %s", description, source_path)
                 return False
 
             return self._run_with_retry(f"copying {description}", _copy_operation)
         except Exception as e:
-            logger.error("❌ Unexpected error copying %s: %s", description, e)
+            logger.error("[ERROR] Unexpected error copying %s: %s", description, e)
             return False
 
     def file_exists(self, file_path: str | Path, description: str = "file") -> bool:
@@ -160,10 +160,10 @@ class SafeFileOperations:
         try:
             exists = file_path.is_file()
             if not exists:
-                logger.warning("⚠️  %s not found: %s", description.capitalize(), file_path)
+                logger.warning("[WARN] %s not found: %s", description.capitalize(), file_path)
             return exists
         except Exception as e:
-            logger.debug("❌ Error checking %s: %s", description, e)
+            logger.debug("[DEBUG] Error checking %s: %s", description, e)
             return False
 
     def directory_exists(self, directory_path: str | Path, description: str = "directory") -> bool:
@@ -174,8 +174,8 @@ class SafeFileOperations:
         try:
             exists = directory_path.is_dir()
             if not exists:
-                logger.debug("⚠️  %s not found: %s", description.capitalize(), directory_path)
+                logger.debug("[DEBUG] %s not found: %s", description.capitalize(), directory_path)
             return exists
         except Exception as e:
-            logger.debug("❌ Error checking %s: %s", description, e)
+            logger.debug("[DEBUG] Error checking %s: %s", description, e)
             return False

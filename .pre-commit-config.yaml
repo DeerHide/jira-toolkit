@@ -81,7 +81,7 @@ repos:
           - "pre-commit"
           - "manual"
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         stages:
@@ -98,7 +98,7 @@ repos:
           - "pre-commit"
           - "manual"
   - repo: https://github.com/pylint-dev/pylint
-    rev: v3.2.2
+    rev: v4.0.7
     hooks:
       - id: pylint
         name: pylint

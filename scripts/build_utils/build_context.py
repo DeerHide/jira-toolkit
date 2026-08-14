@@ -181,13 +181,3 @@ class BuildContext:
             code_signing_cfg = {}
             cfg["code_signing"] = code_signing_cfg
         code_signing_cfg["enabled"] = gated_enabled
-
-    # Backward-compatible aliases
-    # TODO: Update the other script used for the custom builds to use the BuildContextProtocol
-    def get_cfg(self, key: str, default: T | None = None, expected_type: type[T] | None = None) -> T | None:
-        """Backward-compatible alias for get_config_value."""
-        return self.get_config_value(key=key, default=default, expected_type=expected_type)
-
-    def include_file(self, path: str) -> str:
-        """Backward-compatible alias for require_existing_file."""
-        return self.require_existing_file(path)

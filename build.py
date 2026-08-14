@@ -47,8 +47,20 @@ _logger = LoggerManager(BASE_LOG_DIR).get_logger()
 _safe_ops = SafeFileOperations()
 
 
+def _log_dependency_install_hints() -> None:
+    """Log dual-pipeline install guidance (Poetry + pip lock)."""
+    _logger.error("   poetry install --extras dev")
+    _logger.error("   or: %s -m pip install -r requirements.lock", sys.executable)
+    _logger.error("   or: python scripts/install_requirements.py")
+
+
 def check_dependencies(config) -> None:
-    """Check if required dependencies are available."""
+    """Check if required dependencies are available.
+
+    Does not auto-install packages (avoids unpinned pip installs that drift from
+    Poetry / requirements.lock). Call after install_requirements when that option
+    is enabled.
+    """
     if not config["build_options"]["check_dependencies"]:
         _logger.info("[SKIP] Dependency checking disabled in config")
         return
@@ -58,18 +70,32 @@ def check_dependencies(config) -> None:
     import_name_map: dict[str, str] = {
         "pyyaml": "yaml",
         "py-yaml": "yaml",
+        "pyinstaller": "PyInstaller",
+        "rich-argparse": "rich_argparse",
     }
+    # Declared in config for Windows builds; skip on other platforms.
+    windows_only = {"colorama"}
 
+    missing: list[str] = []
     for dependency in config["dependencies"]["required"]:
-        # Get the import name (use mapped name if available, otherwise use lowercase)
-        import_name = import_name_map.get(dependency.lower(), dependency.lower())
+        dep_key = dependency.lower()
+        if dep_key in windows_only and sys.platform != "win32":
+            _logger.info("[SKIP] %s is Windows-only; not required on %s", dependency, sys.platform)
+            continue
+
+        import_name = import_name_map.get(dep_key, dep_key)
         try:
             __import__(import_name)
             _logger.info("[OK] %s is available", dependency)
         except ImportError:
-            _logger.warning("[WARN] %s not found. Installing...", dependency)
-            # Use original dependency name for pip install (not the import name)
-            subprocess.check_call([sys.executable, "-m", "pip", "install", dependency.lower()])
+            _logger.error("[ERROR] %s is not available", dependency)
+            missing.append(dependency)
+
+    if missing:
+        _logger.error("[ERROR] Missing required dependencies: %s", ", ".join(missing))
+        _logger.error("[ERROR] Install dependencies via one of:")
+        _log_dependency_install_hints()
+        sys.exit(1)
 
 
 def prepare_build_directories(config, config_name) -> bool:
@@ -147,8 +173,7 @@ def build_with_pyinstaller(config, config_name) -> bool:
     # Check if PyInstaller is available
     if importlib.util.find_spec("PyInstaller") is None:
         _logger.error("[ERROR] PyInstaller is not installed. Please install it first:")
-        _logger.error("   %s -m pip install pyinstaller", sys.executable)
-        _logger.error("   or: poetry install --extras dev")
+        _log_dependency_install_hints()
         sys.exit(1)
 
     src_dir = config["directories"]["source"]
@@ -631,9 +656,6 @@ def main() -> None:
     _logger.info("[INFO] Using configuration: %s", args.config)
     print("=" * 20)
 
-    _logger.info("[INFO] Checking dependencies...")
-    check_dependencies(CONFIG)
-
     if CONFIG_BUILD_OPTIONS["install_requirements"]:
         _logger.info("[INFO] Installing requirements...")
         try:
@@ -641,11 +663,19 @@ def main() -> None:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_file])
             _logger.info("[OK] Requirements installed successfully")
         except subprocess.CalledProcessError as e:
-            _logger.error("[ERROR] Failed to install requirements: %s", e)
+            _logger.error("[ERROR] Failed to install requirements from %s: %s", requirements_file, e)
+            _logger.error("[ERROR] Alternatively install via Poetry:")
+            _log_dependency_install_hints()
+            sys.exit(1)
         except Exception as e:
             _logger.error("[ERROR] Failed to install requirements: %s", e)
+            _log_dependency_install_hints()
+            sys.exit(1)
     else:
         _logger.info("[SKIP] Requirements installation disabled in config")
+
+    _logger.info("[INFO] Checking dependencies...")
+    check_dependencies(CONFIG)
 
     if CONFIG_BUILD_OPTIONS["clean_dist"]:
         _logger.info("[INFO] Preparing build environment...")

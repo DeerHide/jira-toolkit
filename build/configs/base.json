@@ -18,11 +18,13 @@
   "dependencies": {
     "required": [
       "rich",
+      "rich-argparse",
       "openpyxl",
       "colorlog",
       "requests",
       "keyring",
-      "colorama"
+      "colorama",
+      "pyinstaller"
     ]
   },
   "build_options": {

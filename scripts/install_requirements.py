@@ -1,11 +1,14 @@
 #!/usr/bin/env python
-"""Install all project requirements.
+"""Install project dependencies via Poetry.
 
-Regenerates requirements.lock from requirements.in (if pip-tools available),
-then installs all requirements.
+Installs runtime deps, the ``dev`` extra, and the non-optional ``pyinstaller``
+group so every developer machine can build binaries.
 
 Usage:
     python scripts/install_requirements.py
+
+Equivalent to:
+    poetry install --extras dev
 
 Author:
     Julien (@tom4897)
@@ -13,52 +16,31 @@ Author:
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-# constants
-PROJECT_ROOT = Path(__file__).parent.parent  # assuming we're in scripts
-REQS_IN = "requirements.in"
-REQS_LOCK = "requirements.lock"
-REQS_TXT = "requirements.txt"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> int:
-    """Install all project requirements."""
-    requirements_in = PROJECT_ROOT / REQS_IN
-    requirements_lock = PROJECT_ROOT / REQS_LOCK
-    requirements_txt = PROJECT_ROOT / REQS_TXT
-
-    # generate lock file if pip-tools is available
-    if requirements_in.exists():
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "pip", "compile", "--output-file", str(requirements_lock), str(requirements_in)],
-                check=True,
-                capture_output=True,
-            )
-            print("[OK] Regenerated requirements.lock")
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("[WARN] Skipping lock file regeneration (pip-tools not available)")
-
-    # install requirements
-    if requirements_lock.exists():
-        requirements_file = requirements_lock
-    elif requirements_txt.exists():
-        requirements_file = requirements_txt
-    else:
-        print("[ERROR] No requirements file found (requirements.lock or requirements.txt)")
+    """Install dependencies with Poetry."""
+    poetry = shutil.which("poetry")
+    if poetry is None:
+        print("[ERROR] Poetry not found on PATH. Install it from https://python-poetry.org/docs/#installation")
         return 1
 
-    print(f"[INFO] Installing requirements from {requirements_file.name}...")
+    cmd = [poetry, "install", "--extras", "dev"]
+    print(f"[INFO] Running: {' '.join(cmd)}")
     try:
-        subprocess.run([sys.executable, "-m", "pip", "install", "-r", str(requirements_file)], check=True)
-        print("[OK] Requirements installed successfully")
-        return 0
+        subprocess.run(cmd, check=True, cwd=PROJECT_ROOT)
     except subprocess.CalledProcessError:
-        print("[ERROR] Failed to install requirements")
+        print("[ERROR] Poetry install failed")
         return 1
+
+    print("[OK] Dependencies installed successfully (includes PyInstaller build tooling)")
+    return 0
 
 
 if __name__ == "__main__":

@@ -208,14 +208,17 @@ class App:
         _, fmt = App._get_ui_fmt_static()
         epilog_lines = [
             "Examples:",
-            fmt.italic("\tjira-importer dataset.xlsx --config config_importer.json -auto-yes"),
-            fmt.italic("\tjira-importer dataset.xlsx --config-excel -auto-yes --auto-fix"),
+            fmt.italic("\tjira-importer dataset.xlsx --config config_importer.json --auto-yes"),
+            fmt.italic("\tjira-importer dataset.xlsx --config-excel -y --auto-fix"),
             fmt.italic("\tjira-importer dataset.xlsx -ce -y -af -dr"),
         ]
         epilog_str = "\n".join(epilog_lines)
         parser = argparse.ArgumentParser(
             prog="jira-importer",
-            description="This script formats a CSV file for Jira import, validating and correcting data according to specified rules.",
+            description=(
+                "Validate and correct an Excel (.xlsx) workbook for Jira import, "
+                "then write a Jira-ready CSV or create issues in Jira Cloud."
+            ),
             formatter_class=RawDescriptionRichHelpFormatter,
             epilog=(epilog_str),
             allow_abbrev=False,

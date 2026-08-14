@@ -1,6 +1,7 @@
-"""HTTP client scaffold for Jira Cloud REST API v3.
+"""HTTP client for Jira Cloud REST API v3.
 
-Provides a minimal interface to make requests; resilience will be added later.
+Provides a thin request interface with retries for rate limits (429) and
+transient server errors (5xx).
 
 author:
     Julien (@tom4897)

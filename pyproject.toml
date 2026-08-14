@@ -165,6 +165,10 @@ ignore = [
   "FIX002",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Tests assert literals and skip package-style docstrings.
+"tests/**" = ["D", "PLR2004", "RUF059", "E731"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -173,3 +177,9 @@ docstring-code-line-length = 120
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["jira_importer"]
+mypy_path = "src"
+warn_unused_configs = true

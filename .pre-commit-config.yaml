@@ -4,8 +4,9 @@ default_stages:
   - "pre-push"
   - "pre-commit"
   - "manual"
-# Temporary scope: only consider files under src/, scripts/, and build/.
-files: "^(src|scripts|build)/"
+# Application, tests, scripts, and build helpers. Intentionally invalid JSON
+# fixtures live under tests/data/ and are excluded from check-json.
+files: "^(src|tests|scripts|build)/"
 repos:
   - repo: local
     hooks:
@@ -60,6 +61,7 @@ repos:
           - "ruff"
           - "format"
           - "src"
+          - "tests"
           - "scripts"
         stages:
           - "pre-commit"
@@ -75,6 +77,7 @@ repos:
           - "ruff"
           - "check"
           - "src"
+          - "tests"
           - "scripts"
           - "--fix"
         stages:
@@ -94,6 +97,8 @@ repos:
           - "pre-commit"
           - "manual"
       - id: check-json
+        # Fixtures under tests/data include intentionally invalid JSON.
+        exclude: "^tests/data/"
         stages:
           - "pre-commit"
           - "manual"

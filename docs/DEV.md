@@ -112,12 +112,20 @@ poetry run python -m jira_importer path/to/data.xlsx --debug
 
 ## Test And Lint
 
+Activate `.venv` first (`source .venv/bin/activate` or `.venv\Scripts\activate`). Poetry is the installer, not the runner.
+
 ```bash
-poetry run pytest
-poetry run ruff check src tests
-poetry run ruff format src tests
-poetry run mypy src
+pytest
+ruff check src tests scripts
+ruff format src tests scripts
+mypy
 ```
+
+### CI
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) is a Linux quality gate on Python 3.12. Poetry lock/install creates `.venv`; checks run from `.venv/bin` (`ruff`, `mypy`, `pytest`) on pull requests and pushes to `main` and `dev`.
+
+Executable builds stay local (`build.py` / `poetry build --format pyinstaller`). The `gh_action` profile is not invoked by this workflow. PyPI and GitHub Release stay in [`.github/workflows/publish.yml`](../.github/workflows/publish.yml).
 
 ## Test Data
 

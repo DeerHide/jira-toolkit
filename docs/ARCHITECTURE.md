@@ -71,6 +71,7 @@ flowchart TD
 - Rules and fixers do not mutate input rows in place; they return patches.
 - Cloud sink and CSV sink should maintain feature parity where applicable.
 - Secret resolution order is keyring, environment, config, then prompt.
+- CI (`.github/workflows/ci.yml`) is a Linux quality gate (ruff, mypy, pytest). Shippable executables are built locally per platform; PyPI/GitHub Release is `.github/workflows/publish.yml`.
 
 ## Source Of Truth
 

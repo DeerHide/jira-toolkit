@@ -1,4 +1,5 @@
-# PR and branch checks only.
+# Linux quality gate for PRs and protected branches.
+# Executable builds stay local; PyPI/GitHub Release stays in publish.yml.
 name: CI
 
 on:
@@ -11,15 +12,21 @@ on:
       - main
       - dev
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
 
 jobs:
-  setup:
+  ci:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 
@@ -30,68 +37,20 @@ jobs:
       - name: Install Poetry
         run: pipx install poetry
 
-      - name: Configure in-project virtualenv
-        run: |
-          poetry config virtualenvs.create true --local
-          poetry config virtualenvs.in-project true --local
-
-      - name: Refresh lockfile for CI
-        run: poetry lock
-
-      - name: Upload poetry.lock
-        uses: actions/upload-artifact@v7
-        with:
-          name: poetry-lock
-          path: poetry.lock
-
-      - name: Cache virtualenv
-        uses: actions/cache@v5
-        with:
-          path: ./.venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-
-
       - name: Install project dependencies
-        run: poetry install --extras dev --sync
-
-  pre-commit:
-    needs: setup
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install Poetry
-        run: pipx install poetry
-
-      - name: Download poetry.lock
-        uses: actions/download-artifact@v8
-        with:
-          name: poetry-lock
-
-      - name: Cache virtualenv
-        uses: actions/cache@v5
-        with:
-          path: ./.venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-
-
-      - name: Configure in-project virtualenv
         run: |
-          poetry config virtualenvs.create true --local
           poetry config virtualenvs.in-project true --local
+          poetry lock
+          poetry install --extras dev --sync
 
-      - name: Install project dependencies
-        run: poetry install --extras dev --sync
+      - name: Ruff check
+        run: .venv/bin/ruff check src tests scripts
 
-      - name: Run pre-commit (format, lint, types, tests)
-        run: |
-          export PYTHONPATH=./src:./tests:${PYTHONPATH:-}
-          poetry run pre-commit run --all-files
+      - name: Ruff format
+        run: .venv/bin/ruff format --check src tests scripts
+
+      - name: Mypy
+        run: .venv/bin/mypy
+
+      - name: Pytest
+        run: .venv/bin/pytest

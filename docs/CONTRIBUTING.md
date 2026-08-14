@@ -33,19 +33,21 @@ git checkout -b feature/short-description
 
 ## Local Checks
 
-Run these before pushing:
+Activate `.venv` (`source .venv/bin/activate` or `.venv\Scripts\activate`), then run:
 
 ```bash
-poetry run pytest
-poetry run ruff check src tests
-poetry run mypy src
+pytest
+ruff check src tests scripts
+mypy
 ```
 
 If formatting is needed:
 
 ```bash
-poetry run ruff format src tests
+ruff format src tests scripts
 ```
+
+GitHub Actions runs these same tools from `.venv/bin` on every PR (Linux, Python 3.12). Local pre-commit stays format-on-commit; pytest, mypy, and pylint run on push.
 
 ## Pull Request Expectations
 
@@ -83,9 +85,9 @@ Do not list commits that change behavior.
 
 - [ ] Scope is clear and limited.
 - [ ] Tests added/updated where behavior changed.
-- [ ] `poetry run pytest` passes.
-- [ ] `poetry run ruff check src tests` passes.
-- [ ] `poetry run mypy src` passes.
+- [ ] `pytest` passes.
+- [ ] `ruff check src tests scripts` passes.
+- [ ] `mypy` passes.
 - [ ] Docs updated if user-facing or developer-facing behavior changed.
 
 ## Help

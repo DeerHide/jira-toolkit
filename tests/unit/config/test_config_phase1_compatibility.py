@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
+from jira_importer.config.config_models import AutoFieldValueConfig, ExcelTableConfig, SettingConfig
 from jira_importer.config.excel_config import ExcelConfiguration
 from jira_importer.config.json_config import JsonConfiguration
-from jira_importer.config.config_models import AutoFieldValueConfig, ExcelTableConfig, SettingConfig
 from jira_importer.errors import ConfigurationError, ExcelConfigurationError
 
 
@@ -63,9 +63,7 @@ class _FakeTableReaderWithMetadataVersion:
 
     def read_all_tables(self, config_sheet: str):  # pylint: disable=unused-argument
         """Return table config with metadata.version fallback value."""
-        return ExcelTableConfig(
-            auto_field_values=[AutoFieldValueConfig(name="metadata.version", value="7")]
-        )
+        return ExcelTableConfig(auto_field_values=[AutoFieldValueConfig(name="metadata.version", value="7")])
 
     def read_basic_settings(self, config_sheet: str = "Config"):  # pylint: disable=unused-argument
         """Return no CfgBasic rows for this test double."""

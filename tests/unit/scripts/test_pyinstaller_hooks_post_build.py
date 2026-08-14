@@ -95,9 +95,7 @@ class TestPostBuildPlatformGate:
 
         version_file = tmp_path / "VSVersionInfo"
         version_file.write_text("version", encoding="utf-8")
-        exe_path = (
-            tmp_path / "dist" / "pyinstaller" / "win_amd64" / "jira-importer" / "jira-importer.exe"
-        )
+        exe_path = tmp_path / "dist" / "pyinstaller" / "win_amd64" / "jira-importer" / "jira-importer.exe"
         exe_path.parent.mkdir(parents=True)
         exe_path.write_bytes(b"exe")
 
@@ -113,9 +111,7 @@ class TestPostBuildPlatformGate:
 
         pyinstaller_hooks.post_build(interface)
 
-        expected = str(
-            Path("dist") / "pyinstaller" / "win_amd64" / "jira-importer" / "jira-importer.exe"
-        )
+        expected = str(Path("dist") / "pyinstaller" / "win_amd64" / "jira-importer" / "jira-importer.exe")
         interface.run.assert_called_once_with("pyi-set_version", str(version_file), expected)
         sign_executable.assert_called_once_with(expected)
 

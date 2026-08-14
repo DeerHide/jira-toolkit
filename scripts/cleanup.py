@@ -7,8 +7,8 @@ Note:
 Removes:
 - All __pycache__ directories
 - All .pyc/.pyo files
-- All .log files
-- Empties src/jira_importer/jira_importer_logs directory (keeps the folder)
+- All .log files except under build/logs/
+- Empties jira_importer_logs/ directories (repo root and src/jira_importer/), keeping the folders
 
 Usage:
   python scripts/cleanup.py [--dry-run] [--verbose] [--root PATH] [--just-do-it]
@@ -25,6 +25,11 @@ from pathlib import Path
 cache_dir_list: tuple[str, ...] = ("__pycache__",)
 cache_file_suffixes: tuple[str, ...] = (".pyc", ".pyo")
 log_file_suffixes: tuple[str, ...] = (".log",)
+LOG_DIRS_TO_EMPTY: tuple[str, ...] = (
+    "jira_importer_logs",
+    "src/jira_importer/jira_importer_logs",
+)
+BUILD_LOGS_DIR = Path("build") / "logs"
 
 
 def iter_dirs_by_name(root: Path, name: str) -> Iterable[Path]:
@@ -40,6 +45,16 @@ def iter_files_by_suffixes(root: Path, suffixes: tuple[str, ...]) -> Iterable[Pa
         for path in root.rglob(f"*{suffix}"):
             if path.is_file():
                 yield path
+
+
+def is_under_build_logs(root: Path, path: Path) -> bool:
+    """Return True when path is inside {root}/build/logs."""
+    build_logs = (root / BUILD_LOGS_DIR).resolve()
+    try:
+        path.resolve().relative_to(build_logs)
+        return True
+    except ValueError:
+        return False
 
 
 def remove_path(path: Path, dry_run: bool, verbose: bool, vverbose: bool) -> None:
@@ -77,7 +92,7 @@ def empty_directory_contents(dir_path: Path, dry_run: bool, vverbose: bool, verb
 def parse_args() -> argparse.Namespace:
     """Parse arguments."""
     parser = argparse.ArgumentParser(
-        description="Cleanup __pycache__, *.pyc, *.pyo, *.log files and logs directory contents.\n"
+        description="Cleanup __pycache__, *.pyc, *.pyo, *.log files and jira_importer_logs contents.\n"
         "You need to run this script with --just-do-it to actually remove the files."
     )
     parser.add_argument("--just-do-it", "-y", action="store_true", default=False, help="Runs the cleanup")
@@ -97,10 +112,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def run_cleanup(*, root: Path, dry_run: bool, verbose: bool, vverbose: bool) -> None:
+    """Run cleanup operations against root."""
+    if verbose:
+        print(f"Cleaning root: {root}")
+
+    for cache_dir_name in cache_dir_list:
+        for cache_dir in iter_dirs_by_name(root, cache_dir_name):
+            remove_path(cache_dir, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
+
+    for file_path in iter_files_by_suffixes(root, cache_file_suffixes):
+        remove_path(file_path, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
+
+    for log_file in iter_files_by_suffixes(root, log_file_suffixes):
+        if is_under_build_logs(root, log_file):
+            if verbose:
+                print(f"Skipping build log: {log_file}")
+            continue
+        remove_path(log_file, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
+
+    for relative_log_dir in LOG_DIRS_TO_EMPTY:
+        empty_directory_contents(
+            root / relative_log_dir,
+            dry_run=dry_run,
+            vverbose=vverbose,
+            verbose=verbose,
+        )
+
+    if verbose:
+        print("Cleanup complete.")
+
+
 def main() -> int:
     """Main function."""
     args = parse_args()
-    root: Path = args.root
+    root: Path = args.root.resolve()
 
     dry_run: bool = args.dry_run
     verbose: bool = args.verbose or args.vverbose
@@ -113,21 +159,7 @@ def main() -> int:
         print("You cannot run this script with --just-do-it and --dry-run at the same time.")
         return 1
 
-    if verbose:
-        print(f"Cleaning root: {root}")
-
-    for cache_dir_name in cache_dir_list:
-        for cache_dir in iter_dirs_by_name(root, cache_dir_name):
-            remove_path(cache_dir, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
-
-    for file_path in iter_files_by_suffixes(root, cache_file_suffixes):
-        remove_path(file_path, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
-
-    for log_file in iter_files_by_suffixes(root, log_file_suffixes):
-        remove_path(log_file, dry_run=dry_run, vverbose=vverbose, verbose=verbose)
-
-    if verbose:
-        print("Cleanup complete.")
+    run_cleanup(root=root, dry_run=dry_run, verbose=verbose, vverbose=vverbose)
     return 0
 
 

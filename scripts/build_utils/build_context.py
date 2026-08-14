@@ -31,7 +31,7 @@ class BuildContext:
         if profile:
             self.profile = profile
         else:
-            self.profile = os.getenv("BUILD_PROFILE", "dev")
+            self.profile = os.getenv("BUILD_PROFILE", "shipping")
         self.platform_tag = self._get_platform_tag()
 
         _logger.info("profile -> %s", self.profile)

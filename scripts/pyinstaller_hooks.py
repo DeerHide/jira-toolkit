@@ -84,27 +84,49 @@ def pre_build(interface) -> None:
 
 
 def post_build(interface) -> None:
-    """Post-build hook for the Jira Importer application."""
+    """Post-build hook for the Jira Importer application.
+
+    ``pyi-set_version`` is Windows-only. Artifacts are under the Poetry PEP platform
+    tag (e.g. ``win_amd64``):
+      - onefile: dist/pyinstaller/<pep>/<name>.exe
+      - onedir:  dist/pyinstaller/<pep>/<name>/<name>.exe
+    """
     try:
         _ = interface.pyproject_data
     except Exception as e:
         interface.write_line(f"  - error: {e}")
         sys.exit(1)
+
     build_context = BuildContext(interface)
+    try:
+        target_name = os.getenv("BUILD_SCRIPT", "jira-importer")
+        plugin_platform = str(getattr(interface, "platform", "") or build_context.platform_tag)
+        is_windows = "win" in plugin_platform.lower()
+        dist = Path("dist") / "pyinstaller" / plugin_platform
+        exe_name = f"{target_name}.exe" if is_windows else target_name
 
-    target_name = os.getenv("BUILD_SCRIPT", "jira-importer")
+        onefile_exe = dist / exe_name
+        onedir_exe = dist / target_name / exe_name
+        build_executable = onefile_exe if onefile_exe.is_file() else onedir_exe
+        interface.write_line(f"executable -> {build_executable}")
 
-    dist = Path("dist") / "pyinstaller" / interface.platform
-    build_executable = dist / f"{target_name}.exe"
-    print(f"executable -> {build_executable}")
-    versioninfo_file = build_context.files_cfg["version"]
-    interface.run("pyi-set_version", str(versioninfo_file), str(build_executable))
-    interface.write_line(f"Stamped version info via pyi-set_version for {build_executable.name}")
+        if is_windows:
+            versioninfo_file = build_context.files_cfg.get("version")
+            if versioninfo_file and Path(versioninfo_file).is_file() and build_executable.is_file():
+                interface.run("pyi-set_version", str(versioninfo_file), str(build_executable))
+                interface.write_line(f"Stamped version info via pyi-set_version for {build_executable.name}")
+            else:
+                interface.write_line(
+                    "Skipping pyi-set_version: missing Windows version file and/or executable"
+                )
+        else:
+            interface.write_line(f"Skipping pyi-set_version on platform '{plugin_platform}'")
 
-    build_utils = BuildUtils(build_context)
-    build_utils.sign_executable(build_executable)
-
-    if "BUILD_PROFILE" in os.environ:
-        del os.environ["BUILD_PROFILE"]
-
-    load_generate_version_module().clear_version_session()
+        if build_executable.is_file():
+            BuildUtils(build_context).sign_executable(str(build_executable))
+        else:
+            interface.write_line(f"Skipping code signing: executable not found at {build_executable}")
+    finally:
+        if "BUILD_PROFILE" in os.environ:
+            del os.environ["BUILD_PROFILE"]
+        load_generate_version_module().clear_version_session()

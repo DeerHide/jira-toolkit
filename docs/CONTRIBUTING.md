@@ -9,6 +9,7 @@ git clone https://github.com/YOUR_USERNAME/jira-toolkit.git
 cd jira-toolkit
 git remote add upstream https://github.com/DeerHide/jira-toolkit.git
 poetry install --extras dev
+# Includes the non-optional pyinstaller group so local binary builds work
 # Make git blame skip known formatting-only commits
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```

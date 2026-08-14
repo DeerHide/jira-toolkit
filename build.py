@@ -148,7 +148,7 @@ def build_with_pyinstaller(config, config_name) -> bool:
     if importlib.util.find_spec("PyInstaller") is None:
         _logger.error("[ERROR] PyInstaller is not installed. Please install it first:")
         _logger.error("   %s -m pip install pyinstaller", sys.executable)
-        _logger.error("   or: poetry install --with pyinstaller")
+        _logger.error("   or: poetry install --extras dev")
         sys.exit(1)
 
     src_dir = config["directories"]["source"]

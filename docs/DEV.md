@@ -25,6 +25,7 @@ Use this file for daily developer commands.
 git clone https://github.com/DeerHide/jira-toolkit.git
 cd jira-toolkit
 poetry install --extras dev
+# PyInstaller build tooling is included by default (poetry group: pyinstaller)
 ```
 
 Verify:
@@ -124,7 +125,7 @@ python build.py -p -c shipping
 - Config not found or missing keys: run `--show-config` first.
 - Auth failures: run `--credentials test` and verify Jira permissions.
 - Unexpected output: re-run with `--dry-run --debug`.
-- Environment drift: prefer `poetry install --extras dev` from a clean environment.
+- Environment drift: prefer `poetry install --extras dev` from a clean environment (includes PyInstaller).
 
 ## Documentation Ownership
 

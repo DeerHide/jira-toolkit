@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 # models definitions
 
 
-class ProblemSeverity(str, Enum):
+class ProblemSeverity(StrEnum):
     """Discrete severities used across validation and reporting."""
 
     ERROR = "error"

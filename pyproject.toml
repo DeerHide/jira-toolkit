@@ -152,7 +152,7 @@ ignore = [
   # Import position and long lines; will be fixed later
   "E402", "E501",
   # Complexity/size rules to address in refactors
-  "PLR0912", "PLR0915", "PLR0913", "PLR0911",
+  "PLR0912", "PLR0915", "PLR0913", "PLR0917", "PLR0911",
   # Comparison merging suggestion
   "PLR1714",
   # Import-outside-top-level noise

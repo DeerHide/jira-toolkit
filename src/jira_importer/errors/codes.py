@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 # Module-level numeric code mapping (avoids issues with str Enum members)
 _NUMERIC_CODES: dict[str, int] = {
@@ -22,7 +22,7 @@ _NUMERIC_CODES: dict[str, int] = {
 }
 
 
-class ErrorCode(str, Enum):
+class ErrorCode(StrEnum):
     """Standard error codes used across main app and MCP server.
 
     These codes represent domain-level error types and are shared

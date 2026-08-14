@@ -66,8 +66,10 @@ pygments==2.19.2
     # via rich
 pyinstaller==6.18.0
     # via -r requirements.in
-pyinstaller-hooks-contrib==2025.11
-    # via pyinstaller
+pyinstaller-hooks-contrib==2026.6
+    # via
+    #   -r requirements.in
+    #   pyinstaller
 pywin32-ctypes==0.2.3
     # via
     #   keyring

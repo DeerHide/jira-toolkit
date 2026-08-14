@@ -22,4 +22,6 @@ keyring>=25.7.0
 # Legacy build / pip pipeline tooling (Poetry keeps pyinstaller in its own group)
 pre-commit>=3.0.0
 pyinstaller>=6.15.0
+# 2026.2+ ships hook-rich, which collects Rich 14.3+ unicode tables for freezes.
+pyinstaller-hooks-contrib>=2026.2
 pefile; platform_system == "Windows"

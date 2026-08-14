@@ -44,6 +44,8 @@ optional = false
 
 [tool.poetry.group.pyinstaller.dependencies]
 pyinstaller = { version = "^6.15", python = ">=3.12,<3.15" }
+# 2026.2+ ships hook-rich, which collects Rich 14.3+ unicode tables for freezes.
+pyinstaller-hooks-contrib = ">=2026.2"
 poetry-pyinstaller-plugin = "^1.0.0"
 pefile = { version = "*", markers = "sys_platform == 'win32'" }
 

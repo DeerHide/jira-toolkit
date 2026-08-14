@@ -1,11 +1,15 @@
+# Mirrored from pyproject.toml [project.dependencies] + legacy build tooling.
+# Regenerate: pip-compile --output-file=requirements.lock --strip-extras requirements.in
+# Then copy/sync requirements.txt to match requirements.lock if both are kept.
+
 # Console / UI
-rich
-rich-argparse
-colorlog
-colorama; platform_system == "Windows"
+rich>=15.0.0
+rich-argparse>=1.7.0
+colorlog>=6.7.0
+colorama>=0.4.0; platform_system == "Windows"
 
 # Data handling
-openpyxl
+openpyxl>=3.1.0
 
 # HTTP and API
 requests>=2.33.0
@@ -15,10 +19,7 @@ idna>=3.15
 # Security and credentials
 keyring>=25.7.0
 
-# Dev tooling
-pre-commit
+# Legacy build / pip pipeline tooling (Poetry keeps pyinstaller in its own group)
+pre-commit>=3.0.0
 pyinstaller>=6.15.0
-
-virtualenv>=20.36.1
-
-pefile
+pefile; platform_system == "Windows"

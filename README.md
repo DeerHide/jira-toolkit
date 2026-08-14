@@ -39,7 +39,7 @@ Jira CSV import is strict: columns, IDs, hierarchy, and field formats must match
 | --- | --- |
 | **Windows** | Standalone `jira-importer.exe` (drag & drop Excel onto the EXE for CSV export) |
 | **macOS** | Native `jira-importer` binary |
-| **From source** | Python 3.12+ (see [`docs/DEV.md`](docs/DEV.md)) |
+| **From source** | Python 3.12+ — contributors: see [`docs/DEV.md`](docs/DEV.md); package users: `pip install jira-toolkit` when published on PyPI |
 
 ### Templates
 
@@ -96,16 +96,22 @@ Cloud credentials (interactive): `jira-importer.exe --credentials run` (macOS: `
 | `your-data.xlsx` | Input workbook |
 | `-c, --config` | Specific configuration file |
 | `-ce, --config-excel` | Excel `Config` sheet + `config*` / `cfg*` tables |
-| `-cd, --config-default` | Built-in default configuration |
 | `-ci, --config-input` | Config file next to the Excel file (recommended for JSON) |
-| `--cloud` | Create issues in Jira Cloud (requires connection config + credentials) |
-| `--auto-fix` | Apply safe automatic fixes during validation |
-| `--credentials [ACTION]` | `run` / `show` / `clear` / `test` |
-| `--data-sheet NAME` | Data tab name (default: **Dataset**) |
-| `--dry-run` | Process without writing output / creating issues |
-| `--show-config` | Show configuration (no input file required) |
+| `-o, --output` | Output CSV path (default: `<input>_jira_ready.csv` next to the Excel file) |
+| `-cl, --cloud` | Create issues in Jira Cloud (requires connection config + credentials) |
+| `-cld, --cloud-debug-payloads` | Write Cloud API payloads to JSON (use with `--cloud` for resolved parent links; incompatible with `--dry-run`) |
+| `-y, --auto-yes` / `-n, --auto-no` | Auto-answer confirmation prompts |
+| `-af, --auto-fix` | Apply safe automatic fixes during validation |
+| `-fce, --fix-cloud-estimates` | Apply Jira Cloud ×60 estimate quirk in the Cloud sink |
+| `-q, --quiet` | Minimal output: errors, warnings, and one outcome line |
+| `-creds, --credentials [ACTION]` | `run` / `show` / `clear` / `test` |
+| `-ds, --data-sheet NAME` | Data tab name (default: **Dataset**) |
+| `-dr, --dry-run` | Process without writing output / creating issues |
+| `-sc, --show-config` | Show configuration (no input file required) |
 | `-d, --debug` | Verbose troubleshooting output |
 | `-v, --version` | Version information |
+
+Run `jira-importer --help` for the full live list. Hidden/internal flags are omitted here.
 
 ## Input expectations (summary)
 
@@ -122,7 +128,6 @@ For examples, custom fields, and row-skipping detail, see [**README_APP.md**](RE
 | Excel `Config` + tables | `-ce` | Single-file workflows; lookup tables in the workbook |
 | JSON next to the Excel file | `-ci` | Shared/team config and automation |
 | Explicit file | `-c` | Pointing at a known path |
-| Built-in default | `-cd` | Quick experiments |
 
 **Excel tables (when using `-ce`):** required — `CfgAssignees`, `CfgIssueTypes`, `CfgIgnoreList`, `CfgPriorities`, `CfgAutofieldValues`; optional — `CfgSprints`, `CfgFixVersions`, `CfgComponents`, `CfgTeams`, `CfgCustomFields`.
 
@@ -142,14 +147,12 @@ Deep reference: [`docs/CONFIG.md`](docs/CONFIG.md).
 
 ## Roadmap (short)
 
-Planned themes include Linux builds, multi-file imports, richer templates, Server/Data Center API support, and deeper reporting. Track requests and status on [GitHub Issues](https://github.com/DeerHide/jira-toolkit/issues).
+Planned themes include **published Linux release binaries**, multi-file imports, richer templates, Server/Data Center API support, and deeper reporting.
 
 ## Support
 
-- [GitHub Issues](https://github.com/DeerHide/jira-toolkit/issues) — bugs and feature requests  
-- [GitHub Discussions](https://github.com/DeerHide/jira-toolkit/discussions) — questions  
-- App troubleshooting steps — [`README_APP.md`](README_APP.md)  
+- App troubleshooting steps — [`README_APP.md`](README_APP.md)
 - Website — [deerhide.run](https://deerhide.run)
 
-**Repository:** [DeerHide/jira-toolkit](https://github.com/DeerHide/jira-toolkit)  
+**Repository:** [DeerHide/jira-toolkit](https://github.com/DeerHide/jira-toolkit)
 **License:** MIT

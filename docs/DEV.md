@@ -52,9 +52,11 @@ poetry run python -m jira_importer --help
 
 - Runtime and version floors are declared in `pyproject.toml`.
 - `requirements.in` mirrors those floors plus legacy build tooling (`pyinstaller`, Windows `pefile`, `pre-commit`). Keep it in sync when you change Poetry constraints.
-- After editing `requirements.in`, regenerate the lock:
+- After editing `requirements.in`, regenerate the lock with **pip-tools** (not part of the Poetry `dev` extra). Use the same Python major.minor as CI (**3.12**):
 
 ```bash
+# Install pip-tools into the project venv once (or use a throwaway tool env)
+poetry run pip install pip-tools
 poetry run pip-compile --output-file=requirements.lock --strip-extras requirements.in
 # Keep the twin identical when both files are retained:
 cp requirements.lock requirements.txt   # macOS/Linux
@@ -77,6 +79,8 @@ python -m pip install -e .[dev]
 `pip install -e .[dev]` does **not** install the Poetry `pyinstaller` group. For binary builds, use Poetry (`poetry install --extras dev`) or the pip lock (`pip install -r requirements.lock`).
 
 ## Run
+
+Prefer **`poetry run`** so you do not need to activate `.venv` manually (Poetry still installs into `.venv` when `virtualenvs.in-project` is true). Activating `.venv` and calling `python` / `pytest` directly also works and matches how CI and pre-commit invoke tools.
 
 Core commands:
 
@@ -112,20 +116,35 @@ poetry run python -m jira_importer path/to/data.xlsx --debug
 
 ## Test And Lint
 
-Activate `.venv` first (`source .venv/bin/activate` or `.venv\Scripts\activate`). Poetry is the installer, not the runner.
+Same tools as CI. Either activate `.venv` or prefix with `poetry run`:
 
 ```bash
+# Option A — poetry run
+poetry run pytest
+poetry run ruff check src tests scripts
+poetry run ruff format --check src tests scripts
+poetry run mypy
+
+# Option B — activated .venv (matches CI / pre-commit style)
+# source .venv/bin/activate   # or .venv\Scripts\activate on Windows
 pytest
 ruff check src tests scripts
-ruff format src tests scripts
+ruff format --check src tests scripts
 mypy
 ```
 
 ### CI
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) is a Linux quality gate on Python 3.12. Poetry lock/install creates `.venv`; checks run from `.venv/bin` (`ruff`, `mypy`, `pytest`) on pull requests and pushes to `main` and `dev`.
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) is a Linux quality gate on Python 3.12. Poetry lock/install creates `.venv`; checks run from `.venv/bin`:
 
-Executable builds stay local (`build.py` / `poetry build --format pyinstaller`). The `gh_action` profile is not invoked by this workflow. PyPI and GitHub Release stay in [`.github/workflows/publish.yml`](../.github/workflows/publish.yml).
+1. `ruff check src tests scripts`
+2. `ruff format --check src tests scripts`
+3. `mypy`
+4. `pytest`
+
+Triggers: pull requests and pushes to `main` and `dev`. **Pylint is not in CI** (pre-push / manual via pre-commit only).
+
+Executable builds stay local (`build.py` / `poetry build --format pyinstaller`). The `gh_action` profile is a leftover production-style profile and is **not** invoked by this workflow. PyPI and GitHub Release stay in [`.github/workflows/publish.yml`](../.github/workflows/publish.yml).
 
 ## Test Data
 
@@ -154,19 +173,23 @@ poetry run python build.py -p -c shipping
 poetry build --format pyinstaller
 ```
 
-Supported build profiles are `debug`, `dev`, `shipping`, and `gh_action` (see `build/configs/profiles.json`).
+`build.py -c` / `--config` defaults to **`dev`** if omitted. Pass `-c shipping` explicitly for production-style builds.
+
+Core profiles in `build/configs/profiles.json`: `debug`, `dev`, `shipping`, and `gh_action`. Vendor overlays (`deerhide`, `juniper`, `larch`, `maple`, `velmios`, …) also live in that file.
 
 ```bash
-python build.py -c dev
+python build.py              # default profile: dev
 python build.py -c shipping
 python build.py -p -c shipping
 ```
 
-- `debug`: local debugging profile
-- `dev`: local development profile
-- `shipping`: production distribution profile (`install_requirements` uses `requirements.lock`)
-- `gh_action`: CI-oriented production profile (`install_requirements` uses `requirements.lock`)
+- `debug` / `dev`: local profiles (no lock install / no zip by default)
+- `shipping`: production distribution (`install_requirements` uses `requirements.lock`)
+- `gh_action`: production-style profile similar to shipping; **unused by current CI** (kept for local/legacy use)
+- Vendor overlays: rename/branding overlays on top of base config
 - `-p` / `poetry build --format pyinstaller`: Poetry PyInstaller plugin path
+
+Frozen binaries need **`pyinstaller-hooks-contrib` ≥ 2026.2** (declared in the Poetry `pyinstaller` group) so Rich 14.3+ unicode tables are collected correctly.
 
 If dependency checks fail, install via one of:
 

@@ -11,6 +11,8 @@ git remote add upstream https://github.com/DeerHide/jira-toolkit.git
 poetry install --extras dev
 # Includes the non-optional pyinstaller group so local binary builds work.
 # Pip lock path (requirements.*) is for legacy build.py — keep synced with pyproject.toml.
+pre-commit install
+pre-commit install --hook-type pre-push
 # Make git blame skip known formatting-only commits
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
@@ -33,21 +35,40 @@ git checkout -b feature/short-description
 
 ## Local Checks
 
-Activate `.venv` (`source .venv/bin/activate` or `.venv\Scripts\activate`), then run:
+Prefer `poetry run` (or activate `.venv`). Match CI before opening a PR:
 
 ```bash
-pytest
-ruff check src tests scripts
-mypy
+poetry run ruff check src tests scripts
+poetry run ruff format --check src tests scripts
+poetry run mypy
+poetry run pytest
 ```
 
-If formatting is needed:
+To auto-format locally:
 
 ```bash
-ruff format src tests scripts
+poetry run ruff format src tests scripts
 ```
 
-GitHub Actions runs these same tools from `.venv/bin` on every PR (Linux, Python 3.12). Local pre-commit stays format-on-commit; pytest, mypy, and pylint run on push.
+### What CI runs
+
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (Linux, Python 3.12, tools from `.venv/bin`):
+
+1. `ruff check src tests scripts`
+2. `ruff format --check src tests scripts`
+3. `mypy`
+4. `pytest`
+
+**Pylint is not in CI.**
+
+### Pre-commit hooks
+
+| Stage | Hooks (summary) |
+| --- | --- |
+| **pre-commit** | `ruff format`, `ruff check --fix`, `trailing-whitespace`, `end-of-file-fixer`, `check-json` |
+| **pre-push** | `poetry install --extras dev --sync`, `pytest` (with coverage), `mypy`, `pylint`, plus whitespace/EOF fixers |
+
+Install both stages with the commands in First-Time Contributor Setup above.
 
 ## Pull Request Expectations
 
@@ -87,6 +108,7 @@ Do not list commits that change behavior.
 - [ ] Tests added/updated where behavior changed.
 - [ ] `pytest` passes.
 - [ ] `ruff check src tests scripts` passes.
+- [ ] `ruff format --check src tests scripts` passes.
 - [ ] `mypy` passes.
 - [ ] Docs updated if user-facing or developer-facing behavior changed.
 

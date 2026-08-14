@@ -15,8 +15,10 @@ src/jira_importer/import_pipeline/
 ├── sinks/
 │   └── cloud_sink.py              # Main cloud integration orchestrator
 └── cloud/
-    ├── client.py                  # HTTP client wrapper
+    ├── client.py                  # HTTP client wrapper (retries on 429 / 5xx)
     ├── auth.py                    # Authentication providers
+    ├── credential_manager.py      # Credential status, setup, display
+    ├── secrets.py                 # Secret resolution (keyring / env / config)
     ├── mappers.py                 # Data mapping to Jira format
     ├── metadata.py                # Jira metadata caching
     ├── bulk.py                    # Batch processing utilities
@@ -359,24 +361,25 @@ def _write_payload_debug(payload: dict[str, Any], batch_num: int, output_dir: Pa
 
 ### Unit Tests
 
-```bash
-# Run cloud integration tests
-python -m pytest tests/unit/test_cloud_sink.py -v
-```
-
-### Integration Tests
+Cloud-related unit tests live under `tests/unit/import_pipeline/` (no separate `tests/integration/` suite today):
 
 ```bash
-# Run end-to-end cloud tests
-python -m pytest tests/integration/test_cloud_integration.py -v
+# Cloud client / mappers / secrets / error mapping
+poetry run pytest tests/unit/import_pipeline/cloud/ -v
+
+# Cloud sink behavior (custom fields, payload debug)
+poetry run pytest tests/unit/import_pipeline/sinks/test_cloud_sink_custom_fields.py \
+  tests/unit/import_pipeline/sinks/test_cloud_sink_payload_debug.py -v
+
+# Cloud error reporting
+poetry run pytest tests/unit/import_pipeline/test_reporting_cloud_errors.py -v
 ```
 
 ## Performance Considerations
 
 ### Batch Size Optimization
 
-- **Default**: 50 issues per batch
-- **Adjustable**: Based on Jira instance performance
+- **Default**: 50 issues per batch (`BATCH_SIZE` code constant)
 - **Error handling**: Individual batch failures don't stop the entire process
 
 ### Metadata Caching Performance
@@ -410,9 +413,10 @@ python -m pytest tests/integration/test_cloud_integration.py -v
 ### Planned Features
 
 - **OAuth 2.0 support**: For enterprise Jira instances (currently scaffolded but not functional - only Basic Auth is supported)
-- **Retry mechanisms**: Automatic retry for transient failures
 - **Progress tracking**: Real-time progress updates for large imports
 - **Validation caching**: Cache validation results across runs
+
+Transient HTTP failures (429 / 5xx) already retry via `JiraCloudClient._request_with_retries` (exponential backoff / `Retry-After`).
 
 ### Extensibility
 
@@ -454,8 +458,11 @@ def write_cloud(
     config: object,
     *,
     dry_run: bool = False,
+    submit: bool = True,
     output_dir: Path | None = None,
-    ui=None
+    ui: Any | None = None,
+    auto_reply: bool | None = None,
+    input_file_stem: str | None = None,
 ) -> CloudSubmitReport:
     """Submit processed issues to Jira Cloud in batches."""
 ```

@@ -184,9 +184,12 @@ Skip rows with `RowType = SKIP`, or issue types such as `comment`, `note`, `skip
 jira-importer.exe your-data.xlsx
 ./jira-importer your-data.xlsx
 
+# Custom output path
+jira-importer.exe your-data.xlsx -o path/to/out.csv
+
 # Jira Cloud import
 jira-importer.exe your-data.xlsx --cloud
-./jira-importer your-data.xlsx --cloud
+./jira-importer your-data.xlsx -cl
 
 # Auto-fix common issues
 jira-importer.exe your-data.xlsx --auto-fix
@@ -195,6 +198,15 @@ jira-importer.exe your-data.xlsx --auto-fix
 # Excel or sidecar JSON config
 jira-importer.exe your-data.xlsx -ce
 jira-importer.exe your-data.xlsx -ci
+
+# Confirmations (non-interactive)
+jira-importer.exe your-data.xlsx --cloud -y
+jira-importer.exe your-data.xlsx --cloud -n
+
+# Quiet / Cloud estimate quirk / payload debug
+jira-importer.exe your-data.xlsx -q
+jira-importer.exe your-data.xlsx --cloud -fce
+jira-importer.exe your-data.xlsx --cloud -cld
 
 # Credentials
 jira-importer.exe --credentials run
@@ -208,6 +220,28 @@ jira-importer.exe your-data.xlsx --dry-run
 jira-importer.exe your-data.xlsx --debug
 ```
 
+### CLI options (public)
+
+| Option | Description |
+| --- | --- |
+| `your-data.xlsx` | Input workbook |
+| `-c, --config` | Specific configuration file |
+| `-ce, --config-excel` | Excel `Config` sheet + tables |
+| `-ci, --config-input` | Config file next to the Excel file |
+| `-o, --output` | Output CSV path |
+| `-cl, --cloud` | Create issues in Jira Cloud |
+| `-cld, --cloud-debug-payloads` | Write Cloud API payloads to JSON |
+| `-y, --auto-yes` / `-n, --auto-no` | Auto-answer prompts |
+| `-af, --auto-fix` | Safe automatic fixes |
+| `-fce, --fix-cloud-estimates` | Cloud ×60 estimate quirk in the sink |
+| `-q, --quiet` | Minimal console output |
+| `-creds, --credentials [ACTION]` | `run` / `show` / `clear` / `test` |
+| `-ds, --data-sheet NAME` | Data tab (default: **Dataset**) |
+| `-dr, --dry-run` | Process without writing / creating |
+| `-sc, --show-config` | Show configuration and exit |
+| `-d, --debug` | Verbose troubleshooting |
+| `-v, --version` | Version information |
+
 ## Troubleshooting
 
 | Symptom | What to try |
@@ -215,7 +249,7 @@ jira-importer.exe your-data.xlsx --debug
 | File not found | Check the Excel path and current directory |
 | Authentication failed | Run `--credentials run`, then `--credentials test` |
 | Permission denied writing output | Save/run from a folder you can write to (avoid protected system folders). Elevate only if your environment requires it |
-| Wrong or missing config | Confirm flags: `-c`, `-ce`, `-ci`, `-cd` |
+| Wrong or missing config | Confirm flags: `-c`, `-ce`, `-ci` |
 | Cloud import failed | Confirm Cloud site, project access, and create-issue permission |
 | Need more detail | Add `--debug`; re-test with `--dry-run` |
 

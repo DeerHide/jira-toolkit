@@ -71,7 +71,7 @@ flowchart TD
 - Rules and fixers do not mutate input rows in place; they return patches.
 - Cloud sink and CSV sink should maintain feature parity where applicable.
 - Secret resolution order is keyring, environment, config, then prompt.
-- CI (`.github/workflows/ci.yml`) is a Linux quality gate (ruff, mypy, pytest). Shippable executables are built locally per platform; PyPI/GitHub Release is `.github/workflows/publish.yml`.
+- CI (`.github/workflows/ci.yml`) is a Linux quality gate: `ruff check`, `ruff format --check`, `mypy`, and `pytest` from `.venv/bin`. Shippable executables are built locally per platform; PyPI/GitHub Release is `.github/workflows/publish.yml`.
 
 ## Source Of Truth
 
@@ -79,4 +79,4 @@ Use these files as canonical references:
 
 - CLI flags and defaults: `src/jira_importer/app.py`
 - Build profiles and behavior switches: `build/configs/profiles.json`
-- Runtime dependency and Python constraints: `pyproject.toml` (primary); pip/legacy build mirror: `requirements.in` → `requirements.lock`
+- Runtime dependency and Python constraints: `pyproject.toml` (primary); dual lockfiles: `poetry.lock` (Poetry) and `requirements.lock` (pip / legacy `build.py`, generated from `requirements.in`)

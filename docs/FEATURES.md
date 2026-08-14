@@ -50,20 +50,26 @@ This document covers the current features and capabilities of the Jira Importer 
 
 #### Available Flags
 
-- **`--credentials [ACTION]`**: Manage Jira API credentials (`run`, `show`, `clear`, `test`)
-- **`--auto-fix`**: Enable automatic fixing of validation issues
-- **`--fix-cloud-estimates`**: Apply Jira Cloud ×60 estimate quirk
-- **`--enable-excel-rules`**: Load validation rules from Excel tables
-- **`--data-sheet NAME`**: Excel data sheet tab name (default: **Dataset**; must match the workbook exactly)
-- **`--no-report`**: Suppress validation reports (useful for CI/CD)
-- **`--dry-run`**: Process data without writing output (new)
-- **`--show-config`**: Show configuration without requiring input file (new)
+- **`--credentials [ACTION]`** (`-creds`): Manage Jira API credentials (`run`, `show`, `clear`, `test`)
+- **`--auto-fix`** (`-af`): Enable automatic fixing of validation issues
+- **`--fix-cloud-estimates`** (`-fce`): Apply Jira Cloud ×60 estimate quirk in the Cloud sink
+- **`--quiet`** (`-q`): Minimal output (errors, warnings, and one outcome line)
+- **`--output PATH`** (`-o`): Output CSV path (default: `<input>_jira_ready.csv`)
+- **`--cloud`** (`-cl`): Create issues in Jira Cloud
+- **`--cloud-debug-payloads`** (`-cld`): Write Cloud API payloads to JSON (incompatible with `--dry-run`)
+- **`--auto-yes`** (`-y`) / **`--auto-no`** (`-n`): Auto-answer confirmation prompts
+- **`--data-sheet NAME`** (`-ds`): Excel data sheet tab name (default: **Dataset**; must match the workbook exactly)
+- **`--dry-run`** (`-dr`): Process data without writing output
+- **`--show-config`** (`-sc`): Show configuration without requiring input file
+- **`--debug`** (`-d`): Verbose troubleshooting output
+- **`--version`** (`-v`): Version information
+
+Hidden/experimental flags (omitted from `--help`) are not listed here.
 
 #### Configuration Options
 
 - **`-ce, --config-excel`**: Use Excel file as configuration source
 - **`-ci, --config-input`**: Use config file next to input file
-- **`-cd, --config-default`**: Use default configuration
 - **`-c, --config FILE`**: Use specific configuration file
 
 ### Custom Fields Support
@@ -94,7 +100,7 @@ This document covers the current features and capabilities of the Jira Importer 
 
 #### Built-in Fixers
 
-The toolkit includes 6 built-in auto-fixers that automatically resolve common validation issues:
+The toolkit includes 7 built-in auto-fixers that automatically resolve common validation issues:
 
 1. **PriorityNormalizeFixer**
    - **Problem codes**: `priority.invalid`, `priority.missing`
@@ -121,7 +127,12 @@ The toolkit includes 6 built-in auto-fixers that automatically resolve common va
    - **Functionality**: Resolves assignee display names to Jira account IDs using CfgAssignees table
    - **Configuration**: `CfgAssignees` Excel table with Name → Account ID mapping
 
-6. **TeamResolverFixer**
+6. **ReporterResolverFixer**
+   - **Problem codes**: `reporter.display_name`, `reporter.empty_with_name`
+   - **Functionality**: Resolves reporter display names to Jira account IDs using CfgAssignees table
+   - **Configuration**: `CfgAssignees` Excel table with Name → Account ID mapping
+
+7. **TeamResolverFixer**
    - **Problem codes**: `team.display_name`, `team.empty_with_name`
    - **Functionality**: Resolves team display names to Jira account IDs using CfgTeams table
    - **Configuration**: `CfgTeams` Excel table with Name → Team ID mapping
@@ -173,7 +184,7 @@ Fixers are registered by problem code in the `FixRegistry`. The system automatic
 
 #### Cloud Import Features
 
-- **Batch size**: 50 issues per batch (configurable)
+- **Batch size**: 50 issues per batch (code constant; not a config key)
 - **Processing order**: Epics → Stories/Tasks → Sub-tasks
 - **Parent resolution**: Automatic parent-child relationship handling
 - **Error handling**: Comprehensive error reporting per batch
@@ -345,6 +356,6 @@ python -m jira_importer your-data.xlsx --debug
 
 ---
 
-**Note**: This document reflects the current feature set. Check the changelog for specific version details.
+**Note**: This document reflects the current feature set. For release-specific details, see [GitHub Releases](https://github.com/DeerHide/jira-toolkit/releases).
 
 :_GeneratedFile_

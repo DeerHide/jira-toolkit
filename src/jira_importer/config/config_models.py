@@ -525,8 +525,5 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
             "ignore_list": [{"name": i.name} for i in (self.ignore_list or [])],
             "priorities": [{"name": p.name} for p in (self.priorities or [])],
             "auto_field_values": [{"name": a.name, "value": a.value} for a in (self.auto_field_values or [])],
-            "settings": [
-                {"name": s.name, "value": s.value, "type": s.value_type}
-                for s in (self.settings or [])
-            ],
+            "settings": [{"name": s.name, "value": s.value, "type": s.value_type} for s in (self.settings or [])],
         }

@@ -6,8 +6,8 @@ Author:
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 from typing import Any
 
 from ..config.config_models import (
@@ -20,8 +20,8 @@ from ..config.config_models import (
     IgnoreListConfig,
     IssueTypeConfig,
     PriorityConfig,
-    SprintConfig,
     SettingConfig,
+    SprintConfig,
     TeamConfig,
 )
 from ..errors import ConfigurationError

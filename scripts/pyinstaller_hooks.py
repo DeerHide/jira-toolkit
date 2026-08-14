@@ -116,9 +116,7 @@ def post_build(interface) -> None:
                 interface.run("pyi-set_version", str(versioninfo_file), str(build_executable))
                 interface.write_line(f"Stamped version info via pyi-set_version for {build_executable.name}")
             else:
-                interface.write_line(
-                    "Skipping pyi-set_version: missing Windows version file and/or executable"
-                )
+                interface.write_line("Skipping pyi-set_version: missing Windows version file and/or executable")
         else:
             interface.write_line(f"Skipping pyi-set_version on platform '{plugin_platform}'")
 

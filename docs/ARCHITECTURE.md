@@ -78,4 +78,4 @@ Use these files as canonical references:
 
 - CLI flags and defaults: `src/jira_importer/app.py`
 - Build profiles and behavior switches: `build/configs/profiles.json`
-- Runtime dependency and Python constraints: `pyproject.toml`
+- Runtime dependency and Python constraints: `pyproject.toml` (primary); pip/legacy build mirror: `requirements.in` → `requirements.lock`

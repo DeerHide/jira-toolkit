@@ -21,11 +21,19 @@ Use this file for daily developer commands.
 
 ## Setup
 
+Poetry is the primary install path. The pip lock files remain for the legacy `build.py` path and must stay aligned with `pyproject.toml`.
+
 ```bash
 git clone https://github.com/DeerHide/jira-toolkit.git
 cd jira-toolkit
 poetry install --extras dev
 # PyInstaller build tooling is included by default (poetry group: pyinstaller)
+```
+
+Equivalent helper:
+
+```bash
+python scripts/install_requirements.py
 ```
 
 Verify:
@@ -35,7 +43,27 @@ poetry run python -m jira_importer --version
 poetry run python -m jira_importer --help
 ```
 
-Use this only when Poetry is unavailable in your environment.
+### Dependencies (dual pipeline)
+
+| Path | Source of truth / artifact | Use when |
+|---|---|---|
+| Poetry (primary) | `pyproject.toml` + `poetry.lock` | Daily work, tests, `poetry build`, `build.py -p` |
+| Pip / legacy build | `requirements.in` → `requirements.lock` (+ `requirements.txt` twin) | `build.py -c <profile>` when `install_requirements` is enabled |
+
+- Runtime and version floors are declared in `pyproject.toml`.
+- `requirements.in` mirrors those floors plus legacy build tooling (`pyinstaller`, Windows `pefile`, `pre-commit`). Keep it in sync when you change Poetry constraints.
+- After editing `requirements.in`, regenerate the lock:
+
+```bash
+poetry run pip-compile --output-file=requirements.lock --strip-extras requirements.in
+# Keep the twin identical when both files are retained:
+cp requirements.lock requirements.txt   # macOS/Linux
+# Windows PowerShell: Copy-Item -Force requirements.lock requirements.txt
+```
+
+### Pip editable fallback
+
+Use this only when Poetry is unavailable. It installs the PEP `dev` extra only.
 
 ```bash
 python -m venv .venv
@@ -45,6 +73,8 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .[dev]
 ```
+
+`pip install -e .[dev]` does **not** install the Poetry `pyinstaller` group. For binary builds, use Poetry (`poetry install --extras dev`) or the pip lock (`pip install -r requirements.lock`).
 
 ## Run
 
@@ -107,6 +137,15 @@ poetry run mypy src
 
 ## Build
 
+Both build entrypoints are supported. Prefer running them from a Poetry-managed environment so the active interpreter matches installed deps:
+
+```bash
+poetry run python build.py -c shipping
+poetry run python build.py -p -c shipping
+# or:
+poetry build --format pyinstaller
+```
+
 Supported build profiles are `debug`, `dev`, `shipping`, and `gh_action` (see `build/configs/profiles.json`).
 
 ```bash
@@ -117,8 +156,17 @@ python build.py -p -c shipping
 
 - `debug`: local debugging profile
 - `dev`: local development profile
-- `shipping`: production distribution profile
-- `gh_action`: CI-oriented production profile
+- `shipping`: production distribution profile (`install_requirements` uses `requirements.lock`)
+- `gh_action`: CI-oriented production profile (`install_requirements` uses `requirements.lock`)
+- `-p` / `poetry build --format pyinstaller`: Poetry PyInstaller plugin path
+
+If dependency checks fail, install via one of:
+
+```bash
+poetry install --extras dev
+python -m pip install -r requirements.lock
+python scripts/install_requirements.py
+```
 
 ## Troubleshooting
 
@@ -126,6 +174,7 @@ python build.py -p -c shipping
 - Auth failures: run `--credentials test` and verify Jira permissions.
 - Unexpected output: re-run with `--dry-run --debug`.
 - Environment drift: prefer `poetry install --extras dev` from a clean environment (includes PyInstaller).
+- Pip/`build.py` drift: regenerate `requirements.lock` from `requirements.in` after changing `pyproject.toml` floors.
 
 ## Documentation Ownership
 
@@ -133,4 +182,4 @@ To reduce drift:
 
 - CLI flags source of truth: `src/jira_importer/app.py`
 - Build profiles source of truth: `build/configs/profiles.json`
-- Package/runtime constraints source of truth: `pyproject.toml`
+- Package/runtime constraints source of truth: `pyproject.toml` (mirror into `requirements.in` for the pip/legacy path)

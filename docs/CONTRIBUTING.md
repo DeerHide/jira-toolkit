@@ -9,7 +9,8 @@ git clone https://github.com/YOUR_USERNAME/jira-toolkit.git
 cd jira-toolkit
 git remote add upstream https://github.com/DeerHide/jira-toolkit.git
 poetry install --extras dev
-# Includes the non-optional pyinstaller group so local binary builds work
+# Includes the non-optional pyinstaller group so local binary builds work.
+# Pip lock path (requirements.*) is for legacy build.py — keep synced with pyproject.toml.
 # Make git blame skip known formatting-only commits
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
@@ -56,7 +57,8 @@ poetry run ruff format src tests
 - Keep docs aligned with code sources of truth:
   - CLI options: `src/jira_importer/app.py`
   - Build profiles: `build/configs/profiles.json`
-  - Runtime/package constraints: `pyproject.toml`
+  - Runtime/package constraints: `pyproject.toml` (primary); mirror floors into `requirements.in` when they change
+  - Setup and dual install/build paths: `docs/DEV.md`
 
 ## Blame and formatting commits
 

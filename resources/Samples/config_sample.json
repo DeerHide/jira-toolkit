@@ -9,19 +9,38 @@
       "site_address": "https://deerhide.atlassian.net"
     },
     "issuetypes": [
-      { "name": "Initiative", "level": 1 },
-      { "name": "Epic", "level": 2 },
-      { "name": "Story", "level": 3 },
-      { "name": "Task", "level": 3 },
-      { "name": "Bug", "level": 3 },
-      { "name": "Sub-Task", "level": 4 }
+      {
+        "name": "Initiative",
+        "level": 1
+      },
+      {
+        "name": "Epic",
+        "level": 2
+      },
+      {
+        "name": "Story",
+        "level": 3
+      },
+      {
+        "name": "Task",
+        "level": 3
+      },
+      {
+        "name": "Bug",
+        "level": 3
+      },
+      {
+        "name": "Sub-Task",
+        "level": 4
+      }
     ],
     "priorities": [
       "Highest",
       "High",
       "Medium",
       "Low",
-      "Lowest"
+      "Lowest",
+      "Triage"
     ],
     "project": {
       "key": "JITTP2"
@@ -39,11 +58,26 @@
       "Localization"
     ],
     "assignees": [
-      { "name": "joe.grunt", "id": "712020:09876543212345678901" },
-      { "name": "john.doe", "id": "712020:09876543212345678902" },
-      { "name": "jane.smith", "id": "712020:09876543212345678903" },
-      { "name": "Alice A", "id": "712020:09876543212345678904" },
-      { "name": "Bob B", "id": "712020:09876543212345678905" }
+      {
+        "name": "joe.grunt",
+        "id": "712020:09876543212345678901"
+      },
+      {
+        "name": "john.doe",
+        "id": "712020:09876543212345678902"
+      },
+      {
+        "name": "jane.smith",
+        "id": "712020:09876543212345678903"
+      },
+      {
+        "name": "Alice A",
+        "id": "712020:09876543212345678904"
+      },
+      {
+        "name": "Bob B",
+        "id": "712020:09876543212345678905"
+      }
     ]
   },
   "metadata": {

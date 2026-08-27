@@ -39,6 +39,18 @@ class IssueType:
                 details={"field": "level", "value": self.level, "min": LEVEL_1_INITIATIVE, "max": LEVEL_4_SUBTASK},
             )
 
+    @staticmethod
+    def default_level_for_name(name: str) -> int:
+        """Return the default hierarchy level for a common issue type name."""
+        name_lower = name.lower()
+        if name_lower in INITIATIVE_NAMES:
+            return LEVEL_1_INITIATIVE
+        if name_lower in EPIC_NAMES:
+            return LEVEL_2_EPIC
+        if name_lower in SUBTASK_NAMES:
+            return LEVEL_4_SUBTASK
+        return LEVEL_3_STORY
+
 
 @dataclass
 class IssueTypesConfig:
@@ -123,7 +135,7 @@ class IssueTypesConfig:
             for name in old_issue_types:
                 if isinstance(name, str) and name.strip():
                     # Map common names to appropriate levels
-                    level = _get_default_level_for_name(name.strip())
+                    level = IssueType.default_level_for_name(name.strip())
                     issuetypes.append(IssueType(name=name.strip(), level=level))
 
             if issuetypes:
@@ -137,23 +149,3 @@ class IssueTypesConfig:
             level = int(level_value) if isinstance(level_value, (int, str)) else LEVEL_3_STORY
             default_issuetypes.append(IssueType(name=name, level=level))
         return cls(issuetypes=default_issuetypes)
-
-
-def _get_default_level_for_name(name: str) -> int:
-    """Get default level for common issue type names."""
-    name_lower = name.lower()
-
-    # Level 1 (highest)
-    if name_lower in INITIATIVE_NAMES:
-        return LEVEL_1_INITIATIVE
-
-    # Level 2 (epic level)
-    if name_lower in EPIC_NAMES:
-        return LEVEL_2_EPIC
-
-    # Level 4 (sub-task level)
-    if name_lower in SUBTASK_NAMES:
-        return LEVEL_4_SUBTASK
-
-    # Level 3 (default for story, task, bug, etc.)
-    return LEVEL_3_STORY

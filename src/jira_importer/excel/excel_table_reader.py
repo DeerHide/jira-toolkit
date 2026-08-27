@@ -24,6 +24,7 @@ from ..config.config_models import (
     SprintConfig,
     TeamConfig,
 )
+from ..config.constants import LEVEL_1_INITIATIVE, LEVEL_4_SUBTASK
 from ..errors import ConfigurationError
 from .excel_io import ExcelWorkbookManager
 
@@ -203,9 +204,10 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
         for row in table_data:
             name = self._get_cell_value(row, "IssueType.Name")
+            level = ExcelTableReader._parse_issue_type_level(self._get_cell_value(row, "IssueType.Level"))
 
             if name:
-                issue_types.append(IssueTypeConfig(name=str(name)))
+                issue_types.append(IssueTypeConfig(name=str(name), level=level))
             else:
                 logger.warning(f"Skipping incomplete issue type row: {row}")
 
@@ -410,6 +412,47 @@ class ExcelTableReader:  # pylint: disable=too-few-public-methods
 
         logger.debug(f"Read {len(settings)} settings from {table_name} table")
         return settings
+
+    @staticmethod
+    def _parse_issue_type_level(raw: Any) -> int | None:
+        """Parse optional IssueType.Level from an Excel cell.
+
+        Invalid or out-of-range values return None so callers can fall back to
+        name-based default levels. Unlike `_coerce_setting_value`, this does not raise.
+
+        Args:
+            raw: Raw cell value (int, float, or numeric string).
+
+        Returns:
+            Hierarchy level between 1 and 4, or None when absent/invalid.
+        """
+        if raw is None:
+            return None
+        if isinstance(raw, bool):
+            return None
+
+        level: int | None
+        if isinstance(raw, int):
+            level = raw
+        elif isinstance(raw, float) and raw.is_integer():
+            level = int(raw)
+        else:
+            text = str(raw).strip()
+            if not text:
+                return None
+            try:
+                level = int(text)
+            except ValueError:
+                logger.warning(f"Ignoring invalid IssueType.Level value: {raw!r}")
+                return None
+
+        if not LEVEL_1_INITIATIVE <= level <= LEVEL_4_SUBTASK:
+            logger.warning(
+                f"Ignoring out-of-range IssueType.Level value: {raw!r} "
+                f"(expected {LEVEL_1_INITIATIVE}-{LEVEL_4_SUBTASK})"
+            )
+            return None
+        return level
 
     @staticmethod
     def _coerce_setting_value(

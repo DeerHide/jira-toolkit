@@ -77,6 +77,53 @@ class TestIssueTypeAllowedRuleCaseInsensitive:
         assert result.problems[0].code == "issuetype.invalid"
 
 
+class TestIssueTypeAllowedRuleUsesConfig:
+    """Issue type allow-list comes from config, including custom types such as Initiative."""
+
+    def test_accepts_initiative_from_config(self) -> None:
+        """'initiative' is valid when declared in jira.issuetypes."""
+        cfg_get: Callable[[str, Any], Any] = lambda k, d=None: (
+            [
+                {"name": "Story", "level": 3},
+                {"name": "Task", "level": 3},
+                {"name": "Bug", "level": 3},
+                {"name": "Epic", "level": 2},
+                {"name": "Sub-Task", "level": 4},
+                {"name": "Initiative", "level": 1},
+            ]
+            if k == "jira.issuetypes"
+            else d
+        )
+        rule = IssueTypeAllowedRule()
+        row: list[Any] = ["Summary", "High", "initiative"]
+        indices = ColumnIndices(summary=0, priority=1, issuetype=2)
+        ctx = _make_ctx(cfg_get)
+
+        result = rule.apply(row, indices, ctx)
+
+        assert result.problems == ()
+
+    def test_rejects_undeclared_issuetype_when_config_lists_types(self) -> None:
+        """Types omitted from jira.issuetypes remain invalid."""
+        cfg_get: Callable[[str, Any], Any] = lambda k, d=None: (
+            [
+                {"name": "Story", "level": 3},
+                {"name": "Task", "level": 3},
+            ]
+            if k == "jira.issuetypes"
+            else d
+        )
+        rule = IssueTypeAllowedRule()
+        row: list[Any] = ["Summary", "High", "Bug"]
+        indices = ColumnIndices(summary=0, priority=1, issuetype=2)
+        ctx = _make_ctx(cfg_get)
+
+        result = rule.apply(row, indices, ctx)
+
+        assert len(result.problems) == 1
+        assert result.problems[0].code == "issuetype.invalid"
+
+
 class TestPriorityAllowedRuleCaseInsensitive:
     """Priority validation is case-insensitive (matches Jira API behavior)."""
 
@@ -136,3 +183,21 @@ class TestPriorityAllowedRuleCaseInsensitive:
 
         assert len(result.problems) == 1
         assert result.problems[0].code == "priority.invalid"
+
+
+class TestPriorityAllowedRuleUsesConfig:
+    """Priority allow-list comes from jira.priorities, including custom values such as Triage."""
+
+    def test_accepts_triage_from_config(self) -> None:
+        """'Triage' is valid when declared in jira.priorities."""
+        cfg_get: Callable[[str, Any], Any] = lambda k, d=None: (
+            ["Highest", "High", "Medium", "Low", "Lowest", "Triage"] if k == "jira.priorities" else d
+        )
+        rule = PriorityAllowedRule()
+        row: list[Any] = ["Summary", "Triage", "Task"]
+        indices = ColumnIndices(summary=0, priority=1, issuetype=2)
+        ctx = _make_ctx(cfg_get)
+
+        result = rule.apply(row, indices, ctx)
+
+        assert result.problems == ()

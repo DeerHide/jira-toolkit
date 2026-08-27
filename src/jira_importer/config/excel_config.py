@@ -16,6 +16,7 @@ from ..errors.config import ConfigValidationPolicy
 from ..excel.excel_io import ExcelWorkbookManager
 from ..excel.excel_table_reader import ExcelTableReader
 from .config_models import ExcelTableConfig, SettingConfig
+from .models.issuetypes import IssueType
 
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
@@ -217,6 +218,11 @@ class ExcelConfiguration:
                 if auto_field_match:
                     value = auto_field_match.value
 
+        if value is None:
+            table_value = self._get_table_backed_value(key)
+            if table_value is not None:
+                value = table_value
+
         # If value is still None after checking auto_field_values, return default
         if value is None:
             return default
@@ -273,6 +279,49 @@ class ExcelConfiguration:
                 return None
 
         return current
+
+    def _get_table_backed_value(self, key: str) -> Any:
+        """Resolve validation lists from Excel tables when JSON-style keys are absent.
+
+        CfgIssueTypes and CfgPriorities are loaded into table_config, but validation
+        rules look up `jira.issuetypes` / `jira.priorities` via config.get(). Map those
+        tables onto the keys the rules already understand.
+        """
+        if self.table_config is None:
+            return None
+
+        if key in {"jira.issuetypes", "jira.validation.issue_types"}:
+            payload = self._issue_types_from_table()
+            if not payload:
+                return None
+            if key == "jira.issuetypes":
+                return payload
+            return [item["name"] for item in payload]
+
+        if key == "jira.priorities":
+            names = self._priority_names_from_table()
+            return names or None
+
+        return None
+
+    def _issue_types_from_table(self) -> list[dict[str, Any]]:
+        """Map CfgIssueTypes rows to the jira.issuetypes list expected by validation."""
+        if self.table_config is None:
+            return []
+        payload: list[dict[str, Any]] = []
+        for item in self.table_config.issue_types or []:
+            name = str(item.name).strip()
+            if not name:
+                continue
+            level = item.level if item.level is not None else IssueType.default_level_for_name(name)
+            payload.append({"name": name, "level": level})
+        return payload
+
+    def _priority_names_from_table(self) -> list[str]:
+        """Map CfgPriorities rows to the jira.priorities list expected by validation."""
+        if self.table_config is None:
+            return []
+        return [name.strip() for name in self.table_config.get_all_priority_names() if str(name).strip()]
 
     def _redacted_content(self) -> dict[str, Any]:
         """Return a redacted copy of the configuration for safe logging."""

@@ -50,6 +50,7 @@ class IssueTypeConfig:
     """Configuration for issue type mapping."""
 
     name: str
+    level: int | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -521,7 +522,7 @@ class ExcelTableConfig:  # pylint: disable=too-many-instance-attributes
             "sprints": [{"name": s.name, "id": s.id} for s in (self.sprints or [])],
             "fix_versions": [{"name": f.name} for f in (self.fix_versions or [])],
             "components": [{"name": c.name} for c in (self.components or [])],
-            "issue_types": [{"name": i.name} for i in (self.issue_types or [])],
+            "issue_types": [{"name": i.name, "level": i.level} for i in (self.issue_types or [])],
             "ignore_list": [{"name": i.name} for i in (self.ignore_list or [])],
             "priorities": [{"name": p.name} for p in (self.priorities or [])],
             "auto_field_values": [{"name": a.name, "value": a.value} for a in (self.auto_field_values or [])],

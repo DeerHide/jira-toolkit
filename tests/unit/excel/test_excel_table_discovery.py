@@ -21,16 +21,28 @@ def _active_ws(wb: Workbook) -> Worksheet:
     return cast("Worksheet", ws)
 
 
-def _write_table(ws: Worksheet, table_name: str, headers: list[str], row_values: list[Any], start_row: int = 1) -> None:
+def _write_table_rows(
+    ws: Worksheet,
+    table_name: str,
+    headers: list[str],
+    rows: list[list[Any]],
+    start_row: int = 1,
+) -> None:
+    """Write an Excel table with one or more data rows starting at column A."""
     for col_idx, header in enumerate(headers, start=1):
         ws.cell(row=start_row, column=col_idx, value=header)
-    for col_idx, value in enumerate(row_values, start=1):
-        ws.cell(row=start_row + 1, column=col_idx, value=value)
-
+    for row_offset, row_values in enumerate(rows):
+        for col_idx, value in enumerate(row_values, start=1):
+            ws.cell(row=start_row + 1 + row_offset, column=col_idx, value=value)
     end_col_letter = chr(ord("A") + len(headers) - 1)
-    table_ref = f"A{start_row}:{end_col_letter}{start_row + 1}"
+    end_row = start_row + max(len(rows), 1)
+    table_ref = f"A{start_row}:{end_col_letter}{end_row}"
     table = Table(displayName=table_name, ref=table_ref)
     ws.add_table(table)
+
+
+def _write_table(ws: Worksheet, table_name: str, headers: list[str], row_values: list[Any], start_row: int = 1) -> None:
+    _write_table_rows(ws, table_name, headers, [row_values], start_row=start_row)
 
 
 def _save_workbook(path: Path, setup: Any) -> None:
@@ -198,6 +210,156 @@ def test_excel_table_reader_uses_indexed_discovery_for_default_config(tmp_path: 
         assert tables.auto_field_values[0].name == "jira.connection.timeout"
     finally:
         manager.close()
+
+
+def test_excel_table_reader_reads_issue_type_levels(tmp_path: Path) -> None:
+    """CfgIssueTypes should capture IssueType.Level when the column is present."""
+    file_path = tmp_path / "issue_type_levels.xlsx"
+
+    def setup(wb: Workbook) -> None:
+        ws = _active_ws(wb)
+        ws.title = "Config_Main"
+        _write_table(ws, "CfgAssignees", ["Assignee.Name", "Assignee.ID"], ["Ann", "acc-10"])
+        _write_table_rows(
+            ws,
+            "CfgIssueTypes",
+            ["IssueType.Name", "IssueType.Level"],
+            [["Story", 3], ["Initiative", 1]],
+            start_row=4,
+        )
+        _write_table(ws, "CfgIgnoreList", ["IgnoreList.Name"], ["note"], start_row=8)
+        _write_table(ws, "CfgPriorities", ["Priority.Name"], ["High"], start_row=11)
+        _write_table(ws, "CfgAutofieldValues", ["Name", "Value"], ["jira.connection.timeout", "30"], start_row=14)
+
+    _save_workbook(file_path, setup)
+
+    manager = ExcelWorkbookManager(file_path)
+    manager.load()
+    try:
+        reader = ExcelTableReader(manager)
+        tables = reader.read_all_tables()
+        by_name = {item.name: item.level for item in tables.issue_types}
+        assert by_name["Story"] == 3
+        assert by_name["Initiative"] == 1
+    finally:
+        manager.close()
+
+
+def test_excel_table_reader_ignores_out_of_range_issue_type_level(tmp_path: Path) -> None:
+    """Out-of-range IssueType.Level is stored as None so name-based defaults apply."""
+    file_path = tmp_path / "issue_type_bad_level.xlsx"
+
+    def setup(wb: Workbook) -> None:
+        ws = _active_ws(wb)
+        ws.title = "Config_Main"
+        _write_table(ws, "CfgAssignees", ["Assignee.Name", "Assignee.ID"], ["Ann", "acc-10"])
+        _write_table_rows(
+            ws,
+            "CfgIssueTypes",
+            ["IssueType.Name", "IssueType.Level"],
+            [["Story", 3], ["Initiative", 99]],
+            start_row=4,
+        )
+        _write_table(ws, "CfgIgnoreList", ["IgnoreList.Name"], ["note"], start_row=8)
+        _write_table(ws, "CfgPriorities", ["Priority.Name"], ["High"], start_row=11)
+        _write_table(ws, "CfgAutofieldValues", ["Name", "Value"], ["jira.connection.timeout", "30"], start_row=14)
+
+    _save_workbook(file_path, setup)
+
+    manager = ExcelWorkbookManager(file_path)
+    manager.load()
+    try:
+        reader = ExcelTableReader(manager)
+        tables = reader.read_all_tables()
+        by_name = {item.name: item.level for item in tables.issue_types}
+        assert by_name["Story"] == 3
+        assert by_name["Initiative"] is None
+    finally:
+        manager.close()
+
+    config = ExcelConfiguration(str(file_path), config_sheet="Config", cfg_req=7)
+    try:
+        issuetypes = config.get_value("jira.issuetypes")
+        assert isinstance(issuetypes, list)
+        initiative = next(item for item in issuetypes if item["name"] == "Initiative")
+        assert initiative["level"] == 1
+    finally:
+        config.close()
+
+
+class TestParseIssueTypeLevel:
+    """ExcelTableReader._parse_issue_type_level coerces cells and rejects invalid levels."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            (None, None),
+            ("", None),
+            (True, None),
+            (3, 3),
+            (3.0, 3),
+            ("2", 2),
+            (1, 1),
+            (4, 4),
+            (0, None),
+            (5, None),
+            (99, None),
+            ("abc", None),
+        ],
+    )
+    def test_parse_issue_type_level(self, raw: object, expected: int | None) -> None:
+        """Parse valid levels and ignore missing, non-numeric, or out-of-range values."""
+        assert ExcelTableReader._parse_issue_type_level(raw) == expected
+
+
+def test_excel_configuration_exposes_table_issue_types_and_priorities(tmp_path: Path) -> None:
+    """Validation keys must resolve from CfgIssueTypes / CfgPriorities, not hardcoded defaults."""
+    file_path = tmp_path / "table_backed_lookups.xlsx"
+
+    def setup(wb: Workbook) -> None:
+        ws = _active_ws(wb)
+        ws.title = "cfg-main"
+        _write_table(ws, "CfgAssignees", ["Assignee.Name", "Assignee.ID"], ["Ann", "acc-10"])
+        _write_table_rows(
+            ws,
+            "CfgIssueTypes",
+            ["IssueType.Name", "IssueType.Level"],
+            [
+                ["Story", 3],
+                ["Task", 3],
+                ["Bug", 3],
+                ["Epic", 2],
+                ["Sub-task", 4],
+                ["Initiative", 1],
+            ],
+            start_row=4,
+        )
+        _write_table(ws, "CfgIgnoreList", ["IgnoreList.Name"], ["note"], start_row=12)
+        _write_table_rows(
+            ws,
+            "CfgPriorities",
+            ["Priority.Name"],
+            [["Highest"], ["High"], ["Medium"], ["Low"], ["Lowest"], ["Triage"]],
+            start_row=15,
+        )
+        _write_table(ws, "CfgAutofieldValues", ["Name", "Value"], ["metadata.version", "8"], start_row=23)
+
+    _save_workbook(file_path, setup)
+
+    config = ExcelConfiguration(str(file_path), config_sheet="Config", cfg_req=7)
+    try:
+        issuetypes = config.get_value("jira.issuetypes")
+        assert isinstance(issuetypes, list)
+        names = {item["name"] for item in issuetypes}
+        assert "Initiative" in names
+        initiative = next(item for item in issuetypes if item["name"] == "Initiative")
+        assert initiative["level"] == 1
+
+        priorities = config.get_value("jira.priorities")
+        assert isinstance(priorities, list)
+        assert "Triage" in priorities
+    finally:
+        config.close()
 
 
 def test_indexed_text_table_found_with_no_rows_is_valid_empty(tmp_path: Path) -> None:

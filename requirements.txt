@@ -84,7 +84,7 @@ rich==15.0.0
     #   rich-argparse
 rich-argparse==1.7.1
     # via -r requirements.in
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -r requirements.in
     #   requests

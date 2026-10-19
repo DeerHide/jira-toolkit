@@ -18,12 +18,14 @@ colorama==0.4.6 ; platform_system == "Windows"
     #   colorlog
 colorlog==6.10.1
     # via -r requirements.in
-distlib==0.4.0
+distlib==0.4.4
     # via virtualenv
 et-xmlfile==2.0.0
     # via openpyxl
-filelock==3.20.3
-    # via virtualenv
+filelock==4.2.0
+    # via
+    #   python-discovery
+    #   virtualenv
 identify==2.6.15
     # via pre-commit
 idna==3.18
@@ -54,6 +56,7 @@ packaging==25.0
     # via
     #   pyinstaller
     #   pyinstaller-hooks-contrib
+    #   virtualenv
 pefile==2024.8.26 ; platform_system == "Windows"
     # via
     #   -r requirements.in
@@ -70,6 +73,8 @@ pyinstaller-hooks-contrib==2026.6
     # via
     #   -r requirements.in
     #   pyinstaller
+python-discovery==1.6.3
+    # via virtualenv
 pywin32-ctypes==0.2.3
     # via
     #   keyring
@@ -84,12 +89,14 @@ rich==15.0.0
     #   rich-argparse
 rich-argparse==1.7.1
     # via -r requirements.in
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   -r requirements.in
     #   requests
-virtualenv==20.36.1
-    # via pre-commit
+virtualenv==21.14.5
+    # via
+    #   -r requirements.in
+    #   pre-commit
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools

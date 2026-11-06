@@ -17,6 +17,7 @@ dependencies = [
     "requests>=2.33.0",
     "urllib3>=2.8.0",
     "idna>=3.15",
+    "certifi>=2026.10.19",
     "keyring>=25.7.0",
     "colorama>=0.4.0; platform_system == 'Windows'",
 ]
@@ -24,7 +25,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pre-commit>=3.0.0",
-    "virtualenv>=21.7.13",
+    "virtualenv>=21.14.13",
+    "filelock>=4.2.1",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "mypy>=2.3.0",
